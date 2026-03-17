@@ -1,0 +1,48 @@
+# 用户数据与运行时
+.rssany/
+
+# 依赖与构建
+node_modules/
+modules/
+
+# 环境与密钥
+.env
+.env.local
+.env.*.local
+
+# 日志与缓存
+*.log
+npm-debug.log*
+.npm
+.cache
+
+# 构建产物
+dist/
+build/
+out/
+*.tsbuildinfo
+
+# Svelte / SvelteKit
+.svelte-kit/
+vite.config.js.timestamp-*
+vite.config.ts.timestamp-*
+
+# 编辑器与系统
+.DS_Store
+__MACOSX/
+Thumbs.db
+*.swp
+*.swo
+.idea/
+.vscode/
+*.suo
+*.user
+
+# 测试与覆盖率
+coverage/
+.nyc_output/
+
+# 临时文件
+tmp/
+temp/
+*.tmp

@@ -1,0 +1,55 @@
+// Feeder 配置与返回类型 + RSS 2.0 输出结构
+
+import type { FeedItem } from "../types/feedItem.js";
+import type { RefreshInterval } from "../utils/refreshInterval.js";
+
+
+/** RSS 2.0 频道（用于 buildRssXml） */
+export interface RssChannel {
+  title: string;
+  link: string;
+  description?: string;
+  language?: string;
+}
+
+/** RSS 2.0 条目（用于 buildRssXml）；imageUrl 输出为 <enclosure> */
+export interface RssEntry {
+  title: string;
+  link: string;
+  description: string;
+  guid?: string;
+  published?: string;
+  /** 配图 URL，输出为 <enclosure type="image/*" length="0"> */
+  imageUrl?: string;
+  /** enclosure 的 MIME 类型，默认 image/jpeg */
+  imageType?: string;
+}
+
+
+export interface FeederConfig {
+  /** 缓存目录，feeds 缓存写入 cacheDir/feeds/ */
+  cacheDir?: string;
+  /** 是否抓取详情正文，默认 true；列表会立即返回，详情在后台补全并更新缓存 */
+  includeContent?: boolean;
+  /** 是否使用无头浏览器，默认 true；设为 false 时使用有头浏览器（可视化） */
+  headless?: boolean;
+  /** 调用方传入的 cron 表达式：有值时优先于 refreshInterval，缓存键策略由 cron 派生 */
+  cron?: string;
+  /** 调用方传入的有效时间窗口覆盖：cron 未设时使用，覆盖 source 声明 */
+  refreshInterval?: RefreshInterval;
+  /** 调用方传入的代理覆盖：优先级最高，覆盖 source 声明 */
+  proxy?: string;
+  /** 为 true 时写入数据库（upsertItems / updateItemContent），默认不写入 */
+  writeDb?: boolean;
+  /** 目标语种（BCP 47，如 zh-CN、en）；有值时 RSS/API 优先使用 item.translations[lng] */
+  lng?: string;
+  /** 为 true 时跳过 generatingKeys 去重，强制发起独立抓取（手动触发时使用） */
+  force?: boolean;
+}
+
+
+/** getItems 返回类型 */
+export interface GetItemsResult {
+  items: FeedItem[];
+  fromCache: boolean;
+}

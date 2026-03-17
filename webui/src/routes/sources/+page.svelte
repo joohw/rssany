@@ -1,0 +1,1131 @@
+<script lang="ts">
+  /// <reference path="../../lucide-svelte.d.ts" />
+  import { onMount } from 'svelte';
+  import { Puzzle } from 'lucide-svelte';
+  import RefreshCw from 'lucide-svelte/icons/refresh-cw';
+  import ExternalLink from 'lucide-svelte/icons/external-link';
+  import Pencil from 'lucide-svelte/icons/pencil';
+  import Code2 from 'lucide-svelte/icons/code-2';
+  import Trash2 from 'lucide-svelte/icons/trash-2';
+  import Plus from 'lucide-svelte/icons/plus';
+  import MoreHorizontal from 'lucide-svelte/icons/more-horizontal';
+  import Trash from 'lucide-svelte/icons/trash';
+  import { Dialog, Popover } from 'bits-ui';
+  import { refToTaskId, setPulling, clearPulling } from '$lib/sourcePullStore.js';
+
+  interface SubscriptionSource {
+    ref: string;
+    type?: string;
+    label?: string;
+    description?: string;
+    refresh?: string;
+    cron?: string;
+    proxy?: string;
+    weight?: number;
+  }
+
+  interface SourceCard {
+    ref: string;
+    displayLabel: string;
+    description?: string;
+    count: number;
+    latestAt: string | null;
+    feedsHref: string;
+    pluginId: string | null;
+    weight: number;
+  }
+
+  type SortMode = 'alpha' | 'count' | 'weight';
+  const SORT_OPTIONS: { value: SortMode; label: string }[] = [
+    { value: 'weight', label: '重要性' },
+    { value: 'count',  label: '文章数量' },
+    { value: 'alpha',  label: '首字母' },
+  ];
+  const REFRESH_OPTIONS = [
+    { value: '', label: '默认（跟随插件）' },
+    { value: '10min', label: '10 分钟' },
+    { value: '30min', label: '30 分钟' },
+    { value: '1h',    label: '1 小时' },
+    { value: '6h',    label: '6 小时' },
+    { value: '12h',   label: '12 小时' },
+    { value: '1day',  label: '1 天' },
+    { value: '3day',  label: '3 天' },
+    { value: '7day',  label: '7 天' },
+  ];
+
+  // ── 列表状态 ──────────────────────────────────────────
+  let rawSources: SubscriptionSource[] = [];
+  let cards: SourceCard[] = [];
+  let loading = true;
+  let loadError = '';
+  let filterQuery = '';
+  let sortBy: SortMode = 'weight';
+  let showSortPopover = false;
+  let confirmDelete = false;
+  let editingOriginalRef = '';
+  /** 当前打开「更多」菜单的 card.ref，用于每行一个 Popover */
+  let openMoreRef: string | null = null;
+  let clearingRef: string | null = null;
+
+  // ── 弹窗状态 ──────────────────────────────────────────
+  let showModal = false;
+  let isEditing = false;
+  let saving = false;
+  let saveError = '';
+
+  let formRef = '';
+  let formLabel = '';
+  let formDescription = '';
+  let formWeight = 0;
+  let formRefresh = '';
+  let formProxy = '';
+  /** 添加/编辑时，当前 Ref 匹配到的插件 id（仅提示用） */
+  let formRefPluginId: string | null = null;
+  let _pluginMatchTimeout: ReturnType<typeof setTimeout> | null = null;
+  $: formRef, debouncePluginMatch(formRef);
+
+  /** 用于 plugin-match 的 ref：无协议时补 https://，便于后端 listUrlPattern 匹配 */
+  function normalizeRefForMatch(ref: string): string {
+    const r = ref?.trim() ?? '';
+    if (!r) return r;
+    const lower = r.toLowerCase();
+    if (
+      lower.startsWith('http://') ||
+      lower.startsWith('https://') ||
+      lower.startsWith('imaps://') ||
+      lower.startsWith('lingowhale://')
+    )
+      return r;
+    return 'https://' + r;
+  }
+
+  function debouncePluginMatch(ref: string) {
+    if (_pluginMatchTimeout) clearTimeout(_pluginMatchTimeout);
+    const r = ref?.trim();
+    if (!r) {
+      formRefPluginId = null;
+      return;
+    }
+    formRefPluginId = null;
+    const refToSend = normalizeRefForMatch(r);
+    _pluginMatchTimeout = setTimeout(async () => {
+      _pluginMatchTimeout = null;
+      try {
+        const res = await fetch('/api/sources/plugin-match', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ refs: [refToSend] }),
+        });
+        if (res.ok) {
+          const data = (await res.json()) as Record<string, string | null>;
+          if (normalizeRefForMatch(formRef.trim()) === refToSend) {
+            formRefPluginId = data[refToSend] ?? null;
+          }
+        }
+      } catch {
+        if (normalizeRefForMatch(formRef.trim()) === refToSend) formRefPluginId = null;
+      }
+    }, 400);
+  }
+
+  // ── 排序 ─────────────────────────────────────────────
+  function sortCards(list: SourceCard[], mode: SortMode): SourceCard[] {
+    return [...list].sort((a, b) => {
+      if (mode === 'weight') {
+        const diff = b.weight - a.weight;
+        return diff !== 0 ? diff : a.displayLabel.localeCompare(b.displayLabel);
+      }
+      if (mode === 'count') {
+        const diff = b.count - a.count;
+        return diff !== 0 ? diff : a.displayLabel.localeCompare(b.displayLabel);
+      }
+      return a.displayLabel.localeCompare(b.displayLabel);
+    });
+  }
+
+  $: filteredCards = sortCards(
+    filterQuery.trim()
+      ? cards.filter((c) => {
+          const q = filterQuery.trim().toLowerCase();
+          return (
+            c.displayLabel.toLowerCase().includes(q) ||
+            (c.description?.toLowerCase().includes(q) ?? false) ||
+            c.ref.toLowerCase().includes(q)
+          );
+        })
+      : cards,
+    sortBy
+  );
+
+  // ── 数据加载 ──────────────────────────────────────────
+  async function load() {
+    loading = true;
+    loadError = '';
+    try {
+      const [sourcesRes, statsRes] = await Promise.all([
+        fetch('/api/sources/raw'),
+        fetch('/api/sources/stats'),
+      ]);
+      const raw = await sourcesRes.text();
+      const data = JSON.parse(raw || '{}') as { sources?: SubscriptionSource[] };
+      rawSources = Array.isArray(data.sources) ? data.sources : [];
+
+      const statsArr = statsRes.ok
+        ? (await statsRes.json() as { source_url: string; count: number; latest_at?: string | null }[])
+        : [];
+      const statsMap = new Map(statsArr.map((s) => [s.source_url, { count: s.count, latestAt: s.latest_at ?? null }]));
+
+      const refs = rawSources.filter((s) => s?.ref?.trim()).map((s) => s.ref.trim());
+      let pluginMap: Record<string, string | null> = {};
+      if (refs.length > 0) {
+        try {
+          const matchRes = await fetch('/api/sources/plugin-match', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ refs }),
+          });
+          if (matchRes.ok) pluginMap = (await matchRes.json()) as Record<string, string | null>;
+        } catch { /* ignore */ }
+      }
+
+      cards = rawSources
+        .filter((s) => s?.ref?.trim())
+        .map((s) => {
+          const ref = s.ref.trim();
+          const stat = statsMap.get(ref);
+          return {
+            ref,
+            displayLabel: (s.label && s.label.trim()) || ref,
+            description: s.description?.trim(),
+            count: stat?.count ?? 0,
+            latestAt: stat?.latestAt ?? null,
+            feedsHref: '/feeds?ref=' + encodeURIComponent(ref) + '&days=0',
+            pluginId: pluginMap[ref] ?? null,
+            weight: s.weight ?? 0,
+          };
+        });
+    } catch (e) {
+      loadError = e instanceof Error ? e.message : String(e);
+      cards = [];
+    } finally {
+      loading = false;
+    }
+  }
+
+  // ── 持久化 ────────────────────────────────────────────
+  async function persistSources(list: SubscriptionSource[]): Promise<boolean> {
+    const res = await fetch('/api/sources/raw', {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ sources: list }),
+    });
+    return res.ok;
+  }
+
+  // ── 弹窗：打开/关闭 ───────────────────────────────────
+  function openAdd() {
+    isEditing = false;
+    formRef = '';
+    formLabel = '';
+    formDescription = '';
+    formWeight = 0;
+    formRefresh = '';
+    formProxy = '';
+    saveError = '';
+    showModal = true;
+  }
+
+  function openEdit(card: SourceCard) {
+    const src = rawSources.find((s) => s.ref === card.ref);
+    isEditing = true;
+    editingOriginalRef = card.ref;
+    formRef = card.ref;
+    formLabel = src?.label ?? '';
+    formDescription = src?.description ?? '';
+    formWeight = src?.weight ?? 0;
+    formRefresh = src?.refresh ?? '';
+    formProxy = src?.proxy ?? '';
+    saveError = '';
+    confirmDelete = false;
+    showModal = true;
+  }
+
+  function closeModal() {
+    showModal = false;
+    confirmDelete = false;
+  }
+
+  // ── 保存（新增 or 编辑） ───────────────────────────────
+  async function saveSource() {
+    const ref = formRef.trim();
+    if (!ref) { saveError = 'ref 不能为空'; return; }
+    saving = true;
+    saveError = '';
+    try {
+      const item: SubscriptionSource = {
+        ref,
+        ...(formLabel.trim()       ? { label:       formLabel.trim() }       : {}),
+        ...(formDescription.trim() ? { description: formDescription.trim() } : {}),
+        ...(formRefresh            ? { refresh:     formRefresh }             : {}),
+        ...(formProxy.trim()       ? { proxy:       formProxy.trim() }        : {}),
+        ...(formWeight !== 0       ? { weight:      formWeight }              : {}),
+      };
+      let updated: SubscriptionSource[];
+      if (isEditing) {
+        if (ref !== editingOriginalRef && rawSources.some((s) => s.ref === ref)) {
+          saveError = '该 ref 已存在';
+          return;
+        }
+        updated = rawSources.map((s) => (s.ref === editingOriginalRef ? { ...s, ...item } : s));
+      } else {
+        if (rawSources.some((s) => s.ref === ref)) {
+          saveError = '该 ref 已存在';
+          return;
+        }
+        updated = [...rawSources, item];
+      }
+      const ok = await persistSources(updated);
+      if (!ok) { saveError = '保存失败，请重试'; return; }
+      closeModal();
+      await load();
+    } catch (e) {
+      saveError = e instanceof Error ? e.message : String(e);
+    } finally {
+      saving = false;
+    }
+  }
+
+  // ── 删除 ──────────────────────────────────────────────
+  async function deleteSource() {
+    const updated = rawSources.filter((s) => s.ref !== editingOriginalRef);
+    await persistSources(updated);
+    closeModal();
+    await load();
+  }
+
+  // ── 拉取 ──────────────────────────────────────────────
+  async function pollTask(taskId: string): Promise<{ ok: boolean; error?: string }> {
+    for (let i = 0; i < 120; i++) {
+      const res = await fetch(`/api/tasks/${taskId}`);
+      if (!res.ok) return { ok: false, error: '轮询失败' };
+      const data = (await res.json()) as { status?: string; error?: string };
+      if (data.status === 'done') return { ok: true };
+      if (data.status === 'error') return { ok: false, error: data.error ?? '拉取失败' };
+      await new Promise((r) => setTimeout(r, 800));
+    }
+    return { ok: false, error: '超时' };
+  }
+
+  async function forcePull(ref: string, e: MouseEvent) {
+    e.preventDefault();
+    e.stopPropagation();
+    if (ref in $refToTaskId) return;
+    try {
+      const res = await fetch('/api/tasks', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ type: 'source-pull', ref }),
+      });
+      const data = (await res.json()) as { taskId?: string; error?: string };
+      if (!res.ok || !data.taskId) return;
+      setPulling(ref, data.taskId);
+      const result = await pollTask(data.taskId);
+      if (result.ok) await load();
+    } catch {
+      /* 错误已由后端 logger 记录 */
+    } finally {
+      clearPulling(ref);
+    }
+  }
+
+  function isHttpRef(ref: string): boolean {
+    const r = ref.trim().toLowerCase();
+    return r.startsWith('http://') || r.startsWith('https://');
+  }
+
+  /** 在新标签页打开 Admin Parse 页，用当前 ref 作为列表页 URL */
+  function openParse(ref: string, e: MouseEvent) {
+    e.preventDefault();
+    e.stopPropagation();
+    const fullUrl = ref.startsWith('http') ? ref : 'https://' + ref;
+    window.open('/admin/parse/' + encodeURIComponent(fullUrl), '_blank');
+  }
+
+  /** 清空该信源下所有已入库条目 */
+  async function clearSourceFeeds(ref: string) {
+    if (clearingRef) return;
+    if (!confirm(`确定要清空该信源下的所有条目吗？此操作不可恢复。`)) return;
+    clearingRef = ref;
+    openMoreRef = null;
+    try {
+      const res = await fetch('/api/items/by-source?source_url=' + encodeURIComponent(ref), { method: 'DELETE' });
+      const data = (await res.json()) as { ok?: boolean; deleted?: number; message?: string };
+      if (res.ok && data.ok) await load();
+      else if (!res.ok) alert(data.message ?? '清空失败');
+    } catch (e) {
+      alert(e instanceof Error ? e.message : '清空失败');
+    } finally {
+      clearingRef = null;
+    }
+  }
+
+  function formatLatest(iso: string | null): string {
+    if (!iso) return '';
+    try {
+      const d = new Date(iso);
+      if (Number.isNaN(d.getTime())) return '';
+      const y = d.getFullYear();
+      const m = String(d.getMonth() + 1).padStart(2, '0');
+      const day = String(d.getDate()).padStart(2, '0');
+      return `最近: ${y}-${m}-${day}`;
+    } catch { return ''; }
+  }
+
+  onMount(load);
+</script>
+
+<svelte:head>
+  <title>信源 - RssAny</title>
+</svelte:head>
+
+<!-- ── 弹窗 ────────────────────────────────────────────── -->
+<Dialog.Root
+  open={showModal}
+  onOpenChange={(open) => { showModal = open; if (!open) confirmDelete = false; }}
+>
+  <Dialog.Portal>
+    <Dialog.Overlay class="modal-overlay" />
+    <Dialog.Content class="modal" aria-describedby={undefined}>
+      <div class="modal-header">
+        <Dialog.Title class="modal-title">{isEditing ? '编辑信源' : '添加信源'}</Dialog.Title>
+        <Dialog.Close class="modal-close">✕</Dialog.Close>
+      </div>
+      <div class="modal-body">
+        <label class="field">
+          <span class="field-label">Ref <span class="required">*</span></span>
+          <div class="ref-input-wrap">
+            <input
+              class="field-input"
+              type="text"
+              placeholder="https://example.com/feed"
+              bind:value={formRef}
+            />
+            {#if formRefPluginId}
+              <span class="plugin-icon-inline" title="匹配插件: {formRefPluginId}">
+                <Puzzle size={16} />
+              </span>
+            {/if}
+          </div>
+        </label>
+        <label class="field">
+          <span class="field-label">名称</span>
+          <input class="field-input" type="text" placeholder="显示名称（留空则显示 ref）" bind:value={formLabel} />
+        </label>
+        <label class="field">
+          <span class="field-label">描述</span>
+          <input class="field-input" type="text" placeholder="简短说明" bind:value={formDescription} />
+        </label>
+        <div class="field-row">
+          <label class="field">
+            <span class="field-label">权重</span>
+            <input class="field-input" type="number" bind:value={formWeight} />
+          </label>
+          <label class="field">
+            <span class="field-label">刷新间隔</span>
+            <select class="field-input" bind:value={formRefresh}>
+              {#each REFRESH_OPTIONS as opt}
+                <option value={opt.value}>{opt.label}</option>
+              {/each}
+            </select>
+          </label>
+        </div>
+        <label class="field">
+          <span class="field-label">代理</span>
+          <input class="field-input" type="text" placeholder="http://127.0.0.1:7890" bind:value={formProxy} />
+        </label>
+        {#if saveError}
+          <p class="save-error">{saveError}</p>
+        {/if}
+      </div>
+      <div class="modal-footer">
+        <div class="modal-footer-left">
+          {#if isEditing}
+            {#if confirmDelete}
+              <span class="confirm-delete-row">
+                <span class="confirm-delete-text">确认删除？</span>
+                <button type="button" class="btn-confirm-yes" onclick={deleteSource} disabled={saving}>删除</button>
+                <button type="button" class="btn-confirm-no" onclick={() => (confirmDelete = false)}>取消</button>
+              </span>
+            {:else}
+              <button type="button" class="btn-delete" onclick={() => (confirmDelete = true)} disabled={saving}>
+                <Trash2 size={13} />
+                删除
+              </button>
+            {/if}
+          {/if}
+        </div>
+        <div class="modal-footer-right">
+          <Dialog.Close class="btn-cancel" disabled={saving}>取消</Dialog.Close>
+          <button type="button" class="btn-save" onclick={saveSource} disabled={saving}>
+            {saving ? '保存中…' : '保存'}
+          </button>
+        </div>
+      </div>
+    </Dialog.Content>
+  </Dialog.Portal>
+</Dialog.Root>
+
+<!-- ── 主界面 ─────────────────────────────────────────── -->
+<div class="feed-wrap">
+  <div class="feed-col">
+    <div class="feed-header">
+      <div class="feed-header-top">
+        <div>
+          <h2>信源</h2>
+          <p class="sub">已订阅的信源，点击查看已入库文章</p>
+        </div>
+        <div class="header-right">
+          <input
+            class="filter-input"
+            type="search"
+            placeholder="过滤…"
+            bind:value={filterQuery}
+          />
+          <Popover.Root bind:open={showSortPopover} onOpenChange={(v) => (showSortPopover = v)}>
+            <Popover.Trigger class="sort-btn" title="排序">
+              <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="3" y1="6" x2="21" y2="6"/><line x1="7" y1="12" x2="17" y2="12"/><line x1="11" y1="18" x2="13" y2="18"/></svg>
+              <span>排序</span>
+            </Popover.Trigger>
+            <Popover.Portal>
+              <Popover.Content class="dropdown-panel" sideOffset={4} align="end">
+                <div class="sort-options">
+                  {#each SORT_OPTIONS as opt}
+                    <button
+                      type="button"
+                      class="sort-option"
+                      class:active={sortBy === opt.value}
+                      onclick={() => { sortBy = opt.value; showSortPopover = false; }}
+                    >{opt.label}</button>
+                  {/each}
+                </div>
+              </Popover.Content>
+            </Popover.Portal>
+          </Popover.Root>
+          <button type="button" class="btn-add" title="添加信源" onclick={openAdd}>
+            <Plus size={14} />
+          </button>
+        </div>
+      </div>
+    </div>
+
+    {#if loading}
+      <div class="state">加载中…</div>
+    {:else if loadError}
+      <div class="state error">{loadError}</div>
+    {:else if cards.length === 0}
+      <div class="state">
+        暂无信源。<button type="button" class="link-btn" onclick={openAdd}>点击添加</button>第一个信源。
+      </div>
+    {:else if filteredCards.length === 0}
+      <div class="state">无匹配结果</div>
+    {:else}
+      <div class="list">
+        {#each filteredCards as card (card.ref)}
+          <div class="card">
+            <a class="card-link" href={card.feedsHref} target="_blank" rel="noopener" title={card.ref}>
+              <div class="card-main">
+                <span class="card-title-row">
+                  <span class="card-label">{card.displayLabel}</span>
+                  <span class="card-count">{card.count} 篇</span>
+                  {#if card.weight !== 0}
+                    <span class="card-weight" title="权重">★{card.weight}</span>
+                  {/if}
+                  {#if card.pluginId}
+                    <span class="plugin-icon" title="匹配插件: {card.pluginId}">
+                      <Puzzle size={14} />
+                    </span>
+                  {/if}
+                </span>
+                {#if card.description}
+                  <span class="card-desc">{card.description}</span>
+                {/if}
+                {#if card.latestAt}
+                  <span class="card-latest">{formatLatest(card.latestAt)}</span>
+                {/if}
+              </div>
+            </a>
+
+            <!-- 拉取 -->
+            <button
+              type="button"
+              class="btn-pull"
+              class:pulling={card.ref in $refToTaskId}
+              title="强制拉取"
+              disabled={card.ref in $refToTaskId}
+              onclick={(e) => forcePull(card.ref, e)}
+            >
+              <RefreshCw size={14} />
+              <span>{card.ref in $refToTaskId ? '拉取中…' : '拉取'}</span>
+            </button>
+            <!-- 更多（打开链接 / Parse / 编辑 / 清空该源条目） -->
+            <Popover.Root
+              open={openMoreRef === card.ref}
+              onOpenChange={(open) => { openMoreRef = open ? card.ref : null; }}
+            >
+              <Popover.Trigger
+                class="btn-icon"
+                title="更多"
+                onclick={(e) => e.stopPropagation()}
+              >
+                <MoreHorizontal size={13} />
+              </Popover.Trigger>
+              <Popover.Portal>
+                <Popover.Content class="dropdown-panel more-menu"  sideOffset={6} align="center" onclick={(e) => e.stopPropagation()}>
+                  {#if isHttpRef(card.ref)}
+                    <a
+                      class="more-menu-item"
+                      href={card.ref}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                    >
+                      <ExternalLink size={14} />
+                      <span>打开链接</span>
+                    </a>
+                    <button
+                      type="button"
+                      class="more-menu-item"
+                      onclick={(e) => { openParse(card.ref, e); openMoreRef = null; }}
+                    >
+                      <Code2 size={14} />
+                      <span>Parse（解析列表页）</span>
+                    </button>
+                  {/if}
+                  <button
+                    type="button"
+                    class="more-menu-item"
+                    onclick={() => { openEdit(card); openMoreRef = null; }}
+                  >
+                    <Pencil size={14} />
+                    <span>编辑</span>
+                  </button>
+                  <button
+                    type="button"
+                    class="more-menu-item more-menu-item-danger"
+                    title="清空该信源下所有已入库条目"
+                    disabled={clearingRef === card.ref}
+                    onclick={() => clearSourceFeeds(card.ref)}
+                  >
+                    <Trash size={14} />
+                    <span>{clearingRef === card.ref ? '清空中…' : '清空该源条目'}</span>
+                  </button>
+                </Popover.Content>
+              </Popover.Portal>
+            </Popover.Root>
+
+          </div>
+        {/each}
+      </div>
+    {/if}
+  </div>
+</div>
+
+<style>
+  .feed-wrap {
+    height: 100vh;
+    display: flex;
+    overflow: hidden;
+    max-width: 720px;
+    width: 100%;
+    margin: 0 auto;
+  }
+  .feed-col {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+    background: #fff;
+    border-left: 1px solid #e5e7eb;
+    border-right: 1px solid #e5e7eb;
+  }
+
+  /* ── header ──────────────────────────────────────── */
+  .feed-header {
+    padding: 0.875rem 0.5rem 0.875rem 1.25rem;
+    border-bottom: 1px solid #f0f0f0;
+    flex-shrink: 0;
+  }
+  .feed-header-top {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.75rem;
+  }
+  .feed-header h2 {
+    font-size: 0.9375rem;
+    font-weight: 600;
+    margin: 0 0 0.25rem;
+  }
+  .sub {
+    font-size: 0.75rem;
+    color: #aaa;
+    margin: 0;
+  }
+  .header-right {
+    display: flex;
+    align-items: center;
+    gap: 0.4rem;
+    flex-shrink: 0;
+  }
+  .filter-input {
+    width: 130px;
+    padding: 0.3rem 0.6rem;
+    font-size: 0.8125rem;
+    border: 1px solid #e5e7eb;
+    border-radius: 6px;
+    outline: none;
+    background: #fafafa;
+    color: #111;
+    transition: border-color 0.15s, background 0.15s;
+  }
+  .filter-input:focus {
+    border-color: var(--color-primary);
+    background: #fff;
+  }
+  .filter-input::placeholder { color: #bbb; }
+
+  :global(.sort-btn) {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.3rem;
+    padding: 0.3rem 0.55rem;
+    font-size: 0.8rem;
+    color: var(--color-muted-foreground);
+    background: transparent;
+    border: 1px solid #e5e7eb;
+    border-radius: 6px;
+    cursor: pointer;
+    white-space: nowrap;
+    transition: color 0.15s, border-color 0.15s;
+  }
+  :global(.sort-btn:hover) {
+    color: var(--color-primary);
+    border-color: #d1d5db;
+  }
+  .btn-add {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    padding: 0.3rem 0.4rem;
+    color: var(--color-muted-foreground);
+    background: transparent;
+    border: 1px solid #e5e7eb;
+    border-radius: 6px;
+    cursor: pointer;
+    transition: color 0.15s, border-color 0.15s;
+  }
+  .btn-add:hover {
+    color: var(--color-primary);
+    border-color: #d1d5db;
+  }
+
+  /* ── dropdown ────────────────────────────────────── */
+  :global(.dropdown-panel) {
+    z-index: 50;
+    background: var(--color-card);
+    border: 1px solid var(--color-border);
+    border-radius: 6px;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.08);
+  }
+  :global(.more-menu) {
+    width: 10rem;
+    height: 10rem;
+    min-width: 10rem;
+    min-height: 10rem;
+    padding: 0.25rem;
+    box-sizing: border-box;
+  }
+  .more-menu-item {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    width: 100%;
+    padding: 0.4rem 0.65rem;
+    font-size: 0.8125rem;
+    text-align: left;
+    border: none;
+    border-radius: 6px;
+    cursor: pointer;
+    background: transparent;
+    color: var(--color-muted-foreground-strong);
+    text-decoration: none;
+    transition: background 0.15s, color 0.15s;
+  }
+  .more-menu-item:hover:not(:disabled) {
+    background: var(--color-muted);
+    color: var(--color-accent-foreground);
+  }
+  .more-menu-item:disabled {
+    opacity: 0.6;
+    cursor: not-allowed;
+  }
+  .more-menu-item-danger:hover:not(:disabled) {
+    color: #c53030;
+    background: #fff0f0;
+  }
+  .sort-options {
+    display: flex;
+    flex-direction: column;
+    gap: 0.1rem;
+    padding: 0.4rem;
+    min-width: 7rem;
+  }
+  .sort-option {
+    padding: 0.4rem 0.65rem;
+    font-size: 0.8125rem;
+    text-align: left;
+    border: none;
+    border-radius: 6px;
+    cursor: pointer;
+    background: transparent;
+    color: var(--color-muted-foreground-strong);
+    transition: color 0.15s;
+  }
+  .sort-option:hover { color: var(--color-accent-foreground); background: var(--color-muted); }
+  .sort-option.active { color: var(--color-primary); font-weight: 500; }
+
+  /* ── state ───────────────────────────────────────── */
+  .state {
+    flex: 1;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    text-align: center;
+    padding: 1.5rem;
+    color: #888;
+    font-size: 0.875rem;
+    gap: 0.25rem;
+  }
+  .state.error { color: #c53030; }
+  .link-btn {
+    background: none;
+    border: none;
+    padding: 0;
+    color: var(--color-primary);
+    font-size: inherit;
+    cursor: pointer;
+    text-decoration: underline;
+  }
+
+  /* ── list / card ─────────────────────────────────── */
+  .list {
+    flex: 1;
+    overflow-y: auto;
+    display: flex;
+    flex-direction: column;
+  }
+  .list::-webkit-scrollbar { width: 4px; }
+  .list::-webkit-scrollbar-thumb { background: #ddd; border-radius: 2px; }
+
+  .card {
+    display: flex;
+    align-items: center;
+    border-bottom: 1px solid #e5e7eb;
+    flex-shrink: 0;
+    transition: background 0.15s;
+    gap: 0.25rem;
+    padding-right: 0.5rem;
+  }
+  .card:hover { background: #fafafa; }
+  .card:last-child { border-bottom: none; }
+
+  .card-link {
+    flex: 1;
+    min-width: 0;
+    padding: 0.875rem 1.25rem;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.75rem;
+    text-decoration: none;
+  }
+  .card-main {
+    flex: 1;
+    min-width: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 0.15rem;
+  }
+  .card-title-row {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.35rem;
+  }
+  .card-label {
+    font-size: 0.9rem;
+    font-weight: 500;
+    color: #111;
+    line-height: 1.4;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  .card:hover .card-label { color: var(--color-primary); }
+  .card-count {
+    font-size: 0.75rem;
+    color: #888;
+    font-weight: 400;
+  }
+  .card-weight {
+    font-size: 0.7rem;
+    color: #f59e0b;
+    font-weight: 500;
+  }
+  .plugin-icon {
+    display: inline-flex;
+    align-items: center;
+    color: var(--color-primary);
+    opacity: 0.9;
+  }
+  .card-desc {
+    font-size: 0.75rem;
+    color: #888;
+    line-height: 1.3;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  .card-latest {
+    font-size: 0.7rem;
+    color: #999;
+    line-height: 1.3;
+  }
+
+  /* ── card buttons ────────────────────────────────── */
+  .btn-icon {
+    flex-shrink: 0;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 1.75rem;
+    height: 1.75rem;
+    padding: 0;
+    color: #999;
+    background: transparent;
+    border: 1px solid transparent;
+    border-radius: 4px;
+    cursor: pointer;
+    transition: color 0.15s, background 0.15s, border-color 0.15s;
+  }
+  .btn-icon:hover {
+    color: #555;
+    background: #f0f0f0;
+    border-color: #e5e7eb;
+  }
+
+
+  .btn-pull {
+    flex-shrink: 0;
+    display: inline-flex;
+    align-items: center;
+    gap: 0.3rem;
+    padding: 0.3rem 0.55rem;
+    font-size: 0.7rem;
+    color: #666;
+    background: #f5f5f5;
+    border: 1px solid #e5e7eb;
+    border-radius: 4px;
+    cursor: pointer;
+    white-space: nowrap;
+    transition: background 0.15s, color 0.15s;
+  }
+  .btn-pull:hover:not(:disabled) { background: #eee; color: var(--color-primary); }
+  .btn-pull:disabled { cursor: not-allowed; opacity: 0.7; }
+  .btn-pull.pulling :global(svg) { animation: spin 0.8s linear infinite; }
+  @keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
+
+  /* ── modal ───────────────────────────────────────── */
+  /* bits-ui Dialog renders into a Portal outside this component's scope, so :global() is required */
+  :global(.modal-overlay) {
+    position: fixed;
+    inset: 0;
+    background: rgba(0, 0, 0, 0.35);
+    z-index: 100;
+  }
+  :global(.modal) {
+    position: fixed;
+    left: 50%;
+    top: 50%;
+    transform: translate(-50%, -50%);
+    background: #fff;
+    border-radius: 10px;
+    width: calc(100% - 2rem);
+    max-width: 460px;
+    box-shadow: 0 8px 32px rgba(0, 0, 0, 0.14);
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+    z-index: 101;
+  }
+  :global(.modal) .modal-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 1rem 1.25rem 0.75rem;
+    border-bottom: 1px solid #f0f0f0;
+  }
+  :global(.modal-title) {
+    font-size: 0.9375rem;
+    font-weight: 600;
+    margin: 0;
+  }
+  :global(.modal-close) {
+    background: none;
+    border: none;
+    padding: 0.25rem;
+    font-size: 1rem;
+    color: #999;
+    cursor: pointer;
+    line-height: 1;
+    border-radius: 4px;
+  }
+  :global(.modal-close:hover) { color: #333; background: #f0f0f0; }
+
+  .modal-body {
+    padding: 1rem 1.25rem;
+    display: flex;
+    flex-direction: column;
+    gap: 0.75rem;
+  }
+  .field {
+    display: flex;
+    flex-direction: column;
+    gap: 0.3rem;
+  }
+  .field-row {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 0.75rem;
+  }
+  .field-label {
+    font-size: 0.8rem;
+    font-weight: 500;
+    color: #555;
+  }
+  .required { color: #c53030; }
+  .ref-input-wrap {
+    display: flex;
+    align-items: center;
+    gap: 0.35rem;
+    width: 100%;
+  }
+  .ref-input-wrap .field-input {
+    flex: 1;
+    min-width: 0;
+  }
+  .plugin-icon-inline {
+    flex-shrink: 0;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    color: var(--color-primary);
+    opacity: 0.9;
+  }
+  .field-input {
+    padding: 0.4rem 0.65rem;
+    font-size: 0.875rem;
+    border: 1px solid #e5e7eb;
+    border-radius: 6px;
+    outline: none;
+    background: #fafafa;
+    color: #111;
+    font-family: inherit;
+    transition: border-color 0.15s, background 0.15s;
+    width: 100%;
+  }
+  .field-input:focus { border-color: var(--color-primary); background: #fff; }
+
+  .save-error {
+    font-size: 0.8rem;
+    color: #c53030;
+    margin: 0;
+  }
+
+  .modal-footer {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.5rem;
+    padding: 0.75rem 1.25rem;
+    border-top: 1px solid #f0f0f0;
+  }
+  .modal-footer-left { display: flex; align-items: center; }
+  .modal-footer-right { display: flex; align-items: center; gap: 0.5rem; }
+  .btn-delete {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.3rem;
+    padding: 0.4rem 0.8rem;
+    font-size: 0.875rem;
+    color: #c53030;
+    background: transparent;
+    border: 1px solid #fca5a5;
+    border-radius: 6px;
+    cursor: pointer;
+    transition: background 0.15s;
+  }
+  .btn-delete:hover:not(:disabled) { background: #fff0f0; }
+  .confirm-delete-row {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.4rem;
+    font-size: 0.8rem;
+  }
+  .confirm-delete-text { color: #c53030; font-weight: 500; }
+  .btn-confirm-yes {
+    padding: 0.3rem 0.7rem;
+    font-size: 0.8rem;
+    color: #fff;
+    background: #c53030;
+    border: none;
+    border-radius: 5px;
+    cursor: pointer;
+  }
+  .btn-confirm-yes:disabled { opacity: 0.6; cursor: not-allowed; }
+  .btn-confirm-no {
+    padding: 0.3rem 0.6rem;
+    font-size: 0.8rem;
+    color: #555;
+    background: #f0f0f0;
+    border: 1px solid #e5e7eb;
+    border-radius: 5px;
+    cursor: pointer;
+  }
+  :global(.btn-cancel) {
+    padding: 0.4rem 1rem;
+    font-size: 0.875rem;
+    color: #555;
+    background: #f5f5f5;
+    border: 1px solid #e5e7eb;
+    border-radius: 6px;
+    cursor: pointer;
+  }
+  :global(.btn-cancel:hover:not(:disabled)) { background: #eee; }
+  .btn-save {
+    padding: 0.4rem 1.2rem;
+    font-size: 0.875rem;
+    color: #fff;
+    background: var(--color-primary);
+    border: none;
+    border-radius: 6px;
+    cursor: pointer;
+    transition: opacity 0.15s;
+  }
+  .btn-save:hover:not(:disabled) { opacity: 0.85; }
+  .btn-save:disabled { opacity: 0.6; cursor: not-allowed; }
+
+  @media (max-width: 600px) {
+    .feed-wrap { max-width: 100%; }
+    .feed-col { border: none; }
+    .field-row { grid-template-columns: 1fr; }
+  }
+</style>

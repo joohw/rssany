@@ -1,0 +1,85 @@
+{
+  "name": "rssany",
+  "version": "0.1.0",
+  "description": "Universal RSS/Atom/JSON Feed pipeline — fetches, extracts, parses and converts any web content into consumable feeds with plugin support",
+  "author": "Joo",
+  "type": "module",
+  "engines": {
+    "node": ">=20"
+  },
+  "scripts": {
+    "build": "vite build",
+    "dev": "node scripts/dev.mjs",
+    "dev:api": "cross-env NODE_ENV=development NODE_OPTIONS=--no-deprecation tsx app/index.ts",
+    "dev:app": "cd webui && npm run dev",
+    "start": "node dist/index.js",
+    "serve:route": "node scripts/serve-route.mjs",
+    "serve:app": "npx tsx app/index.ts",
+    "test": "vitest",
+    "test:run": "vitest run",
+    "lint": "eslint .",
+    "lint:fix": "eslint . --fix",
+    "typecheck": "tsc --noEmit",
+    "webui:install": "cd webui && npm install",
+    "webui:dev": "cd webui && npm run dev",
+    "webui:build": "cd webui && npm run build",
+    "webui:watch": "cd webui && pnpm run build:watch",
+    "build:all": "npm run build && npm run webui:build",
+    "docker:build": "bash scripts/docker-build.sh",
+    "docker:build:tag": "bash scripts/docker-build.sh"
+  },
+  "keywords": [
+    "rss",
+    "atom",
+    "json-feed",
+    "subscription",
+    "pipeline"
+  ],
+  "license": "MIT",
+  "pnpm": {
+    "onlyBuiltDependencies": [
+      "better-sqlite3"
+    ]
+  },
+  "devDependencies": {
+    "@eslint/js": "^9.15.0",
+    "@types/better-sqlite3": "^7.6.13",
+    "@types/jsdom": "^21.1.7",
+    "@types/mailparser": "^3.4.6",
+    "@types/node": "^25.2.0",
+    "@types/node-cron": "^3.0.11",
+    "@types/nodemailer": "^7.0.11",
+    "concurrently": "^9.2.1",
+    "cross-env": "^7.0.3",
+    "eslint": "^9.15.0",
+    "globals": "^15.12.0",
+    "tsx": "^4.19.0",
+    "typescript": "~5.6.0",
+    "typescript-eslint": "^8.15.0",
+    "vite": "^6.0.0",
+    "vitest": "^2.1.0"
+  },
+  "dependencies": {
+    "@hono/node-server": "^1.13.0",
+    "@mariozechner/pi-agent-core": "^0.55.4",
+    "@mariozechner/pi-ai": "^0.55.4",
+    "@modelcontextprotocol/sdk": "^1.27.1",
+    "@mozilla/readability": "^0.6.0",
+    "better-sqlite3": "^12.6.2",
+    "cron-parser": "^5.0.0",
+    "dotenv": "^16.4.7",
+    "hono": "^4.6.0",
+    "https-proxy-agent": "^7.0.6",
+    "imapflow": "^1.2.10",
+    "jsdom": "^25.0.0",
+    "mailparser": "^3.9.3",
+    "marked": "^17.0.3",
+    "node-cron": "^3.0.3",
+    "node-html-parser": "^7.0.2",
+    "nodemailer": "^8.0.2",
+    "openai": "^4.76.1",
+    "puppeteer-core": "^24.36.0",
+    "rss-parser": "^3.13.0",
+    "zod": "^4.3.6"
+  }
+}
