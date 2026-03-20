@@ -398,10 +398,10 @@
     <Dialog.Content class="modal" aria-describedby={undefined}>
       <div class="modal-header">
         <Dialog.Title class="modal-title">{isEditing ? '编辑信源' : '添加信源'}</Dialog.Title>
-        <Dialog.Close class="modal-close">✕</Dialog.Close>
+        <Dialog.Close class="modal-close" aria-label="关闭">✕</Dialog.Close>
       </div>
       <div class="modal-body">
-        <label class="field">
+        <div class="field">
           <span class="field-label">Ref <span class="required">*</span></span>
           <div class="ref-input-wrap">
             <input
@@ -416,33 +416,48 @@
               </span>
             {/if}
           </div>
-        </label>
-        <label class="field">
+        </div>
+        <div class="field">
           <span class="field-label">名称</span>
-          <input class="field-input" type="text" placeholder="显示名称（留空则显示 ref）" bind:value={formLabel} />
-        </label>
-        <label class="field">
+          <input
+            class="field-input"
+            type="text"
+            placeholder="显示名称（留空则显示 ref）"
+            bind:value={formLabel}
+          />
+        </div>
+        <div class="field">
           <span class="field-label">描述</span>
-          <input class="field-input" type="text" placeholder="简短说明" bind:value={formDescription} />
-        </label>
+          <input
+            class="field-input"
+            type="text"
+            placeholder="简短说明"
+            bind:value={formDescription}
+          />
+        </div>
         <div class="field-row">
-          <label class="field">
+          <div class="field">
             <span class="field-label">权重</span>
             <input class="field-input" type="number" bind:value={formWeight} />
-          </label>
-          <label class="field">
+          </div>
+          <div class="field">
             <span class="field-label">刷新间隔</span>
             <select class="field-input" bind:value={formRefresh}>
               {#each REFRESH_OPTIONS as opt}
                 <option value={opt.value}>{opt.label}</option>
               {/each}
             </select>
-          </label>
+          </div>
         </div>
-        <label class="field">
+        <div class="field">
           <span class="field-label">代理</span>
-          <input class="field-input" type="text" placeholder="http://127.0.0.1:7890" bind:value={formProxy} />
-        </label>
+          <input
+            class="field-input"
+            type="text"
+            placeholder="http://127.0.0.1:7890"
+            bind:value={formProxy}
+          />
+        </div>
         {#if saveError}
           <p class="save-error">{saveError}</p>
         {/if}
@@ -457,7 +472,12 @@
                 <button type="button" class="btn-confirm-no" onclick={() => (confirmDelete = false)}>取消</button>
               </span>
             {:else}
-              <button type="button" class="btn-delete" onclick={() => (confirmDelete = true)} disabled={saving}>
+              <button
+                type="button"
+                class="btn-delete"
+                onclick={() => (confirmDelete = true)}
+                disabled={saving}
+              >
                 <Trash2 size={13} />
                 删除
               </button>
@@ -466,7 +486,12 @@
         </div>
         <div class="modal-footer-right">
           <Dialog.Close class="btn-cancel" disabled={saving}>取消</Dialog.Close>
-          <button type="button" class="btn-save" onclick={saveSource} disabled={saving}>
+          <button
+            type="button"
+            class="btn-save"
+            onclick={saveSource}
+            disabled={saving}
+          >
             {saving ? '保存中…' : '保存'}
           </button>
         </div>
@@ -479,42 +504,40 @@
 <div class="feed-wrap">
   <div class="feed-col">
     <div class="feed-header">
-      <div class="feed-header-top">
-        <div>
-          <h2>信源</h2>
-          <p class="sub">已订阅的信源，点击查看已入库文章</p>
-        </div>
-        <div class="header-right">
-          <input
-            class="filter-input"
-            type="search"
-            placeholder="过滤…"
-            bind:value={filterQuery}
-          />
-          <Popover.Root bind:open={showSortPopover} onOpenChange={(v) => (showSortPopover = v)}>
-            <Popover.Trigger class="sort-btn" title="排序">
-              <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="3" y1="6" x2="21" y2="6"/><line x1="7" y1="12" x2="17" y2="12"/><line x1="11" y1="18" x2="13" y2="18"/></svg>
-              <span>排序</span>
-            </Popover.Trigger>
-            <Popover.Portal>
-              <Popover.Content class="dropdown-panel" sideOffset={4} align="end">
-                <div class="sort-options">
-                  {#each SORT_OPTIONS as opt}
-                    <button
-                      type="button"
-                      class="sort-option"
-                      class:active={sortBy === opt.value}
-                      onclick={() => { sortBy = opt.value; showSortPopover = false; }}
-                    >{opt.label}</button>
-                  {/each}
-                </div>
-              </Popover.Content>
-            </Popover.Portal>
-          </Popover.Root>
-          <button type="button" class="btn-add" title="添加信源" onclick={openAdd}>
-            <Plus size={14} />
-          </button>
-        </div>
+      <div class="header-left">
+        <h2>信源</h2>
+        <p class="sub">已订阅的信源，点击查看已入库文章</p>
+      </div>
+      <div class="header-right">
+        <input
+          class="filter-input"
+          type="search"
+          placeholder="过滤…"
+          bind:value={filterQuery}
+        />
+        <Popover.Root bind:open={showSortPopover} onOpenChange={(v) => (showSortPopover = v)}>
+          <Popover.Trigger class="sort-btn" title="排序">
+            <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="3" y1="6" x2="21" y2="6"/><line x1="7" y1="12" x2="17" y2="12"/><line x1="11" y1="18" x2="13" y2="18"/></svg>
+            <span>排序</span>
+          </Popover.Trigger>
+          <Popover.Portal>
+            <Popover.Content class="dropdown-panel" sideOffset={4} align="end">
+              <div class="sort-options">
+                {#each SORT_OPTIONS as opt}
+                  <button
+                    type="button"
+                    class="sort-option"
+                    class:active={sortBy === opt.value}
+                    onclick={() => { sortBy = opt.value; showSortPopover = false; }}
+                  >{opt.label}</button>
+                {/each}
+              </div>
+            </Popover.Content>
+          </Popover.Portal>
+        </Popover.Root>
+        <button type="button" class="btn-add" title="添加信源" onclick={openAdd}>
+          <Plus size={14} />
+        </button>
       </div>
     </div>
 
@@ -532,8 +555,8 @@
       <div class="list">
         {#each filteredCards as card (card.ref)}
           <div class="card">
-            <a class="card-link" href={card.feedsHref} target="_blank" rel="noopener" title={card.ref}>
-              <div class="card-main">
+            <div class="card-main">
+              <a class="card-head-link" href={card.feedsHref} title={card.ref}>
                 <span class="card-title-row">
                   <span class="card-label">{card.displayLabel}</span>
                   <span class="card-count">{card.count} 篇</span>
@@ -546,14 +569,14 @@
                     </span>
                   {/if}
                 </span>
-                {#if card.description}
-                  <span class="card-desc">{card.description}</span>
-                {/if}
-                {#if card.latestAt}
-                  <span class="card-latest">{formatLatest(card.latestAt)}</span>
-                {/if}
-              </div>
-            </a>
+              </a>
+              {#if card.description}
+                <span class="card-desc">{card.description}</span>
+              {/if}
+              {#if card.latestAt}
+                <span class="card-latest">{formatLatest(card.latestAt)}</span>
+              {/if}
+            </div>
 
             <!-- 拉取 -->
             <button
@@ -581,6 +604,14 @@
               </Popover.Trigger>
               <Popover.Portal>
                 <Popover.Content class="dropdown-panel more-menu"  sideOffset={6} align="center" onclick={(e) => e.stopPropagation()}>
+                  <button
+                    type="button"
+                    class="more-menu-item"
+                    onclick={() => { openEdit(card); openMoreRef = null; }}
+                  >
+                    <Pencil size={14} />
+                    <span>编辑</span>
+                  </button>
                   {#if isHttpRef(card.ref)}
                     <a
                       class="more-menu-item"
@@ -597,17 +628,9 @@
                       onclick={(e) => { openParse(card.ref, e); openMoreRef = null; }}
                     >
                       <Code2 size={14} />
-                      <span>Parse（解析列表页）</span>
+                      <span>解析信源</span>
                     </button>
                   {/if}
-                  <button
-                    type="button"
-                    class="more-menu-item"
-                    onclick={() => { openEdit(card); openMoreRef = null; }}
-                  >
-                    <Pencil size={14} />
-                    <span>编辑</span>
-                  </button>
                   <button
                     type="button"
                     class="more-menu-item more-menu-item-danger"
@@ -650,15 +673,17 @@
 
   /* ── header ──────────────────────────────────────── */
   .feed-header {
-    padding: 0.875rem 0.5rem 0.875rem 1.25rem;
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 1rem;
+    padding: 0.875rem 1.25rem;
     border-bottom: 1px solid #f0f0f0;
     flex-shrink: 0;
   }
-  .feed-header-top {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    gap: 0.75rem;
+  .header-left {
+    flex: 1;
+    min-width: 0;
   }
   .feed-header h2 {
     font-size: 0.9375rem;
@@ -667,18 +692,19 @@
   }
   .sub {
     font-size: 0.75rem;
-    color: #aaa;
+    color: #9ca3af;
     margin: 0;
+    line-height: 1.4;
   }
   .header-right {
     display: flex;
     align-items: center;
-    gap: 0.4rem;
+    gap: 0.5rem;
     flex-shrink: 0;
   }
   .filter-input {
-    width: 130px;
-    padding: 0.3rem 0.6rem;
+    width: 120px;
+    padding: 0.35rem 0.6rem;
     font-size: 0.8125rem;
     border: 1px solid #e5e7eb;
     border-radius: 6px;
@@ -691,41 +717,42 @@
     border-color: var(--color-primary);
     background: #fff;
   }
-  .filter-input::placeholder { color: #bbb; }
+  .filter-input::placeholder { color: #9ca3af; }
 
   :global(.sort-btn) {
     display: inline-flex;
     align-items: center;
-    gap: 0.3rem;
-    padding: 0.3rem 0.55rem;
-    font-size: 0.8rem;
-    color: var(--color-muted-foreground);
-    background: transparent;
+    gap: 0.35rem;
+    padding: 0.35rem 0.6rem;
+    font-size: 0.8125rem;
+    color: #6b7280;
+    background: #fff;
     border: 1px solid #e5e7eb;
     border-radius: 6px;
     cursor: pointer;
     white-space: nowrap;
-    transition: color 0.15s, border-color 0.15s;
+    transition: color 0.15s, border-color 0.15s, background 0.15s;
   }
   :global(.sort-btn:hover) {
     color: var(--color-primary);
     border-color: #d1d5db;
+    background: #fafafa;
   }
   .btn-add {
     display: inline-flex;
     align-items: center;
     justify-content: center;
-    padding: 0.3rem 0.4rem;
-    color: var(--color-muted-foreground);
-    background: transparent;
-    border: 1px solid #e5e7eb;
+    padding: 0.35rem 0.5rem;
+    color: #fff;
+    background: var(--color-primary);
+    border: none;
     border-radius: 6px;
     cursor: pointer;
-    transition: color 0.15s, border-color 0.15s;
+    transition: opacity 0.15s, background 0.15s;
   }
   .btn-add:hover {
-    color: var(--color-primary);
-    border-color: #d1d5db;
+    opacity: 0.9;
+    background: var(--color-primary-hover, var(--color-primary));
   }
 
   /* ── dropdown ────────────────────────────────────── */
@@ -738,9 +765,7 @@
   }
   :global(.more-menu) {
     width: 10rem;
-    height: 10rem;
     min-width: 10rem;
-    min-height: 10rem;
     padding: 0.25rem;
     box-sizing: border-box;
   }
@@ -800,12 +825,12 @@
     align-items: center;
     justify-content: center;
     text-align: center;
-    padding: 1.5rem;
-    color: #888;
+    padding: 1.5rem 1.25rem;
+    color: #6b7280;
     font-size: 0.875rem;
     gap: 0.25rem;
   }
-  .state.error { color: #c53030; }
+  .state.error { color: #dc2626; }
   .link-btn {
     background: none;
     border: none;
@@ -815,6 +840,7 @@
     cursor: pointer;
     text-decoration: underline;
   }
+  .link-btn:hover { text-decoration: underline; }
 
   /* ── list / card ─────────────────────────────────── */
   .list {
@@ -832,29 +858,30 @@
     border-bottom: 1px solid #e5e7eb;
     flex-shrink: 0;
     transition: background 0.15s;
-    gap: 0.25rem;
-    padding-right: 0.5rem;
+    gap: 0.5rem;
+    padding: 0 0.5rem 0 0;
   }
   .card:hover { background: #fafafa; }
   .card:last-child { border-bottom: none; }
 
-  .card-link {
-    flex: 1;
-    min-width: 0;
-    padding: 0.875rem 1.25rem;
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    gap: 0.75rem;
-    text-decoration: none;
-  }
   .card-main {
     flex: 1;
     min-width: 0;
+    padding: 1rem 1.25rem;
     display: flex;
     flex-direction: column;
-    gap: 0.15rem;
+    gap: 0.2rem;
   }
+  .card-head-link {
+    display: inline-flex;
+    align-items: center;
+    text-decoration: none;
+    color: inherit;
+    border-radius: 4px;
+    margin: -2px -4px;
+    padding: 2px 4px;
+  }
+  .card-head-link:hover .card-label { color: var(--color-primary); }
   .card-title-row {
     display: inline-flex;
     align-items: center;
@@ -869,15 +896,14 @@
     text-overflow: ellipsis;
     white-space: nowrap;
   }
-  .card:hover .card-label { color: var(--color-primary); }
   .card-count {
     font-size: 0.75rem;
-    color: #888;
+    color: #6b7280;
     font-weight: 400;
   }
   .card-weight {
     font-size: 0.7rem;
-    color: #f59e0b;
+    color: #d97706;
     font-weight: 500;
   }
   .plugin-icon {
@@ -888,38 +914,38 @@
   }
   .card-desc {
     font-size: 0.75rem;
-    color: #888;
-    line-height: 1.3;
+    color: #6b7280;
+    line-height: 1.35;
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
   }
   .card-latest {
     font-size: 0.7rem;
-    color: #999;
+    color: #9ca3af;
     line-height: 1.3;
   }
 
   /* ── card buttons ────────────────────────────────── */
-  .btn-icon {
+  /* :global 使 Popover.Trigger 渲染的按钮能匹配 hover，否则 scoped 无法作用到 bits-ui 根节点 */
+  :global(.btn-icon) {
     flex-shrink: 0;
     display: inline-flex;
     align-items: center;
     justify-content: center;
-    width: 1.75rem;
-    height: 1.75rem;
+    width: 2rem;
+    height: 2rem;
     padding: 0;
-    color: #999;
+    color: #6b7280;
     background: transparent;
-    border: 1px solid transparent;
-    border-radius: 4px;
+    border: none;
+    border-radius: 6px;
     cursor: pointer;
-    transition: color 0.15s, background 0.15s, border-color 0.15s;
+    transition: color 0.15s, background 0.15s;
   }
-  .btn-icon:hover {
-    color: #555;
-    background: #f0f0f0;
-    border-color: #e5e7eb;
+  :global(.btn-icon:hover) {
+    color: #111;
+    background: #e5e7eb;
   }
 
 

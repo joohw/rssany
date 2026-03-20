@@ -120,7 +120,7 @@ export async function generateDigest(
 ): Promise<DigestGenerateResult> {
   const filePath = digestFilePath(cacheDir, key);
   if (!force && await digestExists(cacheDir, key)) {
-    logger.debug("scheduler", "报告已存在，跳过生成", { key });
+    logger.debug("topics", "报告已存在，跳过生成", { key });
     return {
       key,
       skipped: true,
@@ -141,8 +141,8 @@ async function doGenerateTopic(
   const topicConfig = topics.find((t) => t.title === topicKey);
   const periodDays = Math.max(1, topicConfig?.refresh ?? 1);
   const tags = topicConfig?.tags;
-  const tagsForQuery = Array.isArray(tags) && tags.length > 0 ? tags : (topicConfig ? undefined : [topicKey]);
-  const searchTagsForPrompt = tagsForQuery ?? (topicConfig ? [] : [topicKey]);
+  const tagsForQuery = Array.isArray(tags) && tags.length > 0 ? tags : undefined;
+  const searchTagsForPrompt = tagsForQuery ?? [];
   const prompt = topicConfig?.prompt ?? "";
 
   const since = new Date();
@@ -157,7 +157,7 @@ async function doGenerateTopic(
     limit: 1,
     offset: 0,
   });
-  logger.info("scheduler", "开始生成话题报告（Agent）", {
+  logger.info("topics", "开始生成话题报告（Agent）", {
     topic: topicKey,
     periodDays,
     preflightMatchCount: result.total,
@@ -176,7 +176,7 @@ async function doGenerateTopic(
       preflightMatchCount: result.total,
     });
   } catch (err) {
-    logger.error("scheduler", "话题报告生成失败", { topic: topicKey, err: err instanceof Error ? err.message : String(err) });
+    logger.error("topics", "话题报告生成失败", { topic: topicKey, err: err instanceof Error ? err.message : String(err) });
     throw err;
   }
   const now = new Date().toLocaleTimeString("zh-CN", { hour: "2-digit", minute: "2-digit" });
@@ -186,7 +186,7 @@ async function doGenerateTopic(
   const header = `# 话题追踪 · ${topicKey}\n\n> Agent 生成于 ${now}，周期 ${periodDays} 天${preflightSummary}\n\n`;
   await mkdir(join(cacheDir, ARTICLES_DIR, topicToFilename(topicKey)), { recursive: true });
   await writeFile(filePath, header + agentContent, "utf-8");
-  logger.info("scheduler", "话题报告生成完成", { topic: topicKey, path: filePath });
+  logger.info("topics", "话题报告生成完成", { topic: topicKey, path: filePath });
   return { key: topicKey, skipped: false, path: filePath };
 }
 
@@ -215,7 +215,7 @@ export async function generateTopicDigest(
 export async function generateAllTopicDigests(cacheDir: string): Promise<void> {
   const topics = await getTopics();
   if (topics.length === 0) {
-    logger.debug("scheduler", "暂无追踪话题，跳过");
+    logger.debug("topics", "暂无追踪话题，跳过");
     return;
   }
 
@@ -223,7 +223,7 @@ export async function generateAllTopicDigests(cacheDir: string): Promise<void> {
     try {
       await generateTopicDigest(cacheDir, topic.title, false);
     } catch (err) {
-      logger.error("scheduler", "话题报告生成失败，继续下一话题", {
+      logger.error("topics", "话题报告生成失败，继续下一话题", {
         topic: topic.title,
         err: err instanceof Error ? err.message : String(err),
       });

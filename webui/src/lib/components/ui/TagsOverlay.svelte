@@ -3,8 +3,10 @@
 
   export let open = false;
   export let onClose: (() => void) | undefined = undefined;
-  /** 选择某个标签时调用（如跳转到 /feeds?tags=xxx），随后会关闭 overlay */
+  /** 选择某个标签时调用；若 closeOnSelect 为 false 则不关闭，用于多选场景 */
   export let onSelect: ((tag: string) => void) | undefined = undefined;
+  /** 为 false 时选择标签后不关闭 overlay，便于连续多选 */
+  export let closeOnSelect = true;
 
   interface TagStat {
     name: string;
@@ -50,7 +52,7 @@
 
   function selectTag(tag: string) {
     onSelect?.(tag);
-    onClose?.();
+    if (closeOnSelect) onClose?.();
   }
 
   function handleBackdropClick(e: MouseEvent) {
@@ -135,7 +137,7 @@
   .overlay-backdrop {
     position: fixed;
     inset: 0;
-    z-index: 200;
+    z-index: 300;
     display: flex;
     align-items: center;
     justify-content: center;

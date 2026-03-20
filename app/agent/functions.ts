@@ -1,6 +1,8 @@
 // 纯函数实现：Agent 与 MCP 共用，包装后才是 tools
 
+import { readFile, writeFile, readdir, stat, mkdir } from "node:fs/promises";
 import nodemailer from "nodemailer";
+import { resolveSandboxPath, SANDBOX_DIR } from "../config/paths.js";
 import { getAllChannelConfigs, collectAllSourceRefs } from "../core/channel/index.js";
 import { getItemById, queryItems } from "../db/index.js";
 import { getAllSources } from "../scraper/subscription/index.js";
@@ -356,5 +358,113 @@ export async function sendEmail(args: SendEmailArgs): Promise<{
       ok: false,
       error: e instanceof Error ? e.message : String(e),
     };
+  }
+}
+
+// --- 沙箱文件工具（.rssany/sandbox 内）---
+
+export interface ReadFileSandboxArgs {
+  path: string;
+  encoding?: string;
+  offset?: number;
+  limit?: number;
+}
+
+/** read_file：读取沙箱内文件；path 相对 .rssany/sandbox，可选 offset/limit 按行截取（长文档分段读）。 */
+export async function readFileSandbox(args: ReadFileSandboxArgs): Promise<
+  { content: string; path: string } | { error: string }
+> {
+  const resolved = resolveSandboxPath(args.path);
+  if ("error" in resolved) return { error: resolved.error };
+  try {
+    const enc = (args.encoding ?? "utf-8") as BufferEncoding;
+    const raw = await readFile(resolved.absolute, enc);
+    const contentFromFile = typeof raw === "string" ? raw : String(raw);
+    let content = contentFromFile;
+    const offset = Math.max(0, args.offset ?? 0);
+    const limit = args.limit;
+    if (limit !== undefined && limit > 0) {
+      const lines = content.split(/\r?\n/);
+      content = lines.slice(offset, offset + limit).join("\n");
+    } else if (offset > 0) {
+      const lines = content.split(/\r?\n/);
+      content = lines.slice(offset).join("\n");
+    }
+    return { content, path: args.path };
+  } catch (e) {
+    const msg = e instanceof Error ? e.message : String(e);
+    if (msg.includes("ENOENT")) return { error: "文件不存在" };
+    return { error: msg };
+  }
+}
+
+export interface WriteFileSandboxArgs {
+  path: string;
+  content: string;
+  create_dirs?: boolean;
+}
+
+/** write_file：写入沙箱内文件；path 相对 .rssany/sandbox，存在则覆盖。create_dirs 为 true 时自动创建父目录。 */
+export async function writeFileSandbox(args: WriteFileSandboxArgs): Promise<
+  { path: string } | { error: string }
+> {
+  const resolved = resolveSandboxPath(args.path);
+  if ("error" in resolved) return { error: resolved.error };
+  try {
+    if (args.create_dirs !== false) {
+      const { dirname } = await import("node:path");
+      await mkdir(dirname(resolved.absolute), { recursive: true });
+    }
+    await writeFile(resolved.absolute, args.content, "utf-8");
+    return { path: args.path };
+  } catch (e) {
+    return { error: e instanceof Error ? e.message : String(e) };
+  }
+}
+
+export interface ListDirectorySandboxArgs {
+  path?: string;
+  recursive?: boolean;
+}
+
+export interface ListDirectoryEntry {
+  name: string;
+  type: "file" | "directory";
+  path: string;
+}
+
+/** list_directory：列出沙箱内目录；path 相对 .rssany/sandbox，默认 "."。recursive 为 true 时递归列出（path 为相对沙箱的路径）。 */
+export async function listDirectorySandbox(args: ListDirectorySandboxArgs): Promise<
+  { entries: ListDirectoryEntry[]; root: string } | { error: string }
+> {
+  const subPath = (args.path ?? ".").replace(/\\/g, "/").trim() || ".";
+  const resolved = resolveSandboxPath(subPath);
+  if ("error" in resolved) return { error: resolved.error };
+  try {
+    const info = await stat(resolved.absolute);
+    if (!info.isDirectory()) return { error: "路径不是目录" };
+    const entries: ListDirectoryEntry[] = [];
+
+    async function visit(dirAbsolute: string, prefix: string): Promise<void> {
+      const names = await readdir(dirAbsolute, { withFileTypes: false });
+      for (const name of names.sort()) {
+        const full = `${dirAbsolute}/${name}`.replace(/\\/g, "/");
+        const relPath = prefix ? `${prefix}/${name}` : name;
+        const st = await stat(full);
+        entries.push({
+          name,
+          type: st.isDirectory() ? "directory" : "file",
+          path: relPath,
+        });
+        if (args.recursive && st.isDirectory()) await visit(full, relPath);
+      }
+    }
+
+    await visit(resolved.absolute, subPath === "." ? "" : subPath);
+    return { entries, root: SANDBOX_DIR };
+  } catch (e) {
+    const msg = e instanceof Error ? e.message : String(e);
+    if (msg.includes("ENOENT")) return { error: "目录不存在" };
+    return { error: msg };
   }
 }

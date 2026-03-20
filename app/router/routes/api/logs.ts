@@ -9,7 +9,7 @@ export function registerLogsRoutes(app: Hono): void {
     const levelParam = c.req.query("level");
     const level = levelParam === "error" || levelParam === "warn" || levelParam === "info" || levelParam === "debug" ? levelParam : undefined;
     const categoryParam = c.req.query("category");
-    const category = categoryParam && /^(scraper|scheduler|db|plugin|app|config|pipeline|deliver|daily)$/.test(categoryParam) ? categoryParam : undefined;
+    const category = categoryParam && /^(scraper|scheduler|db|plugin|app|config|pipeline|deliver|topics)$/.test(categoryParam) ? categoryParam : undefined;
     const limit = Math.min(Number(c.req.query("limit") ?? 100), 200);
     const offset = Number(c.req.query("offset") ?? 0);
     const sinceParam = c.req.query("since");

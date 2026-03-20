@@ -1,7 +1,20 @@
 <script lang="ts">
   import { onMount, onDestroy } from 'svelte';
   import { marked } from 'marked';
-  import { agentMessages, agentStream, rehydrateAgentMessages } from '$lib/agentSession';
+  import { Popover } from 'bits-ui';
+  import Plus from 'lucide-svelte/icons/plus';
+  import History from 'lucide-svelte/icons/history';
+  import {
+    agentMessages,
+    agentStream,
+    rehydrateAgentMessages,
+    createNewSession,
+    loadSession,
+    deleteSession,
+    sessionList,
+    currentSessionId,
+    currentSession,
+  } from '$lib/agentSession';
   import type { ToolCall, TokenUsage } from '$lib/agentSession';
 
   marked.setOptions({ breaks: true, gfm: true });
@@ -37,9 +50,10 @@
   };
 
   const QUICK_PROMPTS = [
-    '有哪些频道？',
-    '科技频道最新 5 条',
-    '搜索「AI」相关文章',
+    '综述一下近期大模型推理/推理优化方向',
+    '找几篇与 RAG 或检索增强相关的文章或讨论',
+    '对比 CoT 和 ReAct 在 Agent 任务上的差异与适用场景',
+    '搜索「LLM agent」相关的最新进展与论文',
   ];
 
   function toolLabel(name: string): string {
@@ -59,7 +73,19 @@
     return parts.join(' · ');
   }
 
+  function formatSessionDate(ts: number): string {
+    const d = new Date(ts);
+    const now = Date.now();
+    const diff = now - ts;
+    if (diff < 60_000) return '刚刚';
+    if (diff < 3600_000) return `${Math.floor(diff / 60_000)} 分钟前`;
+    if (diff < 86400_000) return `${Math.floor(diff / 3600_000)} 小时前`;
+    if (diff < 604800_000) return `${Math.floor(diff / 86400_000)} 天前`;
+    return d.toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: d.getFullYear() !== new Date().getFullYear() ? 'numeric' : undefined });
+  }
+
   let input = '';
+  let historyOpen = false;
   let inputEl: HTMLTextAreaElement | null = null;
   let messagesEl: HTMLDivElement | null = null;
 
@@ -201,6 +227,17 @@
     agentStream.resetStream();
   }
 
+  function handleNewSession() {
+    if ($agentMessages.length === 0) return;
+    createNewSession();
+    historyOpen = false;
+  }
+
+  function handleLoadSession(id: string) {
+    loadSession(id);
+    historyOpen = false;
+  }
+
   function handleKeydown(e: KeyboardEvent) {
     if (e.key === 'Enter' && e.shiftKey) {
       e.preventDefault();
@@ -210,62 +247,93 @@
 </script>
 
 <svelte:head>
-  <title>Ask - RssAny</title>
+  <title>Agent - RssAny</title>
 </svelte:head>
 
-<div class="wrap">
-  <div class="col">
+<div class="agent-wrap">
+  <div class="agent-col">
+    <header class="agent-header">
+      <div class="agent-header-inner">
+        <span class="agent-title">{$currentSession?.title ?? '新对话'}</span>
+        <div class="agent-header-actions">
+          <Popover.Root bind:open={historyOpen} onOpenChange={(v) => (historyOpen = v)}>
+            <Popover.Trigger class="agent-header-btn agent-header-btn-icon" disabled={streaming} title="历史会话">
+              <History size={18} />
+            </Popover.Trigger>
+            <Popover.Portal>
+              <Popover.Content class="dropdown-panel agent-history-dropdown" sideOffset={6} align="end">
+                <div class="dropdown-title">历史会话</div>
+                {#if $sessionList.length === 0}
+                  <p class="dropdown-empty">暂无历史会话</p>
+                {:else}
+                  <ul class="dropdown-list">
+                    {#each $sessionList as session (session.id)}
+                      <li class="dropdown-item group">
+                        <div
+                          role="button"
+                          tabindex="0"
+                          class="dropdown-item-main {session.id === $currentSessionId ? 'is-active' : ''}"
+                          on:click={() => handleLoadSession(session.id)}
+                          on:keydown={(e) => (e.key === 'Enter' || e.key === ' ') && (e.preventDefault(), handleLoadSession(session.id))}
+                        >
+                          <span class="dropdown-item-title">{session.title}</span>
+                          <span class="dropdown-item-date">{formatSessionDate(session.updatedAt)}</span>
+                        </div>
+                        <span
+                          role="button"
+                          tabindex="0"
+                          class="dropdown-item-delete {$sessionList.length <= 1 ? 'is-hidden' : ''}"
+                          title="删除此会话"
+                          on:click|stopPropagation={() => $sessionList.length > 1 && deleteSession(session.id)}
+                          on:keydown|stopPropagation={(e) => e.key === 'Enter' && $sessionList.length > 1 && (e.preventDefault(), deleteSession(session.id))}
+                        >×</span>
+                      </li>
+                    {/each}
+                  </ul>
+                {/if}
+              </Popover.Content>
+            </Popover.Portal>
+          </Popover.Root>
+          <button type="button" class="agent-header-btn agent-header-btn-icon" title="新建会话" disabled={streaming} on:click={handleNewSession}>
+            <Plus size={18} />
+          </button>
+        </div>
+      </div>
+    </header>
     <div class="agent-messages" bind:this={messagesEl}>
       {#if $agentMessages.length === 0}
         <div class="agent-empty">
-          <p class="agent-empty-title">向 Ask 提问</p>
-          <p class="agent-empty-desc">综合运用各种工具，挖掘已有的信息、feeds 等</p>
+          <p class="agent-empty-title">开始对话</p>
+          <p class="agent-empty-desc">基于频道与 feeds 做检索、综述、对比与追踪，支持网页搜索与抓取</p>
           <div class="quick-prompts">
             {#each QUICK_PROMPTS as prompt}
-              <button
-                type="button"
-                class="quick-prompt"
-                on:click={() => send(prompt)}
-                disabled={streaming}
-              >
-                {prompt}
-              </button>
+              <button type="button" class="quick-prompt" on:click={() => send(prompt)} disabled={streaming}>{prompt}</button>
             {/each}
           </div>
         </div>
       {:else}
         {#each $agentMessages as msg, i (i + msg.role + msg.content + (msg.reasoning ?? '') + JSON.stringify(msg.toolCalls ?? []))}
           <div class="msg" class:user={msg.role === 'user'} class:assistant={msg.role === 'assistant'}>
-            <span class="msg-role">{msg.role === 'user' ? '你' : 'Ask'}</span>
             {#if msg.role === 'assistant' && msg.toolCalls && msg.toolCalls.length > 0}
               <div class="tool-calls">
                 {#each msg.toolCalls as tc (tc.toolCallId + tc.status)}
                   <div class="tool-call" class:running={tc.status === 'running'} class:success={tc.status === 'success'} class:error={tc.status === 'error'}>
-                    <span class="tool-call-icon">
-                      {#if tc.status === 'running'}⟳
-                      {:else if tc.status === 'success'}✓
-                      {:else}✗
-                      {/if}
-                    </span>
+                    <span class="tool-call-icon">{#if tc.status === 'running'}⟳{:else if tc.status === 'success'}✓{:else}✗{/if}</span>
                     <span class="tool-call-name">{toolLabel(tc.toolName)}</span>
-                    {#if formatArgs(tc.args)}
-                      <span class="tool-call-args">{formatArgs(tc.args)}</span>
-                    {/if}
+                    {#if formatArgs(tc.args)}<span class="tool-call-args">{formatArgs(tc.args)}</span>{/if}
                   </div>
                 {/each}
               </div>
             {/if}
             {#if msg.role === 'assistant'}
               {#if msg.reasoning}
-                <details class="msg-reasoning">
-                  <summary><span class="msg-reasoning-arrow">▼</span> thinking · thought</summary>
-                  <div class="msg-reasoning-content">{msg.reasoning}</div>
+                <details class="agent-reasoning">
+                  <summary><span class="agent-reasoning-arrow">▼</span> thinking · thought</summary>
+                  <div class="agent-reasoning-content">{msg.reasoning}</div>
                 </details>
               {/if}
               <div class="msg-content markdown-body">{@html renderMd(msg.content)}</div>
-              {#if msg.usage}
-                <div class="msg-usage">{formatUsage(msg.usage)}</div>
-              {/if}
+              {#if msg.usage}<div class="msg-usage">{formatUsage(msg.usage)}</div>{/if}
             {:else}
               <div class="msg-content">{msg.content}</div>
             {/if}
@@ -273,34 +341,24 @@
         {/each}
         {#if $agentStream.streaming}
           <div class="msg assistant">
-            <span class="msg-role">Ask</span>
             {#if $agentStream.streamToolCalls.length > 0}
               <div class="tool-calls">
                 {#each $agentStream.streamToolCalls as tc (tc.toolCallId + tc.status)}
                   <div class="tool-call" class:running={tc.status === 'running'} class:success={tc.status === 'success'} class:error={tc.status === 'error'}>
-                    <span class="tool-call-icon">
-                      {#if tc.status === 'running'}⟳
-                      {:else if tc.status === 'success'}✓
-                      {:else}✗
-                      {/if}
-                    </span>
+                    <span class="tool-call-icon">{#if tc.status === 'running'}⟳{:else if tc.status === 'success'}✓{:else}✗{/if}</span>
                     <span class="tool-call-name">{toolLabel(tc.toolName)}</span>
-                    {#if formatArgs(tc.args)}
-                      <span class="tool-call-args">{formatArgs(tc.args)}</span>
-                    {/if}
+                    {#if formatArgs(tc.args)}<span class="tool-call-args">{formatArgs(tc.args)}</span>{/if}
                   </div>
                 {/each}
               </div>
             {/if}
             {#if $agentStream.streamReasoning}
-              <details class="msg-reasoning" open>
-                <summary><span class="msg-reasoning-arrow">▼</span> thinking · thought</summary>
-                <div class="msg-reasoning-content">{$agentStream.streamReasoning}<span class="cursor">▌</span></div>
+              <details class="agent-reasoning" open>
+                <summary><span class="agent-reasoning-arrow">▼</span> thinking · thought</summary>
+                <div class="agent-reasoning-content">{$agentStream.streamReasoning}<span class="cursor">▌</span></div>
               </details>
             {/if}
-            <div class="msg-content markdown-body">
-              {@html renderMd($agentStream.streamContent)}<span class="cursor">▌</span>
-            </div>
+            <div class="msg-content markdown-body">{@html renderMd($agentStream.streamContent)}<span class="cursor">▌</span></div>
           </div>
         {/if}
       {/if}
@@ -322,11 +380,9 @@
         <span class="input-hint">Shift+Enter 发送 · Enter 换行 · Shift+N 清空</span>
         <div class="input-footer-right">
           {#if $agentMessages.length > 0}
-            <button type="button" class="clear-link" on:click={clearChat} disabled={streaming}>
-              清空对话
-            </button>
+            <button type="button" class="clear-link" on:click={clearChat} disabled={streaming}>清空对话</button>
           {/if}
-          <button type="button" on:click={() => send()} disabled={streaming || !input.trim()}>
+          <button type="button" class="btn-send" on:click={() => send()} disabled={streaming || !input.trim()}>
             {streaming ? '发送中…' : '发送'}
           </button>
         </div>
@@ -336,7 +392,7 @@
 </div>
 
 <style>
-  .wrap {
+  .agent-wrap {
     height: 100vh;
     display: flex;
     overflow: hidden;
@@ -344,7 +400,7 @@
     width: 100%;
     margin: 0 auto;
   }
-  .col {
+  .agent-col {
     flex: 1;
     display: flex;
     flex-direction: column;
@@ -352,29 +408,80 @@
     background: #fff;
     border-left: 1px solid #e5e7eb;
     border-right: 1px solid #e5e7eb;
+    position: relative;
   }
-  .input-footer-right {
+  .agent-header {
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    z-index: 10;
+    background: linear-gradient(to bottom, #fff 0%, rgba(255, 255, 255, 0.95) 50%, transparent 100%);
+    padding: 0.5rem 1rem 1.5rem;
+    pointer-events: none;
+  }
+  .agent-header-inner {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.75rem;
+    pointer-events: auto;
+  }
+  .agent-title {
+    font-size: 0.875rem;
+    font-weight: 600;
+    color: #374151;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    min-width: 0;
+    flex: 1;
+  }
+  .agent-header-actions {
     display: flex;
     align-items: center;
     gap: 0.5rem;
+    flex-shrink: 0;
   }
-  .input-footer button.clear-link {
-    font-size: 0.75rem;
-    color: #888;
+  /* :global 使样式对 bits-ui Trigger 渲染的 button 生效 */
+  :global(.agent-header-actions .agent-header-btn) {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.35rem;
+    min-height: 32px;
+    min-width: 32px;
+    padding: 0.35rem 0.6rem;
+    font-size: 0.8125rem;
+    color: #374151;
     background: transparent;
-    padding: 0;
-    border-radius: 0;
-    font-weight: 400;
-    text-decoration: underline;
+    border: none;
+    border-radius: 6px;
+    cursor: pointer;
+    font-family: inherit;
+    transition: background 0.15s, color 0.15s;
   }
-  .input-footer button.clear-link:hover:not(:disabled) { color: #111; background: transparent; }
-  .input-footer button.clear-link:disabled { opacity: 0.4; cursor: not-allowed; }
-
+  :global(.agent-header-actions .agent-header-btn:hover:not(:disabled)) {
+    background: #f3f4f6;
+    color: var(--color-primary);
+  }
+  :global(.agent-header-actions .agent-header-btn:disabled) {
+    opacity: 0.5;
+    cursor: not-allowed;
+  }
+  :global(.agent-header-actions .agent-header-btn-icon) {
+    padding: 0.4rem;
+    color: #6b7280;
+  }
+  :global(.agent-header-actions .agent-header-btn-icon:hover:not(:disabled)) {
+    color: var(--color-primary);
+    background: #eff6ff;
+  }
   .agent-messages {
     flex: 1;
+    min-height: 0;
     overflow-y: auto;
-    padding: 1.25rem;
-    padding-bottom: calc(1.25rem + 50px);
+    padding: 3.5rem 1.25rem 6rem;
   }
   .agent-empty {
     display: flex;
@@ -422,18 +529,9 @@
     opacity: 0.5;
     cursor: not-allowed;
   }
-
   .msg {
     margin-bottom: 1.125rem;
   }
-  .msg-role {
-    font-size: 0.75rem;
-    font-weight: 600;
-    color: #666;
-    display: block;
-    margin-bottom: 0.25rem;
-  }
-  .msg.user .msg-role { color: var(--color-primary); }
   .msg-content {
     font-size: 0.875rem;
     line-height: 1.65;
@@ -442,6 +540,13 @@
   }
   .msg.user .msg-content {
     white-space: pre-wrap;
+  }
+  .msg.user {
+    background: #f5f5f5;
+    margin-left: -0.5rem;
+    margin-right: -0.5rem;
+    padding: 0.5rem 0.75rem;
+    border-radius: 8px;
   }
   .msg-usage {
     font-size: 0.6875rem;
@@ -469,6 +574,9 @@
     border-color: #b3d9f5;
     color: var(--color-primary);
   }
+  .tool-call.running .tool-call-icon {
+    animation: tool-spin 1s linear infinite;
+  }
   .tool-call.success {
     background: #f0f9f0;
     border-color: #c8e6c9;
@@ -479,48 +587,16 @@
     border-color: #ffcdd2;
     color: #c62828;
   }
-  .tool-call-icon { font-size: 0.8em; opacity: 0.9; }
-  .tool-call.running .tool-call-icon {
-    animation: tool-spin 1s linear infinite;
+  .tool-call-icon {
+    font-size: 0.8em;
+    opacity: 0.9;
   }
   @keyframes tool-spin {
     from { transform: rotate(0deg); }
     to { transform: rotate(360deg); }
   }
-  .tool-call-name { font-weight: 500; }
-  .msg-reasoning {
-    margin-bottom: 0.5rem;
-    font-size: 0.8125rem;
-    color: #6b7280;
-    background: #f9fafb;
-    border: 1px solid #e5e7eb;
-    border-radius: 6px;
-    overflow: hidden;
-  }
-  .msg-reasoning summary {
-    padding: 0.35rem 0.5rem;
-    cursor: pointer;
+  .tool-call-name {
     font-weight: 500;
-    list-style: none;
-    display: flex;
-    align-items: center;
-    gap: 0.35rem;
-  }
-  .msg-reasoning summary::-webkit-details-marker { display: none; }
-  .msg-reasoning-arrow {
-    display: inline-block;
-    font-size: 0.6em;
-    transition: transform 0.2s ease;
-  }
-  .msg-reasoning:not([open]) .msg-reasoning-arrow {
-    transform: rotate(-90deg);
-  }
-  .msg-reasoning-content {
-    padding: 0.5rem 0.75rem;
-    max-height: 12rem;
-    overflow-y: auto;
-    white-space: pre-wrap;
-    word-break: break-word;
   }
   .tool-call-args {
     color: #888;
@@ -530,82 +606,50 @@
     text-overflow: ellipsis;
     white-space: nowrap;
   }
+  .agent-reasoning {
+    margin-bottom: 0.5rem;
+    font-size: 0.8125rem;
+    color: #6b7280;
+    background: #f9fafb;
+    border: 1px solid #e5e7eb;
+    border-radius: 6px;
+    overflow: hidden;
+  }
+  .agent-reasoning summary {
+    padding: 0.35rem 0.5rem;
+    cursor: pointer;
+    font-weight: 500;
+    list-style: none;
+    display: flex;
+    align-items: center;
+    gap: 0.35rem;
+  }
+  .agent-reasoning summary::-webkit-details-marker {
+    display: none;
+  }
+  .agent-reasoning-arrow {
+    display: inline-block;
+    font-size: 0.6em;
+    transition: transform 0.2s ease;
+  }
+  .agent-reasoning:not([open]) .agent-reasoning-arrow {
+    transform: rotate(-90deg);
+  }
+  .agent-reasoning-content {
+    padding: 0.5rem 0.75rem;
+    max-height: 12rem;
+    overflow-y: auto;
+    white-space: pre-wrap;
+    word-break: break-word;
+    border-top: 1px solid #f3f4f6;
+  }
   .cursor {
     animation: blink 1s step-end infinite;
     color: var(--color-primary);
   }
-  @keyframes blink { 50% { opacity: 0; } }
-
-  :global(.msg-content.markdown-body) { font-size: 0.875rem; line-height: 1.65; color: #111; }
-  :global(.msg-content.markdown-body p) { margin: 0 0 0.6em; }
-  :global(.msg-content.markdown-body p:last-child) { margin-bottom: 0; }
-  :global(.msg-content.markdown-body ul),
-  :global(.msg-content.markdown-body ol) { margin: 0.4em 0 0.6em 1.25em; padding: 0; }
-  :global(.msg-content.markdown-body li) { margin-bottom: 0.2em; }
-  :global(.msg-content.markdown-body h1),
-  :global(.msg-content.markdown-body h2),
-  :global(.msg-content.markdown-body h3) {
-    font-weight: 600;
-    margin: 0.75em 0 0.35em;
-    line-height: 1.3;
+  @keyframes blink {
+    50% { opacity: 0; }
   }
-  :global(.msg-content.markdown-body h1) { font-size: 1.05em; }
-  :global(.msg-content.markdown-body h2) { font-size: 0.975em; }
-  :global(.msg-content.markdown-body h3) { font-size: 0.9em; }
-  :global(.msg-content.markdown-body code) {
-    font-family: ui-monospace, 'SFMono-Regular', Menlo, monospace;
-    font-size: 0.85em;
-    background: #f0f0f0;
-    padding: 0.1em 0.35em;
-    border-radius: 4px;
-  }
-  :global(.msg-content.markdown-body pre) {
-    background: #f5f5f5;
-    border: 1px solid #e8e8e8;
-    border-radius: 6px;
-    padding: 0.75rem 1rem;
-    overflow-x: auto;
-    margin: 0.5em 0;
-  }
-  :global(.msg-content.markdown-body pre code) {
-    background: none;
-    padding: 0;
-    font-size: 0.8125rem;
-    border-radius: 0;
-  }
-  :global(.msg-content.markdown-body blockquote) {
-    border-left: 3px solid #ddd;
-    margin: 0.5em 0;
-    padding: 0.25em 0.75em;
-    color: #666;
-  }
-  :global(.msg-content.markdown-body a) { color: var(--color-primary); text-decoration: none; }
-  :global(.msg-content.markdown-body a:hover) { text-decoration: underline; }
-  :global(.msg-content.markdown-body hr) { border: none; border-top: 1px solid #e5e7eb; margin: 0.75em 0; }
-  :global(.msg-content.markdown-body strong) { font-weight: 600; }
-  :global(.msg-content.markdown-body .table-wrap) {
-    overflow-x: auto;
-    margin: 0.5em 0;
-    -webkit-overflow-scrolling: touch;
-  }
-  :global(.msg-content.markdown-body table) {
-    border-collapse: collapse;
-    width: 100%;
-    min-width: 200px;
-    font-size: 0.85em;
-  }
-  :global(.msg-content.markdown-body thead) { display: table-header-group; }
-  :global(.msg-content.markdown-body tbody) { display: table-row-group; }
-  :global(.msg-content.markdown-body th),
-  :global(.msg-content.markdown-body td) {
-    border: 1px solid #e5e7eb;
-    padding: 0.35em 0.6em;
-    text-align: left;
-    word-break: break-word;
-    vertical-align: top;
-  }
-  :global(.msg-content.markdown-body th) { background: #f5f5f5; font-weight: 600; white-space: nowrap; }
-
   .agent-input-wrap {
     flex-shrink: 0;
     border-top: 1px solid #f0f0f0;
@@ -652,7 +696,29 @@
     font-size: 0.75rem;
     color: #bbb;
   }
-  .input-footer button {
+  .input-footer-right {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+  }
+  .clear-link {
+    font-size: 0.75rem;
+    color: #888;
+    background: transparent;
+    padding: 0;
+    border: none;
+    font-weight: 400;
+    text-decoration: underline;
+    cursor: pointer;
+  }
+  .clear-link:hover:not(:disabled) {
+    color: #111;
+  }
+  .clear-link:disabled {
+    opacity: 0.4;
+    cursor: not-allowed;
+  }
+  .btn-send {
     padding: 0.45rem 1.125rem;
     background: var(--color-primary);
     color: #fff;
@@ -662,6 +728,151 @@
     font-weight: 500;
     cursor: pointer;
   }
-  .input-footer button:hover:not(:disabled) { background: var(--color-primary-hover); }
-  .input-footer button:disabled { background: #ccc; cursor: not-allowed; }
+  .btn-send:hover:not(:disabled) {
+    background: var(--color-primary-hover);
+  }
+  .btn-send:disabled {
+    background: #ccc;
+    cursor: not-allowed;
+  }
+  /* dropdown (history) */
+  :global(.dropdown-panel) {
+    z-index: 50;
+    background: var(--color-card);
+    border: 1px solid var(--color-border);
+    border-radius: 6px;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.08);
+  }
+  :global(.agent-history-dropdown) {
+    min-width: 14rem;
+    max-width: 20rem;
+    max-height: min(60vh, 360px);
+    overflow-y: auto;
+  }
+  .dropdown-title {
+    font-size: 0.75rem;
+    font-weight: 600;
+    color: var(--color-muted-foreground);
+    padding: 0.5rem 0.75rem;
+    border-bottom: 1px solid var(--color-border);
+  }
+  .dropdown-empty {
+    font-size: 0.8125rem;
+    color: var(--color-muted-foreground-soft);
+    padding: 0.75rem;
+    margin: 0;
+  }
+  .dropdown-list {
+    list-style: none;
+    margin: 0;
+    padding: 0.25rem 0;
+  }
+  .dropdown-item {
+    display: flex;
+    align-items: stretch;
+  }
+  .dropdown-item-main {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 0.1rem;
+    padding: 0.4rem 0.75rem;
+    font-size: 0.8125rem;
+    text-align: left;
+    color: var(--color-foreground);
+    min-width: 0;
+    cursor: pointer;
+    border: none;
+    background: transparent;
+    font-family: inherit;
+    border-radius: 0;
+  }
+  .dropdown-item-main:hover {
+    background: var(--color-muted);
+  }
+  .dropdown-item-main.is-active {
+    background: var(--color-primary-light);
+    color: var(--color-primary);
+  }
+  .dropdown-item-title {
+    display: block;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    width: 100%;
+  }
+  .dropdown-item-date {
+    font-size: 0.6875rem;
+    color: var(--color-muted-foreground-soft);
+  }
+  .dropdown-item-main.is-active .dropdown-item-date {
+    color: var(--color-primary);
+    opacity: 0.9;
+  }
+  .dropdown-item-delete {
+    flex-shrink: 0;
+    width: 1.75rem;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 1rem;
+    color: var(--color-muted-foreground-soft);
+    cursor: pointer;
+    opacity: 0;
+    transition: opacity 0.15s;
+  }
+  .dropdown-item.group:hover .dropdown-item-delete,
+  .dropdown-item-delete:hover,
+  .dropdown-item-delete:focus {
+    opacity: 1;
+  }
+  .dropdown-item-delete:hover {
+    color: var(--color-destructive);
+  }
+  .dropdown-item-delete.is-hidden {
+    opacity: 0;
+    pointer-events: none;
+  }
+  /* markdown */
+  :global(.msg-content.markdown-body) { font-size: 0.875rem; line-height: 1.65; color: #111; }
+  :global(.msg-content.markdown-body p) { margin: 0 0 0.6em; }
+  :global(.msg-content.markdown-body p:last-child) { margin-bottom: 0; }
+  :global(.msg-content.markdown-body ul),
+  :global(.msg-content.markdown-body ol) { margin: 0.4em 0 0.6em 1.25em; padding: 0; }
+  :global(.msg-content.markdown-body li) { margin-bottom: 0.2em; }
+  :global(.msg-content.markdown-body h1),
+  :global(.msg-content.markdown-body h2),
+  :global(.msg-content.markdown-body h3) { font-weight: 600; margin: 0.75em 0 0.35em; line-height: 1.3; }
+  :global(.msg-content.markdown-body h1) { font-size: 1.05em; }
+  :global(.msg-content.markdown-body h2) { font-size: 0.975em; }
+  :global(.msg-content.markdown-body h3) { font-size: 0.9em; }
+  :global(.msg-content.markdown-body code) {
+    font-family: ui-monospace, 'SFMono-Regular', Menlo, monospace;
+    font-size: 0.85em;
+    background: #f0f0f0;
+    padding: 0.1em 0.35em;
+    border-radius: 4px;
+  }
+  :global(.msg-content.markdown-body pre) {
+    background: #f5f5f5;
+    border: 1px solid #e8e8e8;
+    border-radius: 6px;
+    padding: 0.75rem 1rem;
+    overflow-x: auto;
+    margin: 0.5em 0;
+  }
+  :global(.msg-content.markdown-body pre code) { background: none; padding: 0; font-size: 0.8125rem; border-radius: 0; }
+  :global(.msg-content.markdown-body blockquote) { border-left: 3px solid #ddd; margin: 0.5em 0; padding: 0.25em 0.75em; color: #666; }
+  :global(.msg-content.markdown-body a) { color: var(--color-primary); text-decoration: none; }
+  :global(.msg-content.markdown-body a:hover) { text-decoration: underline; }
+  :global(.msg-content.markdown-body hr) { border: none; border-top: 1px solid #e5e7eb; margin: 0.75em 0; }
+  :global(.msg-content.markdown-body strong) { font-weight: 600; }
+  :global(.msg-content.markdown-body .table-wrap) { overflow-x: auto; margin: 0.5em 0; -webkit-overflow-scrolling: touch; }
+  :global(.msg-content.markdown-body table) { border-collapse: collapse; width: 100%; min-width: 200px; font-size: 0.85em; }
+  :global(.msg-content.markdown-body thead) { display: table-header-group; }
+  :global(.msg-content.markdown-body tbody) { display: table-row-group; }
+  :global(.msg-content.markdown-body th),
+  :global(.msg-content.markdown-body td) { border: 1px solid #e5e7eb; padding: 0.35em 0.6em; text-align: left; word-break: break-word; vertical-align: top; }
+  :global(.msg-content.markdown-body th) { background: #f5f5f5; font-weight: 600; white-space: nowrap; }
 </style>

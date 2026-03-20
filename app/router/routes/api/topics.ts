@@ -40,7 +40,7 @@ export function registerTopicsRoutes(app: Hono): void {
         .filter((t) => t && typeof t.title === "string" && t.title.trim())
         .map((t) => ({
           title: t.title.trim(),
-          tags: Array.isArray(t.tags) && t.tags.length > 0 ? t.tags : [t.title.trim()],
+          tags: Array.isArray(t.tags) ? t.tags.filter((x) => typeof x === "string" && x.trim()).map((x) => x.trim()) : [],
           prompt: typeof t.prompt === "string" ? t.prompt : "",
           description: typeof t.description === "string" ? t.description : "",
           refresh: typeof t.refresh === "number" && t.refresh >= 1 ? Math.floor(t.refresh) : 1,

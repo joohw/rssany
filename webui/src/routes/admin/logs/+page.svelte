@@ -1,6 +1,6 @@
 <script lang="ts">
   const LEVELS = ['error', 'warn', 'info', 'debug'] as const;
-  const CATEGORIES = ['scraper', 'scheduler', 'db', 'plugin', 'app', 'config', 'pipeline', 'deliver', 'daily'] as const;
+  const CATEGORIES = ['scraper', 'scheduler', 'db', 'plugin', 'app', 'config', 'pipeline', 'deliver', 'topics'] as const;
 
   interface LogItem {
     id: number;

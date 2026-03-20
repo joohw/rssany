@@ -1,6 +1,6 @@
-// 模块级 store：切换页面时保留聊天状态，避免组件卸载导致丢失
+// 模块级 store：多会话聊天，当前会话 + 历史会话持久化到 localStorage
 
-import { writable, get } from 'svelte/store';
+import { writable, get, derived } from 'svelte/store';
 
 export interface ToolCall {
   toolCallId: string;
@@ -19,16 +19,22 @@ export interface TokenUsage {
 export interface AgentMessage {
   role: 'user' | 'assistant';
   content: string;
-  /** 思考过程（thinking），可展开/收起 */
   reasoning?: string;
   toolCalls?: ToolCall[];
   usage?: TokenUsage;
 }
 
+export interface ChatSession {
+  id: string;
+  title: string;
+  messages: AgentMessage[];
+  createdAt: number;
+  updatedAt: number;
+}
+
 export interface AgentStreamState {
   streaming: boolean;
   streamContent: string;
-  /** 推理/思考内容（thinking_delta），与正文 streamContent 区分 */
   streamReasoning: string;
   streamToolCalls: ToolCall[];
   error: string;
@@ -44,47 +50,141 @@ const initialStreamState: AgentStreamState = {
   lastUsage: undefined,
 };
 
-const STORAGE_KEY = 'MainSession';
+const STORAGE_KEY = 'rssany_chat_sessions';
+const LEGACY_KEY = 'MainSession';
+const MAX_SESSIONS = 50;
+const TITLE_MAX_LEN = 36;
 
-function loadFromStorage(): AgentMessage[] {
-  if (typeof localStorage === 'undefined') return [];
+function genId(): string {
+  return crypto.randomUUID?.() ?? `s${Date.now()}-${Math.random().toString(36).slice(2, 9)}`;
+}
+
+function deriveTitle(messages: AgentMessage[]): string {
+  const firstUser = messages.find((m) => m.role === 'user');
+  if (!firstUser?.content) return '新对话';
+  const text = firstUser.content.trim().replace(/\s+/g, ' ');
+  return text.length <= TITLE_MAX_LEN ? text : text.slice(0, TITLE_MAX_LEN) + '…';
+}
+
+interface StoredState {
+  currentId: string;
+  sessions: Record<string, ChatSession>;
+}
+
+function loadFromStorage(): StoredState {
+  if (typeof localStorage === 'undefined') {
+    const id = genId();
+    return { currentId: id, sessions: { [id]: { id, title: '新对话', messages: [], createdAt: Date.now(), updatedAt: Date.now() } } };
+  }
   try {
-    const cached = localStorage.getItem(STORAGE_KEY);
-    if (!cached) return [];
-    const parsed = JSON.parse(cached) as AgentMessage[];
-    return Array.isArray(parsed) ? parsed : [];
+    const raw = localStorage.getItem(STORAGE_KEY);
+    if (raw) {
+      const parsed = JSON.parse(raw) as StoredState;
+      if (parsed?.currentId && parsed?.sessions && typeof parsed.sessions === 'object') return parsed;
+    }
+    // 迁移旧版 MainSession
+    const legacy = localStorage.getItem(LEGACY_KEY);
+    let messages: AgentMessage[] = [];
+    if (legacy) {
+      try {
+        const arr = JSON.parse(legacy) as AgentMessage[];
+        if (Array.isArray(arr)) messages = arr;
+      } catch {
+        /* ignore */
+      }
+      localStorage.removeItem(LEGACY_KEY);
+    }
+    const id = genId();
+    const now = Date.now();
+    const session: ChatSession = {
+      id,
+      title: messages.length > 0 ? deriveTitle(messages) : '新对话',
+      messages,
+      createdAt: now,
+      updatedAt: now,
+    };
+    return { currentId: id, sessions: { [id]: session } };
   } catch {
-    return [];
+    const id = genId();
+    return { currentId: id, sessions: { [id]: { id, title: '新对话', messages: [], createdAt: Date.now(), updatedAt: Date.now() } } };
   }
 }
 
-function saveToStorage(messages: AgentMessage[]) {
+function saveToStorage(state: StoredState): void {
   if (typeof localStorage === 'undefined') return;
   try {
-    if (messages.length > 0) {
-      localStorage.setItem(STORAGE_KEY, JSON.stringify(messages));
-    } else {
-      localStorage.removeItem(STORAGE_KEY);
+    const sessions = state.sessions;
+    const ids = Object.keys(sessions);
+    if (ids.length > MAX_SESSIONS) {
+      const sorted = ids
+        .map((id) => ({ id, updatedAt: sessions[id].updatedAt }))
+        .sort((a, b) => b.updatedAt - a.updatedAt);
+      const toRemove = sorted.slice(MAX_SESSIONS).map((s) => s.id);
+      const next: Record<string, ChatSession> = {};
+      for (const id of ids) if (!toRemove.includes(id)) next[id] = sessions[id];
+      state = { ...state, sessions: next };
     }
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
   } catch {
     /* ignore */
   }
 }
 
-// 模块级 store，切换路由时保留
-const _messages = writable<AgentMessage[]>(loadFromStorage());
+const initialState = loadFromStorage();
+const _currentId = writable<string>(initialState.currentId);
+const _sessions = writable<Record<string, ChatSession>>(initialState.sessions);
+const _messages = writable<AgentMessage[]>(initialState.sessions[initialState.currentId]?.messages ?? []);
+
+function persistCurrentSession(messages: AgentMessage[]): void {
+  const id = get(_currentId);
+  const sessions = get(_sessions);
+  const session = sessions[id];
+  const now = Date.now();
+  const title = messages.length > 0 ? deriveTitle(messages) : '新对话';
+  if (session) {
+    _sessions.update((s) => ({
+      ...s,
+      [id]: { ...session, messages, title, updatedAt: now },
+    }));
+  } else {
+    _sessions.update((s) => ({
+      ...s,
+      [id]: { id, title, messages, createdAt: now, updatedAt: now },
+    }));
+  }
+  const next = get(_sessions);
+  saveToStorage({ currentId: id, sessions: next });
+}
 
 _messages.subscribe((msgs) => {
-  saveToStorage(msgs);
+  const id = get(_currentId);
+  const sessions = get(_sessions);
+  if (!sessions[id]) return;
+  persistCurrentSession(msgs);
 });
 
-/** 从 localStorage 重新加载（页面挂载时调用，防止 store 被重置） */
+export const currentSessionId = {
+  subscribe: _currentId.subscribe,
+  get: () => get(_currentId),
+};
+
+/** 历史会话列表，按更新时间倒序（响应式） */
+export const sessionList = derived(_sessions, (s) =>
+  Object.values(s).sort((a, b) => b.updatedAt - a.updatedAt)
+);
+
+/** 当前会话（用于显示标题等） */
+export const currentSession = derived(
+  [_currentId, _sessions],
+  ([id, s]) => (id ? s[id] ?? null : null)
+);
+
 export function rehydrateAgentMessages(): void {
   if (typeof localStorage === 'undefined') return;
-  const stored = loadFromStorage();
-  if (stored.length > 0 && get(_messages).length === 0) {
-    _messages.set(stored);
-  }
+  const state = loadFromStorage();
+  _currentId.set(state.currentId);
+  _sessions.set(state.sessions);
+  _messages.set(state.sessions[state.currentId]?.messages ?? []);
 }
 
 export const agentMessages = {
@@ -94,11 +194,65 @@ export const agentMessages = {
   get: () => get(_messages),
   clear: () => {
     _messages.set([]);
-    saveToStorage([]);
+    persistCurrentSession([]);
   },
 };
 
-// 流式输出状态：放在 store 里，切换页面后回来仍能看到进行中的流或已完成结果
+/** 新建会话 */
+export function createNewSession(): string {
+  agentStream.resetStream();
+  const id = genId();
+  const now = Date.now();
+  const session: ChatSession = { id, title: '新对话', messages: [], createdAt: now, updatedAt: now };
+  _currentId.set(id);
+  _sessions.update((s) => ({ ...s, [id]: session }));
+  _messages.set([]);
+  const sessions = get(_sessions);
+  saveToStorage({ currentId: id, sessions });
+  return id;
+}
+
+/** 切换到指定历史会话 */
+export function loadSession(id: string): void {
+  const sessions = get(_sessions);
+  const session = sessions[id];
+  if (!session) return;
+  agentStream.resetStream();
+  _currentId.set(id);
+  _messages.set(session.messages.length > 0 ? [...session.messages] : []);
+}
+
+/** 删除一条历史会话 */
+export function deleteSession(id: string): void {
+  const current = get(_currentId);
+  _sessions.update((s) => {
+    const next = { ...s };
+    delete next[id];
+    return next;
+  });
+  let sessions = get(_sessions);
+  if (current === id && Object.keys(sessions).length > 0) {
+    const nextId = Object.keys(sessions)[0];
+    _currentId.set(nextId);
+    _messages.set(sessions[nextId].messages ?? []);
+    saveToStorage({ currentId: nextId, sessions });
+    return;
+  }
+  if (Object.keys(sessions).length === 0) {
+    const newId = genId();
+    const now = Date.now();
+    const session: ChatSession = { id: newId, title: '新对话', messages: [], createdAt: now, updatedAt: now };
+    sessions = { [newId]: session };
+    _currentId.set(newId);
+    _sessions.set(sessions);
+    _messages.set([]);
+    saveToStorage({ currentId: newId, sessions });
+    return;
+  }
+  saveToStorage({ currentId: current, sessions });
+}
+
+// 流式输出状态
 const _stream = writable<AgentStreamState>({ ...initialStreamState });
 
 export const agentStream = {
@@ -138,7 +292,6 @@ export const agentStream = {
     _stream.update((s) => ({ ...s, lastUsage: usage }));
   },
 
-  /** 流结束：写入一条 assistant 消息并清空流状态（含 reasoning 供结束后展开查看） */
   finishStream() {
     const s = get(_stream);
     const content = s.error || s.streamContent || '(无回复)';

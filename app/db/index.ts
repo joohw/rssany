@@ -839,7 +839,7 @@ export async function getTopics(): Promise<Topic[]> {
       if (!title) continue;
       const tags = Array.isArray((t as { tags?: unknown }).tags)
         ? (t as { tags: unknown[] }).tags.filter((x): x is string => typeof x === "string" && x.trim().length > 0).map((x) => x.trim())
-        : [title];
+        : [];
       const prompt = typeof (t as { prompt?: unknown }).prompt === "string" ? (t as { prompt: string }).prompt : "";
       const description = typeof (t as { description?: unknown }).description === "string" ? (t as { description: string }).description : "";
       const r = (t as { refresh?: unknown }).refresh;
@@ -858,9 +858,7 @@ export async function saveTopics(topics: Topic[]): Promise<void> {
     .filter((t) => t && typeof t.title === "string" && t.title.trim())
     .map((t) => ({
       title: t.title.trim(),
-      tags: Array.isArray(t.tags) && t.tags.length > 0
-        ? t.tags.filter((x) => typeof x === "string" && x.trim()).map((x) => x.trim())
-        : [t.title.trim()],
+      tags: Array.isArray(t.tags) ? t.tags.filter((x) => typeof x === "string" && x.trim()).map((x) => x.trim()) : [],
       prompt: typeof t.prompt === "string" ? t.prompt : "",
       description: typeof t.description === "string" ? t.description : "",
       refresh: typeof t.refresh === "number" && t.refresh >= 1 ? Math.floor(t.refresh) : 1,
@@ -990,7 +988,7 @@ export async function getTopicStats(): Promise<TopicStat[]> {
 
   const now = Date.now();
   const topicStats = topics.map((t) => {
-    const tagsForMatch = Array.isArray(t.tags) && t.tags.length > 0 ? t.tags : [t.title];
+    const tagsForMatch = Array.isArray(t.tags) && t.tags.length > 0 ? t.tags : [];
     const displayTags = Array.isArray(t.tags) ? t.tags : [];
     let count = 0;
     let hotness = 0;

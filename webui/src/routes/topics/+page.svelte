@@ -1,6 +1,8 @@
 <script lang="ts">
   import { onMount } from 'svelte';
   import { goto } from '$app/navigation';
+  import { Dialog } from 'bits-ui';
+  import MoreHorizontal from 'lucide-svelte/icons/more-horizontal';
   import { fetchJson } from '$lib/fetchJson.js';
 
   interface TopicStat {
@@ -33,7 +35,6 @@
   let showEditForm = false;
   let editTarget: TopicCard | null = null;
   let newTitle = '';
-  let newTags = '';
   let newPrompt = '';
   let newDescription = '';
   let newRefresh = 1;
@@ -49,7 +50,7 @@
       const list = data?.stats ?? [];
       cards = list.map((s) => ({
         title: s.title,
-        tags: s.tags ?? [s.title],
+        tags: s.tags ?? [],
         prompt: s.prompt ?? '',
         description: s.description ?? '',
         refresh: s.refresh ?? 1,
@@ -68,7 +69,7 @@
   function getTopicsPayload(): Array<{ title: string; tags: string[]; prompt: string; description: string; refresh: number }> {
     return cards.map((c) => ({
       title: c.title,
-      tags: c.tags.length ? c.tags : [c.title],
+      tags: c.tags,
       prompt: c.prompt,
       description: c.description,
       refresh: c.refresh,
@@ -103,12 +104,9 @@
       setTimeout(() => { saveMsg = ''; }, 1500);
       return;
     }
-    const tags = newTags.trim()
-      ? newTags.split(',').map((t) => t.trim()).filter(Boolean)
-      : [title];
     const topic = {
       title,
-      tags,
+      tags: [] as string[],
       prompt: newPrompt.trim(),
       description: newDescription.trim(),
       refresh: newRefresh,
@@ -120,7 +118,6 @@
   function openEditModal(card: TopicCard) {
     editTarget = card;
     newTitle = card.title;
-    newTags = card.tags.join(', ');
     newPrompt = card.prompt;
     newDescription = card.description;
     newRefresh = card.refresh;
@@ -132,9 +129,6 @@
     if (!editTarget || saving) return;
     const title = newTitle.trim();
     if (!title) return;
-    const tags = newTags.trim()
-      ? newTags.split(',').map((t) => t.trim()).filter(Boolean)
-      : [title];
     if (title !== editTarget.title && cards.some((c) => c.title === title)) {
       saveMsg = '话题已存在';
       setTimeout(() => { saveMsg = ''; }, 1500);
@@ -142,7 +136,7 @@
     }
     const next = cards.map((c) =>
       c.title === editTarget!.title
-        ? { ...c, title, tags, prompt: newPrompt.trim(), description: newDescription.trim(), refresh: newRefresh }
+        ? { ...c, title, tags: editTarget!.tags, prompt: newPrompt.trim(), description: newDescription.trim(), refresh: newRefresh }
         : c
     );
     closeEditModal();
@@ -170,7 +164,6 @@
   function closeAddModal() {
     showAddForm = false;
     newTitle = '';
-    newTags = '';
     newPrompt = '';
     newDescription = '';
     newRefresh = 1;
@@ -180,7 +173,6 @@
     showEditForm = false;
     editTarget = null;
     newTitle = '';
-    newTags = '';
     newPrompt = '';
     newDescription = '';
     newRefresh = 1;
@@ -215,7 +207,7 @@
     <div class="feed-header">
       <div class="header-left">
         <h2>话题</h2>
-        <p class="sub">话题包含 title（必填）、tags（关键词）、描述（展示用）、AI 提示词（报告生成），refresh 默认 1 天。新内容经 pipeline 打标签后会自动聚合到对应话题，并生成追踪报告。</p>
+        <p class="sub">话题只需要简短的描述，添加话题后，Agent 会持续追踪该话题并定期输出文章。</p>
       </div>
       <div class="header-right">
         {#if saveMsg}
@@ -224,10 +216,12 @@
         <button
           type="button"
           class="add-btn"
-          on:click={() => { showAddForm = true; newTitle = ''; newTags = ''; newPrompt = ''; newDescription = ''; newRefresh = 1; }}
+          title="添加话题"
+          aria-label="添加话题"
+          on:click={() => { showAddForm = true; newTitle = ''; newPrompt = ''; newDescription = ''; newRefresh = 1; }}
           disabled={loading || saving}
         >
-          + 添加话题
+          +
         </button>
       </div>
     </div>
@@ -245,10 +239,9 @@
             class="card"
             role="button"
             tabindex="0"
-            title="{card.title}。点击查看报告，右键编辑或删除"
+            title="{card.title}。点击查看最新报告"
             on:click={() => goto(card.articleHref)}
             on:keydown={(e) => e.key === 'Enter' && goto(card.articleHref)}
-            on:contextmenu={(e) => showContextMenu(e, card.title)}
           >
             <div class="card-main">
               <span class="card-label">{card.title}</span>
@@ -268,6 +261,19 @@
                 </div>
               {/if}
             </div>
+            <button
+              type="button"
+              class="card-more-btn"
+              title="编辑或删除"
+              aria-label="更多操作"
+              on:click|stopPropagation={(e) => showContextMenu(e, card.title)}
+            >
+              <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                <circle cx="12" cy="12" r="1" />
+                <circle cx="19" cy="12" r="1" />
+                <circle cx="5" cy="12" r="1" />
+              </svg>
+            </button>
           </div>
         {/each}
       </div>
@@ -275,22 +281,19 @@
   </div>
 </div>
 
-{#if showAddForm}
-  <!-- svelte-ignore a11y_click_events_have_key_events a11y_no_static_element_interactions -->
-  <div class="modal-backdrop" on:click|self={closeAddModal}>
-    <div
-      class="modal-dialog"
-      role="dialog"
-      tabindex="-1"
-      aria-modal="true"
-      aria-labelledby="modal-title"
-      on:keydown={(e) => e.key === 'Escape' && closeAddModal()}
-    >
-      <div class="modal-header">
-        <h3 id="modal-title">添加话题</h3>
-        <button type="button" class="modal-close" on:click={closeAddModal} aria-label="关闭">×</button>
+<!-- 添加话题弹窗 -->
+<Dialog.Root
+  open={showAddForm}
+  onOpenChange={(open) => { showAddForm = open; if (!open) closeAddModal(); }}
+>
+  <Dialog.Portal>
+    <Dialog.Overlay class="dialog-overlay" />
+    <Dialog.Content class="dialog-content" aria-describedby={undefined}>
+      <div class="dialog-header">
+        <Dialog.Title class="dialog-title">添加话题</Dialog.Title>
+        <Dialog.Close class="dialog-close" aria-label="关闭">×</Dialog.Close>
       </div>
-      <div class="modal-body">
+      <div class="dialog-body">
         <div class="form-row">
           <label for="new-title">标题 <span class="required">*</span></label>
           <input
@@ -299,15 +302,6 @@
             placeholder="简短描述，如：A2A协议"
             bind:value={newTitle}
             on:keydown={(e) => e.key === 'Enter' && addTopic()}
-          />
-        </div>
-        <div class="form-row">
-          <label for="new-tags">关键词（tags）</label>
-          <input
-            id="new-tags"
-            type="text"
-            placeholder="逗号分隔，如：A2A协议,Agent-to-Agent（留空则用标题）"
-            bind:value={newTags}
           />
         </div>
         <div class="form-row">
@@ -341,9 +335,9 @@
           </button>
         </div>
       </div>
-    </div>
-  </div>
-{/if}
+    </Dialog.Content>
+  </Dialog.Portal>
+</Dialog.Root>
 
 {#if contextMenu}
   {@const card = cards.find((c) => c.title === contextMenu!.topicTitle)}
@@ -374,22 +368,19 @@
   </div>
 {/if}
 
-{#if showEditForm}
-  <!-- svelte-ignore a11y_click_events_have_key_events a11y_no_static_element_interactions -->
-  <div class="modal-backdrop" on:click|self={closeEditModal}>
-    <div
-      class="modal-dialog"
-      role="dialog"
-      tabindex="-1"
-      aria-modal="true"
-      aria-labelledby="edit-modal-title"
-      on:keydown={(e) => e.key === 'Escape' && closeEditModal()}
-    >
-      <div class="modal-header">
-        <h3 id="edit-modal-title">编辑话题</h3>
-        <button type="button" class="modal-close" on:click={closeEditModal} aria-label="关闭">×</button>
+<!-- 编辑话题弹窗 -->
+<Dialog.Root
+  open={showEditForm}
+  onOpenChange={(open) => { showEditForm = open; if (!open) closeEditModal(); }}
+>
+  <Dialog.Portal>
+    <Dialog.Overlay class="dialog-overlay" />
+    <Dialog.Content class="dialog-content" aria-describedby={undefined}>
+      <div class="dialog-header">
+        <Dialog.Title class="dialog-title">编辑话题</Dialog.Title>
+        <Dialog.Close class="dialog-close" aria-label="关闭">×</Dialog.Close>
       </div>
-      <div class="modal-body">
+      <div class="dialog-body">
         <div class="form-row">
           <label for="edit-title">标题 <span class="required">*</span></label>
           <input
@@ -398,15 +389,6 @@
             placeholder="简短描述，如：A2A协议"
             bind:value={newTitle}
             on:keydown={(e) => e.key === 'Enter' && saveEdit()}
-          />
-        </div>
-        <div class="form-row">
-          <label for="edit-tags">关键词（tags）</label>
-          <input
-            id="edit-tags"
-            type="text"
-            placeholder="逗号分隔，留空则用标题"
-            bind:value={newTags}
           />
         </div>
         <div class="form-row">
@@ -440,9 +422,9 @@
           </button>
         </div>
       </div>
-    </div>
-  </div>
-{/if}
+    </Dialog.Content>
+  </Dialog.Portal>
+</Dialog.Root>
 
 <style>
   .feed-wrap {
@@ -493,8 +475,10 @@
     flex-shrink: 0;
   }
   .add-btn {
-    padding: 0.4rem 0.75rem;
-    font-size: 0.8125rem;
+    padding: 0.4rem 0.5rem;
+    min-width: 2rem;
+    font-size: 1rem;
+    line-height: 1;
     background: var(--color-primary);
     color: #fff;
     border: none;
@@ -513,38 +497,43 @@
     color: #059669;
   }
 
-  .modal-backdrop {
+  /* bits-ui Dialog 通过 Portal 渲染，需 :global 使样式生效 */
+  :global(.dialog-overlay) {
     position: fixed;
     inset: 0;
     z-index: 200;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    background: rgba(0, 0, 0, 0.4);
-    padding: 1rem;
+    background: rgba(0, 0, 0, 0.35);
   }
-  .modal-dialog {
+  :global(.dialog-content) {
+    position: fixed;
+    left: 50%;
+    top: 50%;
+    transform: translate(-50%, -50%);
+    z-index: 201;
     background: #fff;
     border-radius: 8px;
     box-shadow: 0 8px 32px rgba(0, 0, 0, 0.15);
-    max-width: 420px;
-    width: 100%;
+    max-width: 560px;
+    width: calc(100% - 2rem);
     max-height: 90vh;
     overflow: auto;
+    display: flex;
+    flex-direction: column;
   }
-  .modal-header {
+  :global(.dialog-header) {
     display: flex;
     align-items: center;
     justify-content: space-between;
     padding: 1rem 1.25rem;
     border-bottom: 1px solid #e5e7eb;
+    flex-shrink: 0;
   }
-  .modal-header h3 {
+  :global(.dialog-title) {
     font-size: 0.9375rem;
     font-weight: 600;
     margin: 0;
   }
-  .modal-close {
+  :global(.dialog-close) {
     font-size: 1.25rem;
     line-height: 1;
     padding: 0.2rem;
@@ -552,11 +541,13 @@
     background: none;
     border: none;
     cursor: pointer;
+    border-radius: 4px;
   }
-  .modal-close:hover {
+  :global(.dialog-close:hover) {
     color: #111;
+    background: #f0f0f0;
   }
-  .modal-body {
+  :global(.dialog-body) {
     padding: 1rem 1.25rem;
   }
   .form-row {
@@ -670,6 +661,26 @@
   }
   .card:hover {
     background: #fafafa;
+  }
+
+  .card-more-btn {
+    flex-shrink: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 2rem;
+    height: 2rem;
+    margin: -0.25rem 0;
+    padding: 0;
+    border: none;
+    border-radius: 6px;
+    background: transparent;
+    color: #6b7280;
+    cursor: pointer;
+  }
+  .card-more-btn:hover {
+    background: #e5e7eb;
+    color: #111;
   }
 
   .card-main {

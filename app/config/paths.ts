@@ -1,13 +1,26 @@
 // 路径配置：集中管理所有运行时路径，区分项目文件与用户数据
 
 import { mkdir, rename, access, readFile, writeFile } from "node:fs/promises";
-import { join } from "node:path";
+import { join, resolve, relative } from "node:path";
 import { logger } from "../core/logger/index.js";
 
 
 /** 用户数据根目录：.rssany/（不纳入版本管理，存放所有运行时用户数据） */
 export const USER_DIR = join(process.cwd(), ".rssany");
 
+/** Agent 文件工具沙箱根目录：.rssany/sandbox/，所有 read_file / write_file / list_directory 仅限此目录下 */
+export const SANDBOX_DIR = join(USER_DIR, "sandbox");
+
+/** 将相对路径解析到沙箱内绝对路径，禁止逃逸到沙箱外；path 为相对 .rssany/sandbox 的路径。 */
+export function resolveSandboxPath(path: string): { absolute: string } | { error: string } {
+  const normalized = path.replace(/\\/g, "/").replace(/\/+/g, "/").trim() || ".";
+  const absolute = resolve(SANDBOX_DIR, normalized);
+  const rel = relative(SANDBOX_DIR, absolute);
+  if (rel.startsWith("..") || resolve(SANDBOX_DIR, rel) !== absolute) {
+    return { error: "路径不允许访问沙箱外目录" };
+  }
+  return { absolute };
+}
 
 /** SQLite 数据库目录：.rssany/data/ */
 export const DATA_DIR = join(USER_DIR, "data");
@@ -86,6 +99,7 @@ async function migrateFile(from: string, to: string): Promise<void> {
 export async function initUserDir(): Promise<void> {
   await mkdir(USER_DIR, { recursive: true });
   await mkdir(DATA_DIR, { recursive: true });
+  await mkdir(SANDBOX_DIR, { recursive: true });
   await mkdir(CACHE_DIR, { recursive: true });
   await mkdir(USER_PLUGINS_DIR, { recursive: true });
   await mkdir(USER_SOURCES_DIR, { recursive: true });

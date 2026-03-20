@@ -81,7 +81,9 @@
     color: var(--color-foreground);
     width: 100%;
   }
-  :global(button) {
+  /* 仅对无 class 的 button 应用默认样式，带 class 的（含 Tailwind）由各自样式控制 */
+  :global(button:not([class])),
+  :global(button[class='']) {
     font: inherit;
     cursor: pointer;
     padding: 0.35rem 0.75rem;
@@ -90,11 +92,13 @@
     background: var(--color-background);
     color: var(--color-foreground);
   }
-  :global(button:hover:not(:disabled)) {
+  :global(button:not([class]):hover:not(:disabled)),
+  :global(button[class='']:hover:not(:disabled)) {
     background: var(--color-accent);
     border-color: var(--color-muted-foreground-soft);
   }
-  :global(button:disabled) {
+  :global(button:not([class]):disabled),
+  :global(button[class='']:disabled) {
     opacity: 0.6;
     cursor: not-allowed;
   }

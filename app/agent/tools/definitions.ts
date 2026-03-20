@@ -248,6 +248,100 @@ const toolDefs: ToolDef[] = [
       };
     },
   },
+  {
+    name: "read_file",
+    label: "Read file",
+    description:
+      "Read a file from the sandbox (.rssany/sandbox). Path is relative to sandbox root. Use offset/limit to read long documents in chunks (line-based).",
+    params: {
+      path: { type: "string", description: "File path relative to .rssany/sandbox (e.g. notes/draft.md)" },
+      encoding: { type: "string", optional: true, description: "Encoding (default utf-8)" },
+      offset: { type: "number", optional: true, minimum: 0, description: "Skip this many lines from the start (for chunked reading)" },
+      limit: { type: "number", optional: true, minimum: 1, maximum: 10000, description: "Max lines to return (for long docs)" },
+    },
+    run: async (args) => {
+      const a = args as { path: string; encoding?: string; offset?: number; limit?: number };
+      const result = await fn.readFileSandbox({
+        path: a.path,
+        encoding: a.encoding,
+        offset: a.offset,
+        limit: a.limit,
+      });
+      if ("error" in result) {
+        return {
+          content: [{ type: "text" as const, text: JSON.stringify({ error: result.error }) }],
+          details: result,
+          isError: true,
+        };
+      }
+      return {
+        content: [{ type: "text" as const, text: result.content }],
+        details: { path: result.path, length: result.content.length },
+      };
+    },
+  },
+  {
+    name: "write_file",
+    label: "Write file",
+    description:
+      "Write content to a file in the sandbox (.rssany/sandbox). Path is relative to sandbox. Creates parent directories if needed. Overwrites existing file.",
+    params: {
+      path: { type: "string", description: "File path relative to .rssany/sandbox (e.g. notes/draft.md)" },
+      content: { type: "string", description: "Full file content to write" },
+      create_dirs: {
+        type: "number",
+        optional: true,
+        description: "1 to create parent dirs (default), 0 to fail if parent missing",
+      },
+    },
+    run: async (args) => {
+      const a = args as { path: string; content: string; create_dirs?: number };
+      const result = await fn.writeFileSandbox({
+        path: a.path,
+        content: a.content,
+        create_dirs: a.create_dirs !== 0,
+      });
+      if ("error" in result) {
+        return {
+          content: [{ type: "text" as const, text: JSON.stringify({ error: result.error }) }],
+          details: result,
+          isError: true,
+        };
+      }
+      return {
+        content: [{ type: "text" as const, text: JSON.stringify({ path: result.path }) }],
+        details: result,
+      };
+    },
+  },
+  {
+    name: "list_directory",
+    label: "List directory",
+    description:
+      "List entries in a directory inside the sandbox (.rssany/sandbox). Path defaults to '.' (sandbox root). Use recursive=true to list subdirectories.",
+    params: {
+      path: { type: "string", optional: true, description: "Directory path relative to sandbox (default '.')" },
+      recursive: { type: "number", optional: true, description: "1 to list recursively, 0 or omit for top-level only" },
+    },
+    run: async (args) => {
+      const a = args as { path?: string; recursive?: number };
+      const result = await fn.listDirectorySandbox({
+        path: a.path,
+        recursive: a.recursive === 1,
+      });
+      if ("error" in result) {
+        return {
+          content: [{ type: "text" as const, text: JSON.stringify({ error: result.error }) }],
+          details: result,
+          isError: true,
+        };
+      }
+      return {
+        content: [{ type: "text" as const, text: JSON.stringify({ entries: result.entries, root: result.root }, null, 2) }],
+        details: result,
+      };
+    },
+  },
 ];
 
 /** 转为 AgentTool[] */

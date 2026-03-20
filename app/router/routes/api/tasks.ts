@@ -41,7 +41,7 @@ export function registerTasksRoutes(app: Hono): void {
             return result;
           } catch (err) {
             const msg = err instanceof Error ? err.message : String(err);
-            logger.error("scheduler", "话题生成失败", { taskId, topicKey, err: msg });
+            logger.error("topics", "话题生成失败", { taskId, topicKey, err: msg });
             taskStore.setTaskError(taskId, msg);
             throw err;
           }

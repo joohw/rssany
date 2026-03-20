@@ -14,7 +14,7 @@ export type LogCategory =
   | "config"    // 配置与迁移
   | "pipeline"  // 入库前处理链（翻译、打标签等）
   | "deliver"   // 入库后投递到远端
-  | "daily";    // 每日日报生成
+  | "topics";   // 话题/日报报告生成
 
 /** payload 常用字段约定（非强制）：便于查询与统计 */
 export interface LogPayloadConvention {

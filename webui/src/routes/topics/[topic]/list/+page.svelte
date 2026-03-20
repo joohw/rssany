@@ -31,10 +31,6 @@
     loadError = '';
     try {
       dates = await fetchDates();
-      if (dates.length > 0) {
-        goto(`/topics/${encodeURIComponent(topic)}/${encodeURIComponent(dates[0])}`, { replaceState: true });
-        return;
-      }
     } catch (e) {
       loadError = e instanceof Error ? e.message : String(e);
       dates = [];
@@ -54,9 +50,6 @@
         dates = await fetchDates();
         generateNotice = taskRes?.result?.message ?? '已生成最新报告';
         if (typeof window !== 'undefined') sessionStorage.removeItem(PENDING_KEY);
-        if (dates.length > 0) {
-          goto(`/topics/${encodeURIComponent(topic)}/${encodeURIComponent(dates[0])}`, { replaceState: true });
-        }
         break;
       }
       if (taskRes?.status === 'error') {
@@ -111,6 +104,10 @@
     }
   }
 
+  function openArticle(date: string) {
+    goto(`/topics/${encodeURIComponent(topic)}/${encodeURIComponent(date)}`);
+  }
+
   onMount(() => {
     recoverPendingTask();
   });
@@ -121,7 +118,7 @@
 </script>
 
 <svelte:head>
-  <title>{topic} - 话题追踪 - RssAny</title>
+  <title>报告列表 · {topic} - 话题追踪 - RssAny</title>
 </svelte:head>
 
 <div class="wrap">
@@ -131,8 +128,15 @@
         <div class="breadcrumb">
           <a href="/topics" class="breadcrumb-link">话题</a>
           <span class="breadcrumb-sep">/</span>
-          <span class="breadcrumb-current">{topic}</span>
+          <a href="/topics/{encodeURIComponent(topic)}" class="breadcrumb-link">{topic}</a>
+          <span class="breadcrumb-sep">/</span>
+          <span class="breadcrumb-current">报告列表</span>
         </div>
+      </div>
+      <div class="header-actions">
+        <button class="gen-btn" on:click={() => generate(true)} disabled={generating}>
+          {generating ? '生成中…' : '生成'}
+        </button>
       </div>
     </div>
 
@@ -141,7 +145,7 @@
         <div class="state">加载中…</div>
       {:else if loadError}
         <div class="state error">{loadError}</div>
-      {:else}
+      {:else if dates.length === 0}
         <div class="state empty">
           <p>该话题尚无报告</p>
           <p class="hint">点击「生成」让 Agent 基于近期文章撰写追踪报告</p>
@@ -151,12 +155,28 @@
           {#if generateError}
             <p class="gen-error">{generateError}</p>
           {/if}
-          <div class="header-actions">
-            <button class="gen-btn" on:click={() => generate(true)} disabled={generating}>
-              {generating ? '生成中…' : '生成'}
-            </button>
-          </div>
         </div>
+      {:else}
+        {#if generateNotice}
+          <div class="gen-notice-bar">{generateNotice}</div>
+        {/if}
+        {#if generateError}
+          <div class="gen-error-bar">{generateError}</div>
+        {/if}
+        <ul class="article-list">
+          {#each dates as date (date)}
+            <li>
+              <a
+                href="/topics/{encodeURIComponent(topic)}/{encodeURIComponent(date)}"
+                class="article-link"
+                on:click|preventDefault={() => openArticle(date)}
+              >
+                <span class="article-date">{date}</span>
+                <span class="article-label">追踪报告</span>
+              </a>
+            </li>
+          {/each}
+        </ul>
       {/if}
     </div>
   </div>
@@ -186,6 +206,15 @@
     padding: 0.75rem 1.25rem;
     border-bottom: 1px solid #f0f0f0;
     flex-shrink: 0;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.75rem;
+  }
+
+  .header-left {
+    flex: 1;
+    min-width: 0;
   }
 
   .breadcrumb {
@@ -218,6 +247,30 @@
     overflow: hidden;
     text-overflow: ellipsis;
     min-width: 0;
+  }
+
+  .header-actions {
+    display: flex;
+    align-items: center;
+  }
+
+  .gen-btn {
+    font-size: 0.75rem;
+    padding: 0.3rem 0.75rem;
+    border-radius: 5px;
+    border: 1px solid var(--color-primary);
+    background: var(--color-primary);
+    color: #fff;
+    cursor: pointer;
+    transition: background 0.12s;
+    white-space: nowrap;
+  }
+  .gen-btn:hover:not(:disabled) {
+    background: var(--color-primary-hover);
+  }
+  .gen-btn:disabled {
+    opacity: 0.5;
+    cursor: default;
   }
 
   .body {
@@ -254,9 +307,6 @@
     font-size: 0.75rem;
     color: #aaa;
   }
-  .state.empty .header-actions {
-    margin-top: 0.75rem;
-  }
   .gen-error {
     color: #c53030;
     font-size: 0.75rem;
@@ -267,23 +317,67 @@
     font-size: 0.75rem;
     margin-top: 0.5rem;
   }
-  .gen-btn {
-    font-size: 0.75rem;
-    padding: 0.3rem 0.75rem;
-    border-radius: 5px;
-    border: 1px solid var(--color-primary);
-    background: var(--color-primary);
-    color: #fff;
+  .gen-notice-bar {
+    background: #f8fafc;
+    border: 1px solid #e5e7eb;
+    border-radius: 4px;
+    padding: 0.5rem 0.75rem;
+    color: #4b5563;
+    font-size: 0.8125rem;
+    margin-bottom: 1rem;
+  }
+  .gen-error-bar {
+    background: #fff5f5;
+    border: 1px solid #fed7d7;
+    border-radius: 4px;
+    padding: 0.5rem 0.75rem;
+    color: #c53030;
+    font-size: 0.8125rem;
+    margin-bottom: 1rem;
+  }
+
+  .article-list {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 0;
+  }
+  .article-list li {
+    border-bottom: 1px solid #e5e7eb;
+  }
+  .article-list li:last-child {
+    border-bottom: none;
+  }
+  .article-link {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 1rem 0;
+    text-decoration: none;
+    color: inherit;
     cursor: pointer;
-    transition: background 0.12s;
-    white-space: nowrap;
+    transition: background 0.15s;
+    border-radius: 4px;
+    margin: 0 -0.5rem;
+    padding-left: 0.5rem;
+    padding-right: 0.5rem;
   }
-  .gen-btn:hover:not(:disabled) {
-    background: var(--color-primary-hover);
+  .article-link:hover {
+    background: #fafafa;
   }
-  .gen-btn:disabled {
-    opacity: 0.5;
-    cursor: default;
+  .article-date {
+    font-size: 0.9375rem;
+    font-weight: 500;
+    color: #111;
+  }
+  .article-link:hover .article-date {
+    color: var(--color-primary);
+  }
+  .article-label {
+    font-size: 0.75rem;
+    color: #9ca3af;
   }
 
   @media (max-width: 600px) {
