@@ -9,6 +9,11 @@ export interface ToolCall {
   status: 'running' | 'success' | 'error';
 }
 
+/** 推理链：文本与工具调用按发生顺序交错（工具在推理流内部） */
+export type ReasoningSegment =
+  | { type: 'text'; text: string }
+  | ({ type: 'tool' } & ToolCall);
+
 export interface TokenUsage {
   input?: number;
   output?: number;
@@ -19,6 +24,8 @@ export interface TokenUsage {
 export interface AgentMessage {
   role: 'user' | 'assistant';
   content: string;
+  /** 交错后的推理链；新消息优先使用 */
+  reasoningChain?: ReasoningSegment[];
   reasoning?: string;
   toolCalls?: ToolCall[];
   usage?: TokenUsage;
@@ -35,8 +42,7 @@ export interface ChatSession {
 export interface AgentStreamState {
   streaming: boolean;
   streamContent: string;
-  streamReasoning: string;
-  streamToolCalls: ToolCall[];
+  streamReasoningChain: ReasoningSegment[];
   error: string;
   lastUsage?: TokenUsage;
 }
@@ -44,11 +50,25 @@ export interface AgentStreamState {
 const initialStreamState: AgentStreamState = {
   streaming: false,
   streamContent: '',
-  streamReasoning: '',
-  streamToolCalls: [],
+  streamReasoningChain: [],
   error: '',
   lastUsage: undefined,
 };
+
+/** 旧存档仅有 reasoning + toolCalls 时，还原为单条链（顺序：先全部推理再全部工具） */
+export function normalizeReasoningChain(msg: AgentMessage): ReasoningSegment[] {
+  if (msg.reasoningChain && msg.reasoningChain.length > 0) return msg.reasoningChain;
+  const out: ReasoningSegment[] = [];
+  if (msg.reasoning?.trim()) out.push({ type: 'text', text: msg.reasoning });
+  for (const tc of msg.toolCalls ?? []) out.push({ type: 'tool', ...tc });
+  return out;
+}
+
+function trimReasoningChain(chain: ReasoningSegment[]): ReasoningSegment[] {
+  return chain
+    .map((seg) => (seg.type === 'text' ? { ...seg, text: seg.text.trim() } : seg))
+    .filter((seg) => (seg.type === 'text' ? seg.text.length > 0 : true));
+}
 
 /** 旧版全局 key（迁移到首个登录用户的分桶 key） */
 const STORAGE_KEY_LEGACY = 'rssany_chat_sessions';
@@ -383,18 +403,30 @@ export const agentStream = {
   },
 
   appendReasoning(delta: string) {
-    _stream.update((s) => ({ ...s, streamReasoning: s.streamReasoning + delta }));
+    _stream.update((s) => {
+      const chain = [...s.streamReasoningChain];
+      const last = chain[chain.length - 1];
+      if (last?.type === 'text') {
+        chain[chain.length - 1] = { type: 'text', text: last.text + delta };
+      } else {
+        chain.push({ type: 'text', text: delta });
+      }
+      return { ...s, streamReasoningChain: chain };
+    });
   },
 
-  setToolCalls(toolCalls: ToolCall[]) {
-    _stream.update((s) => ({ ...s, streamToolCalls: toolCalls }));
+  appendToolCall(tc: ToolCall) {
+    _stream.update((s) => ({
+      ...s,
+      streamReasoningChain: [...s.streamReasoningChain, { type: 'tool', ...tc }],
+    }));
   },
 
   updateToolCallStatus(toolCallId: string, status: 'success' | 'error') {
     _stream.update((s) => ({
       ...s,
-      streamToolCalls: s.streamToolCalls.map((t) =>
-        t.toolCallId === toolCallId ? { ...t, status } : t
+      streamReasoningChain: s.streamReasoningChain.map((seg) =>
+        seg.type === 'tool' && seg.toolCallId === toolCallId ? { ...seg, status } : seg
       ),
     }));
   },
@@ -410,15 +442,15 @@ export const agentStream = {
   finishStream() {
     const s = get(_stream);
     const content = s.error || s.streamContent || '(无回复)';
-    const hasContent = !!content || s.streamToolCalls.length > 0;
+    const chain = trimReasoningChain(s.streamReasoningChain);
+    const hasContent = !!content || chain.length > 0;
     if (hasContent) {
       _messages.update((m) => [
         ...m,
         {
           role: 'assistant',
           content,
-          reasoning: s.streamReasoning.trim() || undefined,
-          toolCalls: s.streamToolCalls.length > 0 ? s.streamToolCalls : undefined,
+          reasoningChain: chain.length > 0 ? chain : undefined,
           usage: s.lastUsage,
         },
       ]);

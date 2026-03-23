@@ -18,8 +18,9 @@
     agentSessionReady,
     agentSessionUserId,
     syncAgentSessionFromApi,
+    normalizeReasoningChain,
   } from '$lib/agentSession';
-  import type { ToolCall, TokenUsage } from '$lib/agentSession';
+  import type { TokenUsage } from '$lib/agentSession';
 
   marked.setOptions({ breaks: true, gfm: true });
 
@@ -44,13 +45,50 @@
 
   type AgentMessage = import('$lib/agentSession').AgentMessage;
 
+  /** 与 app/agent/tools/definitions 中 name 一一对应；兼容旧 MCP 名称 */
   const TOOL_LABELS: Record<string, string> = {
     list_channels: '列出频道',
-    get_channel_feeds: '获取 feeds',
-    get_feed_detail: '获取详情',
-    search_feeds: '搜索/筛选',
+    search_sources: '搜索信源',
+    get_feeds: '获取文章列表',
+    get_feed_detail: '获取文章详情',
     web_search: '网页搜索',
-    web_fetch: '抓取网页',
+    web_fetch: '抓取网页正文',
+    send_email: '发送邮件',
+    sandbox: '沙箱文件',
+    get_channel_feeds: '获取频道文章',
+    search_feeds: '全文搜索',
+  };
+
+  /** 工具参数名展示为中文（未知键仍用原名） */
+  const ARG_LABELS: Record<string, string> = {
+    q: '关键词',
+    channel_id: '频道',
+    source_url: '信源地址',
+    since: '起始日期',
+    until: '结束日期',
+    tags: '标签',
+    author: '作者',
+    limit: '条数',
+    offset: '偏移',
+    item_id: '条目 ID',
+    query: '查询',
+    count: '结果数',
+    url: '网址',
+    to: '收件人',
+    subject: '主题',
+    text: '正文',
+    html: 'HTML',
+    cc: '抄送',
+    bcc: '密送',
+    action: '操作',
+    path: '路径',
+    encoding: '编码',
+    content: '内容',
+    create_dirs: '创建目录',
+    old_string: '原文字',
+    new_string: '新文字',
+    replace_all: '全部替换',
+    recursive: '递归列出',
   };
 
   const QUICK_PROMPTS = [
@@ -64,10 +102,14 @@
     return TOOL_LABELS[name] ?? name;
   }
 
+  function argLabel(key: string): string {
+    return ARG_LABELS[key] ?? key;
+  }
+
   function formatArgs(args: Record<string, unknown>): string {
     const entries = Object.entries(args).filter(([, v]) => v !== undefined && v !== '');
     if (entries.length === 0) return '';
-    return entries.map(([k, v]) => `${k}: ${JSON.stringify(v)}`).join(', ');
+    return entries.map(([k, v]) => `${argLabel(k)}: ${JSON.stringify(v)}`).join(', ');
   }
 
   function formatUsage(u: TokenUsage): string {
@@ -205,17 +247,15 @@
                 agentStream.appendReasoning(data.delta);
               }
               if (lastEvent === 'tool_start' && data.toolName) {
-                agentStream.setToolCalls([
-                  ...agentStream.get().streamToolCalls,
-                  { toolCallId: data.toolCallId ?? '', toolName: data.toolName, args: data.args ?? {}, status: 'running' },
-                ]);
+                agentStream.appendToolCall({
+                  toolCallId: data.toolCallId ?? '',
+                  toolName: data.toolName,
+                  args: data.args ?? {},
+                  status: 'running',
+                });
               }
               if (lastEvent === 'tool_end' && data.toolCallId) {
-                agentStream.setToolCalls(
-                  agentStream.get().streamToolCalls.map((t) =>
-                    t.toolCallId === data.toolCallId ? { ...t, status: data.isError ? 'error' : 'success' } : t
-                  )
-                );
+                agentStream.updateToolCallStatus(data.toolCallId, data.isError ? 'error' : 'success');
               }
               if (lastEvent === 'error' && data.message) {
                 agentStream.setError(data.message);
@@ -376,32 +416,36 @@
           {/if}
         </div>
       {:else}
-        {#each $agentMessages as msg, i (i + msg.role + msg.content + (msg.reasoning ?? '') + JSON.stringify(msg.toolCalls ?? []))}
+        {#each $agentMessages as msg, i (i + msg.role + msg.content + JSON.stringify(normalizeReasoningChain(msg)))}
           <div class="msg" class:user={msg.role === 'user'} class:assistant={msg.role === 'assistant'}>
-            {#if msg.role === 'assistant' && msg.toolCalls && msg.toolCalls.length > 0}
-              <div class="tool-calls">
-                {#each msg.toolCalls as tc (tc.toolCallId + tc.status)}
-                  <div class="tool-call" class:running={tc.status === 'running'} class:success={tc.status === 'success'} class:error={tc.status === 'error'}>
-                    <span class="tool-call-icon">
-                      {#if tc.status === 'running'}
-                        <span class="tool-call-spinner" aria-hidden="true"><Loader2 size={14} /></span>
-                      {:else if tc.status === 'success'}
-                        ✓
-                      {:else}
-                        ✗
-                      {/if}
-                    </span>
-                    <span class="tool-call-name">{toolLabel(tc.toolName)}</span>
-                    {#if formatArgs(tc.args)}<span class="tool-call-args">{formatArgs(tc.args)}</span>{/if}
-                  </div>
-                {/each}
-              </div>
-            {/if}
             {#if msg.role === 'assistant'}
-              {#if msg.reasoning}
+              {@const rc = normalizeReasoningChain(msg)}
+              {#if rc.length > 0}
                 <details class="agent-reasoning">
-                  <summary><span class="agent-reasoning-arrow">▼</span> thinking · thought</summary>
-                  <div class="agent-reasoning-content">{msg.reasoning}</div>
+                  <summary><span class="agent-reasoning-arrow">▼</span> thought</summary>
+                  <div class="agent-reasoning-inner">
+                    {#each rc as seg, segIdx (segIdx + (seg.type === 'text' ? seg.text : seg.toolCallId) + (seg.type === 'tool' ? seg.status : ''))}
+                      {#if seg.type === 'text'}
+                        <div class="agent-reasoning-content">{seg.text}</div>
+                      {:else}
+                        <div class="tool-calls">
+                          <div class="tool-call" class:running={seg.status === 'running'} class:success={seg.status === 'success'} class:error={seg.status === 'error'}>
+                            <span class="tool-call-icon">
+                              {#if seg.status === 'running'}
+                                <span class="tool-call-spinner" aria-hidden="true"><Loader2 size={14} /></span>
+                              {:else if seg.status === 'success'}
+                                ✓
+                              {:else}
+                                ✗
+                              {/if}
+                            </span>
+                            <span class="tool-call-name">{toolLabel(seg.toolName)}</span>
+                            {#if formatArgs(seg.args)}<span class="tool-call-args">{formatArgs(seg.args)}</span>{/if}
+                          </div>
+                        </div>
+                      {/if}
+                    {/each}
+                  </div>
                 </details>
               {/if}
               <div class="msg-content markdown-body">{@html renderMd(msg.content)}</div>
@@ -413,29 +457,34 @@
         {/each}
         {#if $agentStream.streaming}
           <div class="msg assistant">
-            {#if $agentStream.streamToolCalls.length > 0}
-              <div class="tool-calls">
-                {#each $agentStream.streamToolCalls as tc (tc.toolCallId + tc.status)}
-                  <div class="tool-call" class:running={tc.status === 'running'} class:success={tc.status === 'success'} class:error={tc.status === 'error'}>
-                    <span class="tool-call-icon">
-                      {#if tc.status === 'running'}
-                        <span class="tool-call-spinner" aria-hidden="true"><Loader2 size={14} /></span>
-                      {:else if tc.status === 'success'}
-                        ✓
-                      {:else}
-                        ✗
-                      {/if}
-                    </span>
-                    <span class="tool-call-name">{toolLabel(tc.toolName)}</span>
-                    {#if formatArgs(tc.args)}<span class="tool-call-args">{formatArgs(tc.args)}</span>{/if}
-                  </div>
-                {/each}
-              </div>
-            {/if}
-            {#if $agentStream.streamReasoning}
+            {#if $agentStream.streamReasoningChain.length > 0}
               <details class="agent-reasoning" open>
-                <summary><span class="agent-reasoning-arrow">▼</span> thinking · thought</summary>
-                <div class="agent-reasoning-content">{$agentStream.streamReasoning}<span class="cursor">▌</span></div>
+                <summary><span class="agent-reasoning-arrow">▼</span> thinking</summary>
+                <div class="agent-reasoning-inner">
+                  {#each $agentStream.streamReasoningChain as seg, segIdx (segIdx + (seg.type === 'text' ? seg.text : seg.toolCallId) + (seg.type === 'tool' ? seg.status : ''))}
+                    {#if seg.type === 'text'}
+                      <div class="agent-reasoning-content">
+                        {seg.text}{#if segIdx === $agentStream.streamReasoningChain.length - 1}<span class="cursor">▌</span>{/if}
+                      </div>
+                    {:else}
+                      <div class="tool-calls">
+                        <div class="tool-call" class:running={seg.status === 'running'} class:success={seg.status === 'success'} class:error={seg.status === 'error'}>
+                          <span class="tool-call-icon">
+                            {#if seg.status === 'running'}
+                              <span class="tool-call-spinner" aria-hidden="true"><Loader2 size={14} /></span>
+                            {:else if seg.status === 'success'}
+                              ✓
+                            {:else}
+                              ✗
+                            {/if}
+                          </span>
+                          <span class="tool-call-name">{toolLabel(seg.toolName)}</span>
+                          {#if formatArgs(seg.args)}<span class="tool-call-args">{formatArgs(seg.args)}</span>{/if}
+                        </div>
+                      </div>
+                    {/if}
+                  {/each}
+                </div>
               </details>
             {/if}
             <div class="msg-content markdown-body">{@html renderMd($agentStream.streamContent)}<span class="cursor">▌</span></div>
@@ -862,6 +911,9 @@
     gap: 0.35rem;
     margin-bottom: 0.5rem;
   }
+  .agent-reasoning-inner .tool-calls {
+    margin-bottom: 0;
+  }
   .tool-call {
     display: inline-flex;
     align-items: center;
@@ -947,13 +999,20 @@
   .agent-reasoning:not([open]) .agent-reasoning-arrow {
     transform: rotate(-90deg);
   }
-  .agent-reasoning-content {
+  .agent-reasoning-inner {
+    border-top: 1px solid var(--color-hairline);
     padding: 0.5rem 0.75rem;
-    max-height: 12rem;
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+    max-height: min(45vh, 18rem);
     overflow-y: auto;
+    overflow-x: hidden;
+    -webkit-overflow-scrolling: touch;
+  }
+  .agent-reasoning-content {
     white-space: pre-wrap;
     word-break: break-word;
-    border-top: 1px solid var(--color-hairline);
   }
   .cursor {
     animation: blink 1s step-end infinite;
