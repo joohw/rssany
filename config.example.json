@@ -1,0 +1,26 @@
+{
+  "enrich": {
+    "concurrency": 3,
+    "maxRetries": 2
+  },
+  "pipeline": {
+    "steps": [
+      {
+        "id": "tagger",
+        "enabled": true
+      },
+      {
+        "id": "translator",
+        "enabled": false
+      }
+    ]
+  },
+  "deliver": {
+    "enabled": false,
+    "url": "https://your-receiver.example.com/api/gateway/items"
+  },
+  "email": {
+    "driver": "smtp",
+    "from": "RssAny <noreply@example.com>"
+  }
+}

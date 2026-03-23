@@ -1,9 +1,13 @@
 // /api/items、/api/items/pending-push、/api/items/mark-pushed、/api/items/:id
+// /api/user/items（JWT 认证用户）
 
 import type { Hono } from "hono";
 import { getAllChannelConfigs, collectAllSourceRefs } from "../../../core/channel/index.js";
 import { getEffectiveItemFields, type ItemTranslationFields } from "../../../types/feedItem.js";
 import { queryItems, getPendingPushItems, markPushed, deleteItem, deleteItemsBySourceUrl } from "../../../db/index.js";
+import { requireAuth } from "../../../auth/middleware.js";
+import { getUserSourceRefs } from "../../../db/userSources.js";
+import { getUserChannels } from "../../../db/userChannels.js";
 
 export function registerItemsRoutes(app: Hono): void {
   app.get("/api/items/pending-push", async (c) => {
@@ -128,5 +132,43 @@ export function registerItemsRoutes(app: Hono): void {
         : result.items;
     const hasMore = offset + items.length < result.total;
     return c.json({ items, total: result.total, hasMore });
+  });
+
+  // ─── 用户级条目查询（JWT 认证）──────────────────────────────────────────────
+
+  app.get("/api/user/items", requireAuth(), async (c) => {
+    const userId = c.get("userId") as string;
+    const channelId = c.req.query("channel") ?? undefined;
+    const q = c.req.query("q") ?? undefined;
+    const tagsParam = c.req.query("tags") ?? undefined;
+    const tags = tagsParam ? tagsParam.split(",").map((t) => t.trim()).filter(Boolean) : undefined;
+    const sinceParam = c.req.query("since") ?? undefined;
+    const untilParam = c.req.query("until") ?? undefined;
+    const since = sinceParam ? new Date(sinceParam) : undefined;
+    const until = untilParam ? new Date(untilParam) : undefined;
+    const limit = Math.min(Number(c.req.query("limit") ?? 50), 200);
+    const offset = Number(c.req.query("offset") ?? 0);
+    const lng = c.req.query("lng") ?? undefined;
+
+    let sourceUrls: string[];
+    if (channelId && channelId !== "all") {
+      const channels = await getUserChannels(userId);
+      const ch = channels.find((x) => x.id === channelId);
+      sourceUrls = ch?.sourceRefs ?? [];
+    } else {
+      sourceUrls = await getUserSourceRefs(userId);
+    }
+
+    if (sourceUrls.length === 0) return c.json({ items: [], total: 0, hasMore: false });
+
+    const result = await queryItems({ sourceUrls, q, tags, since, until, limit, offset });
+    const items = lng && result.items.length > 0
+      ? result.items.map((it) => {
+          const view = { title: it.title ?? "", summary: it.summary ?? "", content: it.content ?? "", translations: (it as { translations?: Record<string, ItemTranslationFields> }).translations };
+          const eff = getEffectiveItemFields(view, lng);
+          return { ...it, title: eff.title, summary: eff.summary, content: eff.content };
+        })
+      : result.items;
+    return c.json({ items, total: result.total, hasMore: offset + items.length < result.total });
   });
 }

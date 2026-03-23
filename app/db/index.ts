@@ -104,7 +104,7 @@ function releaseDbLock(): void {
   }
 }
 
-function withWriteLock<T>(fn: () => Promise<T>): Promise<T> {
+export function withWriteLock<T>(fn: () => Promise<T>): Promise<T> {
   const prev = _writeLock;
   let resolveOut!: (v: T) => void;
   let rejectOut!: (e: unknown) => void;
@@ -367,6 +367,71 @@ function initSchema(db: Database.Database): void {
   } catch {
     /* ignore */
   }
+
+  // 多用户表：users / user_sources / user_channels / user_items / user_email_reports
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS users (
+      id            TEXT PRIMARY KEY,
+      email         TEXT UNIQUE NOT NULL,
+      password_hash TEXT,
+      provider      TEXT NOT NULL DEFAULT 'local',
+      provider_id   TEXT,
+      rss_token     TEXT UNIQUE NOT NULL,
+      display_name  TEXT,
+      avatar_url    TEXT,
+      role          TEXT NOT NULL DEFAULT 'user',
+      created_at    TEXT NOT NULL,
+      last_login_at TEXT
+    );
+    CREATE INDEX IF NOT EXISTS idx_users_email     ON users(email);
+    CREATE INDEX IF NOT EXISTS idx_users_rss_token ON users(rss_token);
+    CREATE INDEX IF NOT EXISTS idx_users_provider  ON users(provider, provider_id);
+
+    CREATE TABLE IF NOT EXISTS user_sources (
+      id       INTEGER PRIMARY KEY AUTOINCREMENT,
+      user_id  TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      ref      TEXT NOT NULL,
+      label    TEXT,
+      refresh  TEXT,
+      proxy    TEXT,
+      cron     TEXT,
+      weight   REAL,
+      UNIQUE(user_id, ref)
+    );
+    CREATE INDEX IF NOT EXISTS idx_user_sources_user ON user_sources(user_id);
+
+    CREATE TABLE IF NOT EXISTS user_channels (
+      channel_id   TEXT NOT NULL,
+      user_id      TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      title        TEXT,
+      description  TEXT,
+      source_refs  TEXT NOT NULL DEFAULT '[]',
+      PRIMARY KEY(user_id, channel_id)
+    );
+    CREATE INDEX IF NOT EXISTS idx_user_channels_user ON user_channels(user_id);
+
+    CREATE TABLE IF NOT EXISTS user_items (
+      user_id    TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      item_id    TEXT NOT NULL REFERENCES items(id) ON DELETE CASCADE,
+      pushed_at  TEXT,
+      read_at    TEXT,
+      PRIMARY KEY(user_id, item_id)
+    );
+    CREATE INDEX IF NOT EXISTS idx_user_items_user ON user_items(user_id);
+
+    CREATE TABLE IF NOT EXISTS user_email_reports (
+      id            INTEGER PRIMARY KEY AUTOINCREMENT,
+      user_id       TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      title         TEXT NOT NULL,
+      channel_ids   TEXT,
+      schedule      TEXT NOT NULL DEFAULT '0 8 * * *',
+      last_sent_at  TEXT,
+      enabled       INTEGER NOT NULL DEFAULT 1,
+      mode          TEXT NOT NULL DEFAULT 'digest',
+      extra_prompt  TEXT
+    );
+    CREATE INDEX IF NOT EXISTS idx_user_email_reports_user ON user_email_reports(user_id);
+  `);
 }
 
 

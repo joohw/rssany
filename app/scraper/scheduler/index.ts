@@ -1,4 +1,5 @@
 // 信源调度：根据 sources.json 中的信源 refresh 定时触发 getItems，使用通用调度器
+// 同时聚合所有用户的 user_sources（去重），确保用户订阅的信源也被定时抓取
 
 import { watch } from "node:fs";
 import { getAllSources } from "../subscription/index.js";
@@ -8,6 +9,7 @@ import { SOURCES_CONFIG_PATH } from "../../config/paths.js";
 import type { RefreshInterval } from "../../utils/refreshInterval.js";
 import { refreshIntervalToCron } from "../../utils/refreshInterval.js";
 import * as scheduler from "../../scheduler/index.js";
+import { getAllUserSourceRefs } from "../../db/userSources.js";
 
 const DEFAULT_REFRESH: RefreshInterval = "1day";
 /** sources 组最大并发数 */
@@ -42,9 +44,13 @@ async function rescheduleSources(cacheDir: string, runNow: boolean): Promise<voi
   } catch {
     sources = [];
   }
+
+  // 合并全局 sources.json 与所有用户的 user_sources（去重，使用默认 refresh）
+  const scheduledRefs = new Set<string>();
   for (const src of sources) {
     const ref = resolveRef(src);
     if (!ref) continue;
+    scheduledRefs.add(ref);
     const cronExpr: string = src.cron
       ? src.cron
       : refreshIntervalToCron(src.refresh ?? DEFAULT_REFRESH);
@@ -56,6 +62,24 @@ async function rescheduleSources(cacheDir: string, runNow: boolean): Promise<voi
       concurrency: SOURCES_CONCURRENCY,
       runNow,
     });
+  }
+
+  // 补充仅在 user_sources 中出现的 refs（用默认 1day 调度）
+  try {
+    const userRefs = await getAllUserSourceRefs();
+    const defaultCron = refreshIntervalToCron(DEFAULT_REFRESH);
+    for (const ref of userRefs) {
+      if (scheduledRefs.has(ref)) continue;
+      scheduler.schedule(SOURCES_GROUP, ref, createPullTask(ref, cacheDir, defaultCron), {
+        cron: defaultCron,
+        retries: 2,
+        retryDelayMs: 5000,
+        concurrency: SOURCES_CONCURRENCY,
+        runNow,
+      });
+    }
+  } catch {
+    // DB 未就绪时忽略
   }
 }
 

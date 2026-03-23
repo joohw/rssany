@@ -19,6 +19,7 @@ import { registerProjectDirsRoutes } from "./project-dirs.js";
 import { registerSandboxFileRoutes } from "./sandbox-file.js";
 import { registerChannelsRoutes } from "./channels.js";
 import { registerTasksRoutes } from "./tasks.js";
+import { registerEmailReportsRoutes } from "./emailReports.js";
 
 export function registerApiRoutes(app: Hono): void {
   registerServerRoutes(app);
@@ -39,4 +40,5 @@ export function registerApiRoutes(app: Hono): void {
   registerSandboxFileRoutes(app);
   registerChannelsRoutes(app);
   registerTasksRoutes(app);
+  registerEmailReportsRoutes(app);
 }

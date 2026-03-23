@@ -61,6 +61,7 @@
   },
   "dependencies": {
     "@hono/node-server": "^1.13.0",
+    "@hono/oauth-providers": "^0.8.5",
     "@mariozechner/pi-agent-core": "^0.55.4",
     "@mariozechner/pi-ai": "^0.55.4",
     "@modelcontextprotocol/sdk": "^1.27.1",
@@ -71,6 +72,7 @@
     "hono": "^4.6.0",
     "https-proxy-agent": "^7.0.6",
     "imapflow": "^1.2.10",
+    "jose": "^6.2.2",
     "jsdom": "^25.0.0",
     "mailparser": "^3.9.3",
     "marked": "^17.0.3",

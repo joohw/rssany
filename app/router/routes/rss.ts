@@ -10,12 +10,60 @@ import * as scheduler from "../../scheduler/index.js";
 import { CACHE_DIR } from "../../config/paths.js";
 import { AuthRequiredError, NotFoundError } from "../../scraper/auth/index.js";
 import { parseUrlFromPath, readStaticHtml, escapeHtml } from "../utils.js";
+import { getUserByRssToken } from "../../db/users.js";
+import { getUserChannels } from "../../db/userChannels.js";
+import { getUserSourceRefs } from "../../db/userSources.js";
 
 export function registerRssRoutes(app: Hono): void {
   async function render401(listUrl: string): Promise<string> {
     const raw = await readStaticHtml("401", "<!DOCTYPE html><html><head><meta charset=\"utf-8\"><title>401</title></head><body><h1>401 需要登录</h1></body></html>");
     return raw.replace(/\{\{listUrl\}\}/g, escapeHtml(listUrl));
   }
+
+  // ─── 用户个人 RSS：/rss/u/:rssToken/channel/:channelId ───────────────────────
+  // RSS 阅读器无法携带 Authorization，通过 rss_token 鉴权（可在设置中 revoke）
+  app.get("/rss/u/:rssToken/channel/:channelId", async (c) => {
+    const rssToken = c.req.param("rssToken");
+    const channelId = c.req.param("channelId");
+    const lng = c.req.query("lng") ?? undefined;
+    const limit = Math.min(Number(c.req.query("limit") ?? 100), 300);
+    const offset = Number(c.req.query("offset") ?? 0);
+
+    const user = await getUserByRssToken(rssToken);
+    if (!user) return c.text("RSS token 无效", 401);
+
+    let sourceRefs: string[];
+    if (channelId === "all") {
+      sourceRefs = await getUserSourceRefs(user.id);
+    } else {
+      const channels = await getUserChannels(user.id);
+      const ch = channels.find((x) => x.id === channelId);
+      sourceRefs = ch?.sourceRefs ?? [];
+    }
+
+    if (sourceRefs.length === 0) {
+      const xml = feedItemsToRssXml([], new URL(c.req.url).href, lng, { channelTitle: channelId, channelDesc: "暂无订阅" });
+      return c.body(xml, 200, { "Content-Type": "application/rss+xml; charset=utf-8" });
+    }
+
+    const result = await queryItems({ sourceUrls: sourceRefs, limit, offset });
+    const feedItems = result.items.map((dbItem) => ({
+      guid: dbItem.id,
+      title: dbItem.title ?? "",
+      link: dbItem.url,
+      pubDate: dbItem.pub_date ? new Date(dbItem.pub_date) : new Date(),
+      author: dbItem.author ?? undefined,
+      summary: dbItem.summary ?? undefined,
+      content: dbItem.content ?? undefined,
+      imageUrl: dbItem.image_url ?? undefined,
+      tags: dbItem.tags ?? undefined,
+      sourceRef: dbItem.source_url,
+      translations: dbItem.translations ?? undefined,
+    }));
+
+    const xml = feedItemsToRssXml(feedItems, new URL(c.req.url).href, lng, { channelTitle: channelId });
+    return c.body(xml, 200, { "Content-Type": "application/rss+xml; charset=utf-8" });
+  });
 
   /** 查询式 RSS：按 channel、search、sourceUrl、author、tags 过滤，返回匹配条目的 XML */
   app.get("/rss", async (c) => {
