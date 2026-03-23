@@ -7,7 +7,6 @@ import { registerEnrichRoutes } from "./enrich.js";
 import { registerSchedulerRoutes } from "./scheduler.js";
 import { registerPluginsRoutes } from "./plugins.js";
 import { registerPipelineRoutes } from "./pipeline.js";
-import { registerDeliverRoutes } from "./deliver.js";
 import { registerFeedRoutes } from "./feed.js";
 import { registerItemsRoutes } from "./items.js";
 import { registerLogsRoutes } from "./logs.js";
@@ -28,7 +27,6 @@ export function registerApiRoutes(app: Hono): void {
   registerSchedulerRoutes(app);
   registerPluginsRoutes(app);
   registerPipelineRoutes(app);
-  registerDeliverRoutes(app);
   registerFeedRoutes(app);
   registerItemsRoutes(app);
   registerLogsRoutes(app);

@@ -1,6 +1,7 @@
 // user_channels 表 CRUD：每用户的频道配置（替代全局 channels.json）
 
-import { getDb, withWriteLock } from "./index.js";
+import { supabase } from "./client.js";
+import { withWriteLock } from "./index.js";
 
 export interface UserChannelRow {
   channel_id: string;
@@ -21,46 +22,39 @@ function parseSourceRefs(raw: string): string[] {
   try {
     const p = JSON.parse(raw);
     return Array.isArray(p) ? p.filter((s) => typeof s === "string") : [];
-  } catch {
-    return [];
-  }
+  } catch { return []; }
+}
+
+function toChannelData(r: UserChannelRow): UserChannelData {
+  return { id: r.channel_id, title: r.title, description: r.description, sourceRefs: parseSourceRefs(r.source_refs) };
 }
 
 export async function getUserChannels(userId: string): Promise<UserChannelData[]> {
-  const db = await getDb();
-  const rows = db.prepare("SELECT * FROM user_channels WHERE user_id = ? ORDER BY channel_id ASC").all(userId) as UserChannelRow[];
-  return rows.map((r) => ({
-    id: r.channel_id,
-    title: r.title,
-    description: r.description,
-    sourceRefs: parseSourceRefs(r.source_refs),
-  }));
+  const { data } = await supabase.from("user_channels").select("*").eq("user_id", userId).order("channel_id", { ascending: true });
+  return (data ?? []).map((r) => toChannelData(r as UserChannelRow));
 }
 
 export async function getUserChannel(userId: string, channelId: string): Promise<UserChannelData | null> {
-  const db = await getDb();
-  const row = db.prepare("SELECT * FROM user_channels WHERE user_id = ? AND channel_id = ?").get(userId, channelId) as UserChannelRow | undefined;
-  if (!row) return null;
-  return { id: row.channel_id, title: row.title, description: row.description, sourceRefs: parseSourceRefs(row.source_refs) };
+  const { data } = await supabase.from("user_channels").select("*").eq("user_id", userId).eq("channel_id", channelId).maybeSingle();
+  return data ? toChannelData(data as UserChannelRow) : null;
 }
 
-/** 全量替换用户的频道配置 */
 export async function setUserChannels(
   userId: string,
   channels: Array<{ id: string; title?: string | null; description?: string | null; sourceRefs?: string[] }>
 ): Promise<void> {
   return withWriteLock(async () => {
-    const db = await getDb();
-    const del = db.prepare("DELETE FROM user_channels WHERE user_id = ?");
-    const ins = db.prepare(
-      "INSERT INTO user_channels (user_id, channel_id, title, description, source_refs) VALUES (?, ?, ?, ?, ?)"
-    );
-    db.transaction(() => {
-      del.run(userId);
-      for (const ch of channels) {
-        ins.run(userId, ch.id, ch.title ?? null, ch.description ?? null, JSON.stringify(ch.sourceRefs ?? []));
-      }
-    })();
+    await supabase.from("user_channels").delete().eq("user_id", userId);
+    if (channels.length === 0) return;
+    const rows = channels.map((ch) => ({
+      user_id: userId,
+      channel_id: ch.id,
+      title: ch.title ?? null,
+      description: ch.description ?? null,
+      source_refs: JSON.stringify(ch.sourceRefs ?? []),
+    }));
+    const { error } = await supabase.from("user_channels").insert(rows);
+    if (error) throw new Error(`setUserChannels: ${error.message}`);
   });
 }
 
@@ -69,21 +63,20 @@ export async function upsertUserChannel(
   channel: { id: string; title?: string | null; description?: string | null; sourceRefs?: string[] }
 ): Promise<void> {
   return withWriteLock(async () => {
-    const db = await getDb();
-    db.prepare(`
-      INSERT INTO user_channels (user_id, channel_id, title, description, source_refs)
-      VALUES (?, ?, ?, ?, ?)
-      ON CONFLICT(user_id, channel_id) DO UPDATE SET
-        title = excluded.title,
-        description = excluded.description,
-        source_refs = excluded.source_refs
-    `).run(userId, channel.id, channel.title ?? null, channel.description ?? null, JSON.stringify(channel.sourceRefs ?? []));
+    const { error } = await supabase.from("user_channels").upsert(
+      {
+        user_id: userId,
+        channel_id: channel.id,
+        title: channel.title ?? null,
+        description: channel.description ?? null,
+        source_refs: JSON.stringify(channel.sourceRefs ?? []),
+      },
+      { onConflict: "user_id,channel_id" }
+    );
+    if (error) throw new Error(`upsertUserChannel: ${error.message}`);
   });
 }
 
 export async function deleteUserChannel(userId: string, channelId: string): Promise<void> {
-  return withWriteLock(async () => {
-    const db = await getDb();
-    db.prepare("DELETE FROM user_channels WHERE user_id = ? AND channel_id = ?").run(userId, channelId);
-  });
+  await supabase.from("user_channels").delete().eq("user_id", userId).eq("channel_id", channelId);
 }

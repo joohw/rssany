@@ -222,7 +222,7 @@ const toolDefs: ToolDef[] = [
     name: "send_email",
     label: "Send email",
     description:
-      "Send an email via the configured SMTP (nicefeed@163.com). Use when the user asks to send an email, forward content, or notify someone by email. Requires NICEFEED_SMTP_USER and NICEFEED_SMTP_PASSWORD in .env.",
+      "Send an email via the configured SMTP. Use when the user asks to send an email, forward content, or notify someone by email.",
     params: {
       to: { type: "string", description: "Recipient email address" },
       subject: { type: "string", description: "Email subject" },

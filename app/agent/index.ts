@@ -34,6 +34,7 @@ export function createFeedAgent(): Agent {
     name: modelId,
     ...(useCompletions && { api: "openai-completions" as const, provider: "openai" as const }),
   };
+  console.log("[createFeedAgent] baseUrl=%s modelId=%s useCompletions=%s apiKey=%s", baseUrl, modelId, useCompletions, process.env.OPENAI_API_KEY ? `${process.env.OPENAI_API_KEY.slice(0, 8)}…` : "(未设置)");
   const agent = new Agent({
     initialState: {
       systemPrompt: SYSTEM_PROMPT,

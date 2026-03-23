@@ -65,6 +65,7 @@ function aggregateUsage(messages: Array<{ role: string; usage?: UsageShape }>): 
 
 function toAgentMessages(messages: HistoryMessage[]): Array<{ role: string; content: unknown; timestamp: number; usage?: UsageShape }> {
   const now = Date.now();
+  const modelId = process.env.OPENAI_MODEL || "gpt-4o-mini";
   const emptyUsage = { input: 0, output: 0, cacheRead: 0, cacheWrite: 0, totalTokens: 0, cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0, total: 0 } };
   return messages.map((m) => {
     if (m.role === "user") {
@@ -75,7 +76,7 @@ function toAgentMessages(messages: HistoryMessage[]): Array<{ role: string; cont
       content: [{ type: "text" as const, text: m.content }],
       api: "openai-completions" as const,
       provider: "openai" as const,
-      model: "gpt-4o-mini",
+      model: modelId,
       usage: m.usage ?? emptyUsage,
       stopReason: "stop" as const,
       timestamp: now,
@@ -101,6 +102,7 @@ export function registerChatRoutes(app: Hono): void {
         await send("start", {});
         // pi-ai 事件：text_delta=正文流，thinking_delta=推理流（需模型支持 reasoning，如 o1）
         agent.subscribe((e) => {
+          console.log("[chat/stream] agent event:", e.type, e.type === "message_update" ? (e.assistantMessageEvent as { type: string })?.type : "");
           if (e.type === "message_update") {
             const ev = e.assistantMessageEvent;
             if (ev.type === "text_delta") {
@@ -114,12 +116,16 @@ export function registerChatRoutes(app: Hono): void {
             send("tool_end", { toolCallId: e.toolCallId, toolName: e.toolName, isError: e.isError });
           } else if (e.type === "agent_end") {
             const usage = aggregateUsage(e.messages);
+            console.log("[chat/stream] agent_end messages:", JSON.stringify(e.messages?.map((m: { role: string; content: unknown }) => ({ role: m.role, contentType: typeof m.content, contentPreview: typeof m.content === "string" ? m.content.slice(0, 80) : JSON.stringify(m.content)?.slice(0, 80) }))));
             send("done", usage ? { usage } : {});
           }
         });
         try {
+          console.log("[chat/stream] prompt start, length=%d, history=%d", prompt.length, history.length);
           await agent.prompt(prompt);
+          console.log("[chat/stream] prompt done");
         } catch (err) {
+          console.error("[chat/stream] prompt error:", err);
           send("error", { message: err instanceof Error ? err.message : String(err) });
         } finally {
           stream.close();

@@ -8,7 +8,7 @@ export function registerAdminApiRoutes(app: Hono): void {
     return c.json({ ok: true });
   });
 
-  /** 运行 SQLite PRAGMA integrity_check，用于排查「database disk image is malformed」 */
+  /** Supabase 连接健康检查（原 SQLite integrity_check） */
   app.get("/api/admin/integrity-check", async (c) => {
     try {
       const result = await runIntegrityCheck();

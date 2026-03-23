@@ -1,4 +1,4 @@
-// EmailSender 接口 + 工厂函数：driver/from 读自 config.json，连接参数全部读自 .env
+// EmailSender 接口 + 工厂函数：所有配置优先读 .env，config.json 的 email 节可覆盖
 
 import nodemailer from "nodemailer";
 
@@ -95,16 +95,20 @@ export function createEmailSender(config: EmailConfig): EmailSender {
   }
 }
 
-/** 获取全局 EmailSender 单例；driver/from 读自 config.json，凭证读自 .env */
+/** 获取全局 EmailSender 单例；driver/from 读自 config.json 或 env */
 export async function getEmailSender(): Promise<EmailSender | null> {
   if (_sender) return _sender;
   try {
     const { readFile } = await import("node:fs/promises");
     const { CONFIG_PATH } = await import("../config/paths.js");
     const raw = await readFile(CONFIG_PATH, "utf-8");
-    const config = JSON.parse(raw) as { email?: EmailConfig };
-    if (!config.email?.driver) return null;
-    _sender = createEmailSender(config.email);
+    const config = JSON.parse(raw) as { email?: Partial<EmailConfig> };
+
+    const driver = (config.email?.driver ?? (process.env.SMTP_HOST ? "smtp" : process.env.RESEND_API_KEY ? "resend" : null)) as EmailConfig["driver"] | null;
+    if (!driver) return null;
+
+    const from = config.email?.from ?? process.env.SMTP_FROM ?? "";
+    _sender = createEmailSender({ driver, from });
     return _sender;
   } catch {
     return null;

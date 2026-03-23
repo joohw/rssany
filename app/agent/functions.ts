@@ -1,7 +1,6 @@
 // 纯函数实现：Agent 与 MCP 共用，包装后才是 tools
 
 import { readFile, writeFile, readdir, stat, mkdir } from "node:fs/promises";
-import nodemailer from "nodemailer";
 import { resolveSandboxPath, SANDBOX_DIR } from "../config/paths.js";
 import { getAllChannelConfigs, collectAllSourceRefs } from "../core/channel/index.js";
 import { getItemById, queryItems } from "../db/index.js";
@@ -314,20 +313,12 @@ export interface SendEmailArgs {
   bcc?: string;
 }
 
-/** send_email：通过配置的 SMTP（nicefeed@163.com）发送邮件，供 Agent 使用 */
+/** send_email：复用邮件订阅的 SMTP 配置（SMTP_HOST/USER/PASS 等 env）发送邮件，供 Agent 使用 */
 export async function sendEmail(args: SendEmailArgs): Promise<{
   ok: boolean;
   messageId?: string;
   error?: string;
 }> {
-  const user = process.env.NICEFEED_SMTP_USER?.trim();
-  const pass = process.env.NICEFEED_SMTP_PASSWORD?.trim();
-  if (!user || !pass) {
-    return {
-      ok: false,
-      error: "未配置 NICEFEED_SMTP_USER 或 NICEFEED_SMTP_PASSWORD，请在 .env 中设置。",
-    };
-  }
   const to = String(args?.to ?? "").trim();
   const subject = String(args?.subject ?? "").trim();
   if (!to) return { ok: false, error: "收件人 to 不能为空" };
@@ -337,22 +328,13 @@ export async function sendEmail(args: SendEmailArgs): Promise<{
   if (!text && !html) return { ok: false, error: "请提供 text 或 html 正文" };
 
   try {
-    const transporter = nodemailer.createTransport({
-      host: "smtp.163.com",
-      port: 465,
-      secure: true,
-      auth: { user, pass },
-    });
-    const info = await transporter.sendMail({
-      from: user,
-      to,
-      subject,
-      ...(text && { text }),
-      ...(html && { html }),
-      ...(args?.cc?.trim() && { cc: args.cc.trim() }),
-      ...(args?.bcc?.trim() && { bcc: args.bcc.trim() }),
-    });
-    return { ok: true, messageId: info.messageId };
+    const { getEmailSender } = await import("../email/sender.js");
+    const sender = await getEmailSender();
+    if (!sender) {
+      return { ok: false, error: "未配置邮件发送，请在 .env 中设置 SMTP_HOST/SMTP_USER/SMTP_PASS 等参数。" };
+    }
+    await sender.send({ to, subject, html: html ?? "", text });
+    return { ok: true };
   } catch (e) {
     return {
       ok: false,

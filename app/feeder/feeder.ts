@@ -5,7 +5,6 @@ import { cacheKey, cacheKeyFromCron } from "../core/cacher/index.js";
 import { getSource } from "../scraper/sources/index.js";
 import { getMatchedEnrichPlugin } from "../plugins/loader.js";
 import { runPipeline } from "../pipeline/index.js";
-import { deliverItem, isDeliverEnabled } from "../deliver/index.js";
 import { buildEnrichContext } from "../scraper/sources/web/index.js";
 import { AuthRequiredError } from "../scraper/auth/index.js";
 import { buildRssXml } from "./rss.js";
@@ -113,21 +112,15 @@ async function generateAndCache(listUrl: string, key: string, config: FeederConf
   generatingKeys.delete(key);
   logger.info("scraper", "抓取成功", { source_url: listUrl, count: items.length });
 
-  const deliverEnabled = await isDeliverEnabled();
-  /** 启用投递时不写数据库，仅转发 */
-  const effectiveWriteDb = config.writeDb && !deliverEnabled;
-
   let newCount = 0;
   let newIds = new Set<string>();
-  if (effectiveWriteDb) {
+  if (config.writeDb) {
     const result = await upsertItems(items).catch((err) => {
       logger.warn("db", "upsertItems 失败", { source_url: listUrl, err: err instanceof Error ? err.message : String(err) });
       return { newCount: 0, newIds: new Set<string>() };
     });
     newCount = result.newCount;
     newIds = result.newIds;
-  } else if (deliverEnabled) {
-    newIds = new Set(items.map((i) => i.guid));
   }
 
   const hasEnrich =
@@ -137,17 +130,13 @@ async function generateAndCache(listUrl: string, key: string, config: FeederConf
       if (!newIds.has(items[i].guid)) continue;
       const processed = await runPipelineOnItem(items[i], { sourceUrl: listUrl, isEnriched: false });
       items[i] = processed;
-      if (effectiveWriteDb) {
-        updateItemContent(processed)
-          .then(() => deliverItem(processed))
-          .catch((err) =>
-            logger.warn("db", "updateItemContent 失败", { source_url: listUrl, err: err instanceof Error ? err.message : String(err) })
-          );
-      } else if (deliverEnabled) {
-        await deliverItem(processed).catch(() => {});
+      if (config.writeDb) {
+        updateItemContent(processed).catch((err) =>
+          logger.warn("db", "updateItemContent 失败", { source_url: listUrl, err: err instanceof Error ? err.message : String(err) })
+        );
       }
     }
-    if (effectiveWriteDb && newCount > 0) {
+    if (config.writeDb && newCount > 0) {
       emitFeedUpdated({ sourceUrl: listUrl, newCount });
     }
     return { items };
@@ -165,18 +154,14 @@ async function generateAndCache(listUrl: string, key: string, config: FeederConf
           ? await runPipelineOnItem(enrichedItem, { sourceUrl: listUrl, isEnriched: true })
           : enrichedItem;
         items[index] = processed;
-        if (effectiveWriteDb) {
-          updateItemContent(processed)
-            .then(() => deliverItem(processed))
-            .catch((err) =>
-              logger.warn("db", "updateItemContent 失败", { source_url: listUrl, err: err instanceof Error ? err.message : String(err) })
-            );
-        } else if (deliverEnabled) {
-          await deliverItem(processed).catch(() => {});
+        if (config.writeDb) {
+          updateItemContent(processed).catch((err) =>
+            logger.warn("db", "updateItemContent 失败", { source_url: listUrl, err: err instanceof Error ? err.message : String(err) })
+          );
         }
       },
       onAllDone: async () => {
-        if (effectiveWriteDb && newCount > 0) {
+        if (config.writeDb && newCount > 0) {
           emitFeedUpdated({ sourceUrl: listUrl, newCount });
         }
       },
@@ -269,9 +254,6 @@ export async function ingestFromGateway(
   config: GatewayIngestConfig,
 ): Promise<{ ok: boolean; count: number; newCount: number; errors?: string[] }> {
   const { sourceRef, writeDb = true } = config;
-  if (await isDeliverEnabled()) {
-    return { ok: true, count: 0, newCount: 0, errors: undefined };
-  }
   const items: FeedItem[] = [];
   const errors: string[] = [];
   for (let i = 0; i < rawItems.length; i++) {

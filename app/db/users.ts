@@ -1,7 +1,8 @@
 // users 表 CRUD：支持 email/password (local) 与 OAuth (google/github) 两种登录方式
 
 import { randomUUID } from "node:crypto";
-import { getDb, withWriteLock } from "./index.js";
+import { supabase } from "./client.js";
+import { withWriteLock } from "./index.js";
 
 export interface UserRow {
   id: string;
@@ -29,54 +30,48 @@ export async function createUser(data: {
   role?: string;
 }): Promise<UserRow> {
   return withWriteLock(async () => {
-    const db = await getDb();
     const id = randomUUID();
     const rssToken = randomUUID().replace(/-/g, "");
     const now = new Date().toISOString();
-    db.prepare(`
-      INSERT INTO users (id, email, password_hash, provider, provider_id, rss_token, display_name, avatar_url, role, created_at)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-    `).run(
+    const row = {
       id,
-      data.email.toLowerCase().trim(),
-      data.passwordHash ?? null,
-      data.provider ?? "local",
-      data.providerId ?? null,
-      rssToken,
-      data.displayName ?? null,
-      data.avatarUrl ?? null,
-      data.role ?? "user",
-      now,
-    );
-    return db.prepare("SELECT * FROM users WHERE id = ?").get(id) as UserRow;
+      email: data.email.toLowerCase().trim(),
+      password_hash: data.passwordHash ?? null,
+      provider: data.provider ?? "local",
+      provider_id: data.providerId ?? null,
+      rss_token: rssToken,
+      display_name: data.displayName ?? null,
+      avatar_url: data.avatarUrl ?? null,
+      role: data.role ?? "user",
+      created_at: now,
+      last_login_at: null,
+    };
+    const { error } = await supabase.from("users").insert(row);
+    if (error) throw new Error(`createUser: ${error.message}`);
+    return row as UserRow;
   });
 }
 
 export async function getUserByEmail(email: string): Promise<UserRow | null> {
-  const db = await getDb();
-  const row = db.prepare("SELECT * FROM users WHERE email = ?").get(email.toLowerCase().trim()) as UserRow | undefined;
-  return row ?? null;
+  const { data } = await supabase.from("users").select("*").eq("email", email.toLowerCase().trim()).maybeSingle();
+  return (data as UserRow | null) ?? null;
 }
 
 export async function getUserById(id: string): Promise<UserRow | null> {
-  const db = await getDb();
-  const row = db.prepare("SELECT * FROM users WHERE id = ?").get(id) as UserRow | undefined;
-  return row ?? null;
+  const { data } = await supabase.from("users").select("*").eq("id", id).maybeSingle();
+  return (data as UserRow | null) ?? null;
 }
 
 export async function getUserByRssToken(token: string): Promise<UserRow | null> {
-  const db = await getDb();
-  const row = db.prepare("SELECT * FROM users WHERE rss_token = ?").get(token) as UserRow | undefined;
-  return row ?? null;
+  const { data } = await supabase.from("users").select("*").eq("rss_token", token).maybeSingle();
+  return (data as UserRow | null) ?? null;
 }
 
 export async function getUserByProvider(provider: string, providerId: string): Promise<UserRow | null> {
-  const db = await getDb();
-  const row = db.prepare("SELECT * FROM users WHERE provider = ? AND provider_id = ?").get(provider, providerId) as UserRow | undefined;
-  return row ?? null;
+  const { data } = await supabase.from("users").select("*").eq("provider", provider).eq("provider_id", providerId).maybeSingle();
+  return (data as UserRow | null) ?? null;
 }
 
-/** 通过 OAuth 登录时，若邮箱已存在则关联 OAuth provider，否则新建用户 */
 export async function upsertOAuthUser(data: {
   email: string;
   provider: string;
@@ -88,11 +83,12 @@ export async function upsertOAuthUser(data: {
   if (existing) {
     if (existing.provider === "local" || (existing.provider === data.provider && existing.provider_id === data.providerId)) {
       await withWriteLock(async () => {
-        const db = await getDb();
-        db.prepare(`
-          UPDATE users SET provider_id = ?, display_name = COALESCE(?, display_name),
-          avatar_url = COALESCE(?, avatar_url), last_login_at = ? WHERE id = ?
-        `).run(data.providerId, data.displayName ?? null, data.avatarUrl ?? null, new Date().toISOString(), existing.id);
+        await supabase.from("users").update({
+          provider_id: data.providerId,
+          display_name: data.displayName ?? existing.display_name,
+          avatar_url: data.avatarUrl ?? existing.avatar_url,
+          last_login_at: new Date().toISOString(),
+        }).eq("id", existing.id);
       });
       return (await getUserById(existing.id))!;
     }
@@ -112,26 +108,23 @@ export async function upsertOAuthUser(data: {
 }
 
 export async function updateUserLastLogin(id: string): Promise<void> {
-  return withWriteLock(async () => {
-    const db = await getDb();
-    db.prepare("UPDATE users SET last_login_at = ? WHERE id = ?").run(new Date().toISOString(), id);
-  });
+  await supabase.from("users").update({ last_login_at: new Date().toISOString() }).eq("id", id);
 }
 
 export async function regenerateRssToken(userId: string): Promise<string> {
   return withWriteLock(async () => {
-    const db = await getDb();
     const newToken = randomUUID().replace(/-/g, "");
-    db.prepare("UPDATE users SET rss_token = ? WHERE id = ?").run(newToken, userId);
+    await supabase.from("users").update({ rss_token: newToken }).eq("id", userId);
     return newToken;
   });
 }
 
 export async function getAllUsers(): Promise<PublicUser[]> {
-  const db = await getDb();
-  return db.prepare(
-    "SELECT id, email, provider, provider_id, rss_token, display_name, avatar_url, role, created_at, last_login_at FROM users ORDER BY created_at DESC"
-  ).all() as PublicUser[];
+  const { data } = await supabase
+    .from("users")
+    .select("id, email, provider, provider_id, rss_token, display_name, avatar_url, role, created_at, last_login_at")
+    .order("created_at", { ascending: false });
+  return (data ?? []) as PublicUser[];
 }
 
 export function toPublicUser(user: UserRow): PublicUser {

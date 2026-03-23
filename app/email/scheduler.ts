@@ -1,7 +1,7 @@
 // 邮件报告调度器：用 node-cron 定时检查 user_email_reports 并发送
 
 import cron from "node-cron";
-import { getDb } from "../db/index.js";
+import { supabase } from "../db/client.js";
 import { getDueReports, updateLastSentAt } from "../db/userEmailReports.js";
 import { getUserSources } from "../db/userSources.js";
 import { getUserChannels } from "../db/userChannels.js";
@@ -41,12 +41,16 @@ async function getItemsSince(sourceRefs: string[], since: Date | null): Promise<
 
 async function getRecentItems(sourceRefs: string[], since: Date | null) {
   if (sourceRefs.length === 0) return [];
-  const db = await getDb();
-  const placeholders = sourceRefs.map(() => "?").join(",");
-  const rows = since
-    ? (db.prepare(`SELECT id, url, source_url, title, summary, image_url, pub_date FROM items WHERE source_url IN (${placeholders}) AND fetched_at > ? ORDER BY pub_date DESC LIMIT 100`).all(...sourceRefs, since.toISOString()) as unknown[])
-    : (db.prepare(`SELECT id, url, source_url, title, summary, image_url, pub_date FROM items WHERE source_url IN (${placeholders}) ORDER BY pub_date DESC LIMIT 100`).all(...sourceRefs) as unknown[]);
-  return rows as Array<{ id: string; url: string; source_url: string; title: string | null; summary: string | null; image_url: string | null; pub_date: string | null }>;
+  type ItemRow = { id: string; url: string; source_url: string; title: string | null; summary: string | null; image_url: string | null; pub_date: string | null };
+  let query = supabase
+    .from("items")
+    .select("id, url, source_url, title, summary, image_url, pub_date")
+    .in("source_url", sourceRefs)
+    .order("pub_date", { ascending: false, nullsFirst: false })
+    .limit(100);
+  if (since) query = query.gt("fetched_at", since.toISOString());
+  const { data } = await query;
+  return (data ?? []) as ItemRow[];
 }
 
 async function processDigest(report: UserEmailReport & { userEmail: string }): Promise<void> {

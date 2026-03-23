@@ -15,10 +15,6 @@
       }
     ]
   },
-  "deliver": {
-    "enabled": false,
-    "url": "https://your-receiver.example.com/api/gateway/items"
-  },
   "email": {
     "driver": "smtp",
     "from": "RssAny <noreply@example.com>"

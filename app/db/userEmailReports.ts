@@ -1,6 +1,7 @@
 // user_email_reports 表 CRUD：每用户的邮件报告订阅配置
 
-import { getDb, withWriteLock } from "./index.js";
+import { supabase } from "./client.js";
+import { withWriteLock } from "./index.js";
 
 export interface UserEmailReportRow {
   id: number;
@@ -34,22 +35,20 @@ function toReport(row: UserEmailReportRow): UserEmailReport {
     channelIds: row.channel_ids ? JSON.parse(row.channel_ids) as string[] : null,
     schedule: row.schedule,
     lastSentAt: row.last_sent_at,
-    enabled: row.enabled === 1,
-    mode: (row.mode === "research" ? "research" : "digest"),
+    enabled: Number(row.enabled) === 1,
+    mode: row.mode === "research" ? "research" : "digest",
     extraPrompt: row.extra_prompt,
   };
 }
 
 export async function getUserEmailReports(userId: string): Promise<UserEmailReport[]> {
-  const db = await getDb();
-  const rows = db.prepare("SELECT * FROM user_email_reports WHERE user_id = ? ORDER BY id ASC").all(userId) as UserEmailReportRow[];
-  return rows.map(toReport);
+  const { data } = await supabase.from("user_email_reports").select("*").eq("user_id", userId).order("id", { ascending: true });
+  return (data ?? []).map((r) => toReport(r as UserEmailReportRow));
 }
 
 export async function getEmailReportById(id: number, userId: string): Promise<UserEmailReport | null> {
-  const db = await getDb();
-  const row = db.prepare("SELECT * FROM user_email_reports WHERE id = ? AND user_id = ?").get(id, userId) as UserEmailReportRow | undefined;
-  return row ? toReport(row) : null;
+  const { data } = await supabase.from("user_email_reports").select("*").eq("id", id).eq("user_id", userId).maybeSingle();
+  return data ? toReport(data as UserEmailReportRow) : null;
 }
 
 export async function createEmailReport(data: {
@@ -61,20 +60,18 @@ export async function createEmailReport(data: {
   extraPrompt?: string | null;
 }): Promise<UserEmailReport> {
   return withWriteLock(async () => {
-    const db = await getDb();
-    const info = db.prepare(`
-      INSERT INTO user_email_reports (user_id, title, channel_ids, schedule, enabled, mode, extra_prompt)
-      VALUES (?, ?, ?, ?, 1, ?, ?)
-    `).run(
-      data.userId,
-      data.title,
-      data.channelIds ? JSON.stringify(data.channelIds) : null,
-      data.schedule ?? "0 8 * * *",
-      data.mode ?? "digest",
-      data.extraPrompt ?? null,
-    );
-    const row = db.prepare("SELECT * FROM user_email_reports WHERE id = ?").get(info.lastInsertRowid) as UserEmailReportRow;
-    return toReport(row);
+    const row = {
+      user_id: data.userId,
+      title: data.title,
+      channel_ids: data.channelIds ? JSON.stringify(data.channelIds) : null,
+      schedule: data.schedule ?? "0 8 * * *",
+      enabled: 1,
+      mode: data.mode ?? "digest",
+      extra_prompt: data.extraPrompt ?? null,
+    };
+    const { data: inserted, error } = await supabase.from("user_email_reports").insert(row).select().single();
+    if (error) throw new Error(`createEmailReport: ${error.message}`);
+    return toReport(inserted as UserEmailReportRow);
   });
 }
 
@@ -84,48 +81,39 @@ export async function updateEmailReport(
   data: Partial<{ title: string; channelIds: string[] | null; schedule: string; enabled: boolean; mode: "digest" | "research"; extraPrompt: string | null }>
 ): Promise<UserEmailReport | null> {
   return withWriteLock(async () => {
-    const db = await getDb();
-    const existing = db.prepare("SELECT * FROM user_email_reports WHERE id = ? AND user_id = ?").get(id, userId) as UserEmailReportRow | undefined;
+    const existing = await getEmailReportById(id, userId);
     if (!existing) return null;
-    const merged = {
-      title: data.title ?? existing.title,
-      channel_ids: data.channelIds !== undefined ? (data.channelIds ? JSON.stringify(data.channelIds) : null) : existing.channel_ids,
-      schedule: data.schedule ?? existing.schedule,
-      enabled: data.enabled !== undefined ? (data.enabled ? 1 : 0) : existing.enabled,
-      mode: data.mode ?? existing.mode,
-      extra_prompt: data.extraPrompt !== undefined ? data.extraPrompt : existing.extra_prompt,
-    };
-    db.prepare(`
-      UPDATE user_email_reports SET title=?, channel_ids=?, schedule=?, enabled=?, mode=?, extra_prompt=? WHERE id=? AND user_id=?
-    `).run(merged.title, merged.channel_ids, merged.schedule, merged.enabled, merged.mode, merged.extra_prompt, id, userId);
-    const row = db.prepare("SELECT * FROM user_email_reports WHERE id = ?").get(id) as UserEmailReportRow;
-    return toReport(row);
+    const update: Record<string, unknown> = {};
+    if (data.title !== undefined) update.title = data.title;
+    if (data.channelIds !== undefined) update.channel_ids = data.channelIds ? JSON.stringify(data.channelIds) : null;
+    if (data.schedule !== undefined) update.schedule = data.schedule;
+    if (data.enabled !== undefined) update.enabled = data.enabled ? 1 : 0;
+    if (data.mode !== undefined) update.mode = data.mode;
+    if (data.extraPrompt !== undefined) update.extra_prompt = data.extraPrompt;
+    const { data: updated, error } = await supabase.from("user_email_reports").update(update).eq("id", id).eq("user_id", userId).select().single();
+    if (error) throw new Error(`updateEmailReport: ${error.message}`);
+    return toReport(updated as UserEmailReportRow);
   });
 }
 
 export async function deleteEmailReport(id: number, userId: string): Promise<boolean> {
-  return withWriteLock(async () => {
-    const db = await getDb();
-    const info = db.prepare("DELETE FROM user_email_reports WHERE id = ? AND user_id = ?").run(id, userId);
-    return info.changes > 0;
-  });
+  const { error, count } = await supabase.from("user_email_reports").delete({ count: "exact" }).eq("id", id).eq("user_id", userId);
+  if (error) throw new Error(`deleteEmailReport: ${error.message}`);
+  return (count ?? 0) > 0;
 }
 
 export async function updateLastSentAt(id: number, sentAt: string): Promise<void> {
-  return withWriteLock(async () => {
-    const db = await getDb();
-    db.prepare("UPDATE user_email_reports SET last_sent_at = ? WHERE id = ?").run(sentAt, id);
-  });
+  await supabase.from("user_email_reports").update({ last_sent_at: sentAt }).eq("id", id);
 }
 
-/** 查询所有已启用且到期需要发送的报告 */
 export async function getDueReports(): Promise<(UserEmailReport & { userEmail: string })[]> {
-  const db = await getDb();
-  const rows = db.prepare(`
-    SELECT r.*, u.email as user_email
-    FROM user_email_reports r
-    JOIN users u ON r.user_id = u.id
-    WHERE r.enabled = 1
-  `).all() as (UserEmailReportRow & { user_email: string })[];
-  return rows.map((row) => ({ ...toReport(row), userEmail: row.user_email }));
+  const { data, error } = await supabase
+    .from("user_email_reports")
+    .select("*, users!inner(email)")
+    .eq("enabled", 1);
+  if (error) throw new Error(`getDueReports: ${error.message}`);
+  return (data ?? []).map((row) => {
+    const { users, ...rest } = row as UserEmailReportRow & { users: { email: string } };
+    return { ...toReport(rest), userEmail: users.email };
+  });
 }
