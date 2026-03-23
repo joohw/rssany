@@ -5,10 +5,9 @@
   import { onDestroy, onMount } from 'svelte';
   import MessageCircle from 'lucide-svelte/icons/message-circle';
   import Settings from 'lucide-svelte/icons/settings';
-  import X from 'lucide-svelte/icons/x';
   import FeedsNavBar from '$lib/components/FeedsNavBar.svelte';
   import { agentOverlayOpen } from '$lib/agentOverlay';
-  import AgentPage from './agent/+page.svelte';
+  import AgentOverlayHost from '$lib/AgentOverlayHost.svelte';
   import { syncAgentSessionFromApi } from '$lib/agentSession';
   import '../app.css';
 
@@ -92,17 +91,8 @@
       aria-modal="true"
       aria-label="NewsClaw"
     >
-      <button
-        type="button"
-        class="agent-me-overlay-close"
-        title="关闭"
-        aria-label="关闭"
-        on:click={closeAgentOverlay}
-      >
-        <X size={22} strokeWidth={2} />
-      </button>
       <div class="agent-me-overlay-body">
-        <AgentPage />
+        <AgentOverlayHost />
       </div>
     </div>
   {/if}
@@ -287,28 +277,6 @@
     min-height: 0;
     background: var(--color-background);
     overflow: hidden;
-  }
-  .agent-me-overlay-close {
-    position: absolute;
-    top: 0.55rem;
-    right: calc(var(--shell-gutter) + 0.15rem);
-    z-index: 120;
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    width: 2.5rem;
-    height: 2.5rem;
-    padding: 0;
-    border: none;
-    border-radius: var(--radius-sm, 6px);
-    background: transparent;
-    color: var(--color-muted-foreground);
-    cursor: pointer;
-    transition: color 0.12s ease, background 0.12s ease;
-  }
-  .agent-me-overlay-close:hover {
-    color: var(--color-foreground);
-    background: var(--color-muted);
   }
   .agent-me-overlay-body {
     flex: 1;

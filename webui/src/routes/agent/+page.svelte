@@ -1,8 +1,9 @@
 <script lang="ts">
-  import { onMount, onDestroy } from 'svelte';
+  import { onMount, onDestroy, getContext } from 'svelte';
   import { marked } from 'marked';
   import Plus from 'lucide-svelte/icons/plus';
   import History from 'lucide-svelte/icons/history';
+  import X from 'lucide-svelte/icons/x';
   import PanelLeftClose from 'lucide-svelte/icons/panel-left-close';
   import Loader2 from 'lucide-svelte/icons/loader-2';
   import {
@@ -21,6 +22,8 @@
     normalizeReasoningChain,
   } from '$lib/agentSession';
   import type { TokenUsage } from '$lib/agentSession';
+  import { agentInOverlayKey } from '$lib/agentInOverlay';
+  import { agentOverlayOpen } from '$lib/agentOverlay';
 
   marked.setOptions({ breaks: true, gfm: true });
 
@@ -44,6 +47,8 @@
   }
 
   type AgentMessage = import('$lib/agentSession').AgentMessage;
+
+  const inOverlay = getContext(agentInOverlayKey) === true;
 
   /** 与 app/agent/tools/definitions 中 name 一一对应；兼容旧 MCP 名称 */
   const TOOL_LABELS: Record<string, string> = {
@@ -94,9 +99,8 @@
   const QUICK_PROMPTS = [
     '综述一下近期大模型推理/推理优化方向',
     '找几篇与 RAG 或检索增强相关的文章或讨论',
-    '对比 CoT 和 ReAct 在 Agent 任务上的差异与适用场景',
-    '搜索「LLM agent」相关的最新进展与论文',
-    'OpenClaw 是什么',
+    '对比 CoT 和 ReAct 在 Agent 任务上的差异',
+    '搜索「Harness」相关的最新进展与论文',
   ];
 
   const BACKEND_STORAGE_KEY = 'rssany_agent_backend';
@@ -347,6 +351,10 @@
     historySidebarOpen = !historySidebarOpen;
   }
 
+  function closeAgentOverlay() {
+    agentOverlayOpen.set(false);
+  }
+
   function handleKeydown(e: KeyboardEvent) {
     if (e.key === 'Enter' && e.shiftKey) {
       e.preventDefault();
@@ -420,7 +428,7 @@
       </div>
     </aside>
     <header class="agent-header">
-      <div class="agent-header-inner">
+      <div class="agent-header-inner" class:agent-header-inner-full={inOverlay}>
         <div class="agent-header-actions">
           <button
             type="button"
@@ -432,10 +440,10 @@
             aria-expanded={historySidebarOpen}
             on:click={toggleHistorySidebar}
           >
-            <History size={18} />
+            <History size={20} strokeWidth={2} />
           </button>
           <button type="button" class="agent-header-btn agent-header-btn-icon" title="新建会话" disabled={streaming || !canUseChat} on:click={handleNewSession}>
-            <Plus size={18} />
+            <Plus size={20} strokeWidth={2} />
           </button>
         </div>
         <div class="agent-header-title-wrap">
@@ -463,6 +471,19 @@
             </label>
           {/if}
         </div>
+        {#if inOverlay}
+          <div class="agent-header-side-right">
+            <button
+              type="button"
+              class="agent-header-btn agent-header-btn-icon"
+              title="关闭"
+              aria-label="关闭"
+              on:click={closeAgentOverlay}
+            >
+              <X size={20} strokeWidth={2} />
+            </button>
+          </div>
+        {/if}
       </div>
     </header>
     <div class="agent-messages" bind:this={messagesEl}>
@@ -596,6 +617,8 @@
 
 <style>
   .agent-wrap {
+    /* 继承 layout / overlay 的 --shell-gutter；聊天列略窄于 feeds 主列 */
+    --agent-chat-max: min(700px, calc(100vw - 2 * var(--shell-gutter, 1rem)));
     width: 100%;
     flex: 1;
     min-height: 0;
@@ -801,20 +824,52 @@
       color-mix(in srgb, var(--color-background) 88%, transparent) 55%,
       transparent 100%
     );
-    padding: 0.5rem 0 1.5rem;
+    /* 与 .topbar-inner 一致：内边距在 inner 上，此处仅留底部渐变区 */
+    padding: 0 0 1.5rem;
     pointer-events: none;
   }
   .agent-header-inner {
     box-sizing: border-box;
-    max-width: var(--feeds-column-max, 720px);
+    max-width: var(--agent-chat-max);
     width: 100%;
     margin: 0 auto;
-    padding-inline: var(--shell-gutter);
+    /* 与 layout .topbar-inner：padding 与列间距一致 */
+    padding: 0.65rem var(--shell-gutter);
     display: grid;
     grid-template-columns: 1fr auto 1fr;
     align-items: center;
-    gap: 0.75rem;
+    column-gap: clamp(0.5rem, 2vw, 1rem);
+    row-gap: 0.35rem;
     pointer-events: auto;
+  }
+  /* Overlay：全宽顶栏，左右等宽 flex，标题绝对居中 */
+  .agent-header-inner-full {
+    max-width: none;
+    display: flex;
+    align-items: center;
+    gap: clamp(0.5rem, 2vw, 1rem);
+    position: relative;
+  }
+  .agent-header-inner-full .agent-header-actions {
+    flex: 1 1 0;
+    min-width: 0;
+    justify-content: flex-start;
+  }
+  .agent-header-inner-full .agent-header-side-right {
+    flex: 1 1 0;
+    min-width: 0;
+    display: flex;
+    align-items: center;
+    justify-content: flex-end;
+    gap: 0.2rem;
+  }
+  .agent-header-inner-full .agent-header-title-wrap {
+    position: absolute;
+    left: 50%;
+    transform: translateX(-50%);
+    grid-column: unset;
+    max-width: min(28rem, calc(100vw - 12rem));
+    z-index: 1;
   }
   .agent-header-title-wrap {
     grid-column: 2;
@@ -873,17 +928,17 @@
     justify-self: start;
     display: flex;
     align-items: center;
-    gap: 0.5rem;
+    gap: 0.2rem;
     flex-shrink: 0;
   }
-  /* 顶栏操作按钮（原生 button） */
-  :global(.agent-header-actions .agent-header-btn) {
+  /* 顶栏操作按钮：与 layout .topbar-link 图标区对齐 */
+  :global(.agent-header-actions .agent-header-btn, .agent-header-side-right .agent-header-btn) {
     display: inline-flex;
     align-items: center;
     justify-content: center;
     gap: 0.35rem;
-    min-height: 32px;
-    min-width: 32px;
+    min-height: unset;
+    min-width: unset;
     padding: 0.35rem 0.6rem;
     font-size: 0.8125rem;
     color: var(--color-muted-foreground-strong);
@@ -894,27 +949,31 @@
     font-family: inherit;
     transition: background 0.12s ease, color 0.12s ease;
   }
-  :global(.agent-header-actions .agent-header-btn:hover:not(:disabled)) {
+  :global(.agent-header-actions .agent-header-btn:hover:not(:disabled), .agent-header-side-right .agent-header-btn:hover:not(:disabled)) {
     background: var(--color-muted);
     color: var(--color-accent-foreground);
   }
-  :global(.agent-header-actions .agent-header-btn:disabled) {
+  :global(.agent-header-actions .agent-header-btn:disabled, .agent-header-side-right .agent-header-btn:disabled) {
     opacity: 0.45;
     cursor: not-allowed;
   }
-  :global(.agent-header-actions .agent-header-btn-icon) {
-    padding: 0.4rem;
+  :global(.agent-header-actions .agent-header-btn-icon, .agent-header-side-right .agent-header-btn-icon) {
+    padding: 0.45rem;
     color: var(--color-muted-foreground);
   }
-  :global(.agent-header-actions .agent-header-btn-icon:hover:not(:disabled)) {
+  :global(.agent-header-actions .agent-header-btn-icon svg, .agent-header-side-right .agent-header-btn-icon svg) {
+    width: 20px;
+    height: 20px;
+  }
+  :global(.agent-header-actions .agent-header-btn-icon:hover:not(:disabled), .agent-header-side-right .agent-header-btn-icon:hover:not(:disabled)) {
     color: var(--color-primary);
     background: var(--color-primary-light);
   }
-  :global(.agent-header-actions .agent-header-btn-active.agent-header-btn-icon) {
+  :global(.agent-header-actions .agent-header-btn-active.agent-header-btn-icon, .agent-header-side-right .agent-header-btn-active.agent-header-btn-icon) {
     color: var(--color-primary-foreground);
     background: var(--color-primary);
   }
-  :global(.agent-header-actions .agent-header-btn-active.agent-header-btn-icon:hover:not(:disabled)) {
+  :global(.agent-header-actions .agent-header-btn-active.agent-header-btn-icon:hover:not(:disabled), .agent-header-side-right .agent-header-btn-active.agent-header-btn-icon:hover:not(:disabled)) {
     color: var(--color-primary-foreground);
     background: var(--color-primary-hover);
   }
@@ -927,34 +986,35 @@
   }
   .agent-messages-inner {
     box-sizing: border-box;
-    max-width: var(--feeds-column-max, 720px);
+    max-width: var(--agent-chat-max);
     width: 100%;
     margin: 0 auto;
-    /* 为顶部浮动的 meta 栏留出空间 */
-    padding: 3.5rem var(--shell-gutter) 1.25rem;
+    /* 为顶部浮动的 meta 栏留出空间：inner 0.65+0.65 + 图标行(~2.25rem) + 底部渐变 1.5rem */
+    padding: calc(0.65rem + 2.25rem + 0.65rem + 1.5rem) var(--shell-gutter) 1.75rem;
   }
   .agent-empty {
     display: flex;
     flex-direction: column;
     align-items: center;
     justify-content: center;
-    min-height: 200px;
-    padding: 2rem;
+    min-height: 240px;
+    padding: 2.75rem 1.75rem;
     text-align: center;
   }
   .agent-empty-title {
-    font-size: 1rem;
+    font-size: 1.0625rem;
     font-weight: 600;
     color: var(--color-foreground);
-    margin: 0 0 0.35rem;
-    letter-spacing: -0.02em;
+    margin: 0 0 0.75rem;
+    letter-spacing: 0.02em;
+    line-height: 1.35;
   }
   .agent-empty-desc {
-    font-size: 0.8125rem;
+    font-size: 0.875rem;
     color: var(--color-muted-foreground);
-    margin: 0 0 1.25rem;
-    line-height: 1.55;
-    max-width: 26rem;
+    margin: 0 0 1.75rem;
+    line-height: 1.75;
+    max-width: 24rem;
   }
   .agent-empty-login {
     margin: 0;
@@ -971,11 +1031,12 @@
   .quick-prompts {
     display: flex;
     flex-wrap: wrap;
-    gap: 0.5rem;
+    gap: 0.65rem;
     justify-content: center;
+    margin-top: 0.25rem;
   }
   .quick-prompt {
-    padding: 0.5rem 0.875rem;
+    padding: 0.55rem 1rem;
     font-size: 0.8125rem;
     color: var(--color-muted-foreground-strong);
     background: var(--color-card-elevated);
@@ -995,7 +1056,7 @@
     cursor: not-allowed;
   }
   .msg {
-    margin-bottom: 1.125rem;
+    margin-bottom: 1.35rem;
   }
   .msg-content {
     font-size: 0.875rem;
@@ -1138,11 +1199,11 @@
   .agent-input-wrap {
     box-sizing: border-box;
     flex-shrink: 0;
-    max-width: var(--feeds-column-max, 720px);
+    max-width: var(--agent-chat-max);
     width: 100%;
     margin: 0 auto;
     border-top: 1px solid var(--color-hairline);
-    padding: 0.75rem var(--shell-gutter) 1rem;
+    padding: 1rem var(--shell-gutter) 1.25rem;
     display: flex;
     flex-direction: column;
     gap: 0.5rem;
