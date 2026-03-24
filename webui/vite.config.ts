@@ -1,7 +1,11 @@
 import { sveltekit } from '@sveltejs/kit/vite';
 import tailwindcss from '@tailwindcss/vite';
+import path from 'node:path';
+import { fileURLToPath } from 'node:url';
 import { createRequire } from 'node:module';
 import { defineConfig } from 'vite';
+
+const __dirname = path.dirname(fileURLToPath(import.meta.url));
 import type { Connect } from 'vite';
 
 const require = createRequire(import.meta.url);
@@ -55,5 +59,8 @@ export default defineConfig({
   server: {
     host: true,
     allowedHosts: ['rssany', '.rssany', 'rssany.com', '.rssany.com'],
+    fs: {
+      allow: [path.resolve(__dirname, '..')],
+    },
   },
 });

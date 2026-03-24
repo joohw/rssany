@@ -1,20 +1,12 @@
 <script lang="ts">
-  import { onMount } from 'svelte';
+  import { PRODUCT_NAME } from '$lib/brand';
   import { goto } from '$app/navigation';
   import { Dialog, Popover } from 'bits-ui';
   import MoreVertical from 'lucide-svelte/icons/more-vertical';
+  import LayoutDashboard from 'lucide-svelte/icons/layout-dashboard';
   import AgentTasksEditor from '$lib/components/AgentTasksEditor.svelte';
   import { setAgentSessionUser, agentSessionReady } from '$lib/agentSession';
-
-  type MeUser = {
-    email?: string;
-    display_name?: string | null;
-    provider?: string;
-  };
-
-  let loading = true;
-  let email = '';
-  let displayName: string | null = null;
+  import { meUser, resetMeStores } from '$lib/meAreaStore';
 
   let showAccountMenu = false;
   let loggingOut = false;
@@ -22,24 +14,14 @@
   let deleting = false;
   let deleteError = '';
 
-  onMount(async () => {
-    try {
-      const res = await fetch('/api/auth/me', { credentials: 'include' });
-      if (!res.ok) {
-        goto('/login?next=/me', { replaceState: true });
-        return;
-      }
-      const data: { user: MeUser } = await res.json();
-      const u = data.user;
-      email = u.email ?? '';
-      const dn = u.display_name?.trim();
-      displayName = dn || null;
-    } catch {
-      goto('/login?next=/me', { replaceState: true });
-    } finally {
-      loading = false;
-    }
-  });
+  $: u = $meUser.user;
+  $: email = u?.email ?? '';
+  $: displayName = (() => {
+    const dn = u?.display_name?.trim();
+    return dn || null;
+  })();
+  $: loading = !$meUser.loaded;
+  $: isAdmin = u?.role === 'admin';
 
   async function logout() {
     if (loggingOut) return;
@@ -47,6 +29,7 @@
     showAccountMenu = false;
     try {
       await fetch('/api/auth/logout', { method: 'POST', credentials: 'include' });
+      resetMeStores();
       setAgentSessionUser(null);
       agentSessionReady.set(true);
       await goto('/', { replaceState: true });
@@ -68,6 +51,7 @@
       const res = await fetch('/api/auth/account', { method: 'DELETE', credentials: 'include' });
       const data = (await res.json().catch(() => ({}))) as { error?: string };
       if (!res.ok) throw new Error(data.error || `请求失败 ${res.status}`);
+      resetMeStores();
       setAgentSessionUser(null);
       agentSessionReady.set(true);
       showDeleteDialog = false;
@@ -81,7 +65,7 @@
 </script>
 
 <svelte:head>
-  <title>Account — RssAny</title>
+  <title>Account — {PRODUCT_NAME}</title>
 </svelte:head>
 
 <div class="page">
@@ -130,6 +114,12 @@
         </Popover.Root>
       {/if}
     </div>
+    {#if !loading && isAdmin}
+      <a href="/admin" class="admin-entry">
+        <LayoutDashboard size={16} aria-hidden="true" />
+        <span>管理后台</span>
+      </a>
+    {/if}
   </header>
 
   <div class="page-body">
@@ -192,6 +182,29 @@
     flex-shrink: 0;
     padding: 0.2rem 0 1rem;
     border-bottom: 1px solid var(--color-border);
+  }
+
+  .admin-entry {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.4rem;
+    margin-top: 0.85rem;
+    font-size: 0.8125rem;
+    font-weight: 500;
+    color: var(--color-foreground);
+    text-decoration: none;
+    padding: 0.35rem 0;
+    border-radius: 6px;
+    width: fit-content;
+  }
+
+  .admin-entry:hover {
+    color: var(--color-muted-foreground);
+  }
+
+  .admin-entry:focus-visible {
+    outline: 2px solid var(--color-ring, #888);
+    outline-offset: 2px;
   }
 
   .page-header-row {

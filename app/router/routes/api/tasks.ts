@@ -5,7 +5,8 @@ import * as taskStore from "../../../tasks/index.js";
 import * as scheduler from "../../../scheduler/index.js";
 import { CACHE_DIR, TOPIC_TASK_BASE_DIR } from "../../../config/paths.js";
 import { generateDigest } from "../../../topics/index.js";
-import { getOptionalUserId } from "../../../auth/middleware.js";
+import { getOptionalUserId, ADMIN_ROLE } from "../../../auth/middleware.js";
+import { getUserById } from "../../../db/users.js";
 import { getItems } from "../../../feeder/index.js";
 import { SOURCES_GROUP } from "../../../scraper/scheduler/index.js";
 import { logger } from "../../../core/logger/index.js";
@@ -58,6 +59,10 @@ export function registerTasksRoutes(app: Hono): void {
         return c.json({ taskId });
       }
       if (type === "source-pull") {
+        const userId = await getOptionalUserId(c);
+        if (!userId) return c.json({ error: "未登录或 token 已过期" }, 401);
+        const user = await getUserById(userId);
+        if (!user || user.role !== ADMIN_ROLE) return c.json({ error: "需要管理员权限" }, 403);
         const ref = typeof body.ref === "string" ? body.ref.trim() : "";
         if (!ref) return c.json({ error: "ref 不能为空" }, 400);
         const taskId = taskStore.createTask();

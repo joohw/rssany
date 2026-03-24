@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { PRODUCT_NAME } from '$lib/brand';
   import { onMount, onDestroy } from 'svelte';
   import { page } from '$app/stores';
   import { goto } from '$app/navigation';
@@ -121,7 +122,7 @@
 </script>
 
 <svelte:head>
-  <title>{topic} - 任务 - RssAny</title>
+  <title>{topic} - 任务 - {PRODUCT_NAME}</title>
 </svelte:head>
 
 <div class="wrap">

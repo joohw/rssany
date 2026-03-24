@@ -4,8 +4,6 @@ import { readFile, writeFile, readdir, stat, mkdir } from "node:fs/promises";
 import { resolveUserAgentSandboxPath, userAgentSandboxRoot } from "../config/paths.js";
 import { getAllChannelConfigs, collectAllSourceRefs } from "../core/channel/index.js";
 import { getItemById, queryItems } from "../db/index.js";
-import { getAllSources } from "../scraper/subscription/index.js";
-import type { SubscriptionSource } from "../scraper/subscription/types.js";
 import { extractHtml } from "../scraper/sources/web/extractor/index.js";
 
 export interface ChannelInfo {
@@ -49,56 +47,6 @@ function parseDate(s: string | undefined): Date | undefined {
   return Number.isNaN(d.getTime()) ? undefined : d;
 }
 
-export interface SourceInfo {
-  ref: string;
-  label?: string;
-  description?: string;
-  channel_ids: string[];
-}
-
-export interface SearchSourcesArgs {
-  /** 关键词，匹配 ref / label / description */
-  q?: string;
-  /** 仅返回属于该频道的信源 */
-  channel_id?: string;
-}
-
-/** search_sources：按关键词或频道筛选信源（sources.json + channels 归属） */
-export async function searchSources(args: SearchSourcesArgs): Promise<{ sources: SourceInfo[] }> {
-  const { q, channel_id } = args;
-  const [rawSources, channels] = await Promise.all([getAllSources(), getAllChannelConfigs()]);
-  const refToChannels: Record<string, string[]> = {};
-  for (const ch of channels) {
-    for (const ref of ch.sourceRefs ?? []) {
-      if (!ref) continue;
-      if (!refToChannels[ref]) refToChannels[ref] = [];
-      if (!refToChannels[ref].includes(ch.id)) refToChannels[ref].push(ch.id);
-    }
-  }
-  let list: SubscriptionSource[] = rawSources;
-  if (channel_id && channel_id !== "all") {
-    const ch = channels.find((c) => c.id === channel_id);
-    const refSet = new Set(ch?.sourceRefs ?? []);
-    list = list.filter((s) => refSet.has(s.ref));
-  }
-  if (q && q.trim()) {
-    const k = q.trim().toLowerCase();
-    list = list.filter(
-      (s) =>
-        (s.ref && s.ref.toLowerCase().includes(k)) ||
-        (s.label && s.label.toLowerCase().includes(k)) ||
-        (s.description && s.description.toLowerCase().includes(k))
-    );
-  }
-  const sources: SourceInfo[] = list.map((s) => ({
-    ref: s.ref,
-    label: s.label,
-    description: s.description,
-    channel_ids: refToChannels[s.ref] ?? [],
-  }));
-  return { sources };
-}
-
 export interface GetFeedsArgs {
   channel_id?: string;
   source_url?: string;
@@ -111,7 +59,7 @@ export interface GetFeedsArgs {
   offset?: number;
 }
 
-/** get_feeds：统一获取 feed 列表（含全文搜索与多维度过滤），不含正文；需正文用 get_feed_detail */
+/** get_feeds / feeds_search 共用：列表浏览（不传 q）与全文检索（传 q）；不含正文；需正文用 get_feed_detail */
 export async function getFeeds(args: GetFeedsArgs): Promise<{
   items: FeedItemSummary[];
   total: number;

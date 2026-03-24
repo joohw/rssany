@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { PRODUCT_NAME } from '$lib/brand';
   import { onMount, onDestroy } from 'svelte';
 
   interface GroupStats {
@@ -87,12 +88,12 @@
 </script>
 
 <svelte:head>
-  <title>设置 - RssAny</title>
+  <title>设置 - {PRODUCT_NAME}</title>
 </svelte:head>
 
 <div class="feed-wrap">
   <div class="feed-col">
-    <div class="feed-header">
+    <div class="feed-header ui-rule-b">
       <h2>设置</h2>
       <p class="sub">管理入口与调试工具</p>
     </div>
@@ -147,35 +148,36 @@
 
 <style>
   .feed-wrap {
-    height: 100vh;
-    display: flex;
-    overflow: hidden;
-    max-width: 720px;
+    max-width: min(720px, var(--feeds-column-max, 720px));
     width: 100%;
     margin: 0 auto;
+    flex: 1;
+    min-height: 0;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
   }
   .feed-col {
     flex: 1;
     display: flex;
     flex-direction: column;
     overflow: hidden;
-    background: #fff;
-    border-left: 1px solid #e5e7eb;
-    border-right: 1px solid #e5e7eb;
+    min-height: 0;
+    background: transparent;
   }
   .feed-header {
     padding: 0.875rem 1.25rem;
-    border-bottom: 1px solid #f0f0f0;
     flex-shrink: 0;
   }
   .feed-header h2 {
     font-size: 0.9375rem;
     font-weight: 600;
     margin: 0 0 0.25rem;
+    color: var(--color-foreground);
   }
   .sub {
     font-size: 0.75rem;
-    color: #aaa;
+    color: var(--color-muted-foreground-soft);
     margin: 0;
   }
 
@@ -184,13 +186,18 @@
     overflow-y: auto;
     padding: 1rem 1.25rem;
   }
-  .body::-webkit-scrollbar { width: 4px; }
-  .body::-webkit-scrollbar-thumb { background: #ddd; border-radius: 2px; }
+  .body::-webkit-scrollbar {
+    width: 4px;
+  }
+  .body::-webkit-scrollbar-thumb {
+    background: var(--color-scrollbar-thumb);
+    border-radius: 2px;
+  }
 
   .section-title {
     font-size: 0.8125rem;
     font-weight: 600;
-    color: #6b7280;
+    color: var(--color-muted-foreground);
     margin: 0 0 0.5rem;
   }
   .scheduler-section {
@@ -198,9 +205,9 @@
   }
   .scheduler-card {
     padding: 0;
-    background: #fff;
-    border: 1px solid #e5e7eb;
-    border-radius: 6px;
+    background: var(--color-card);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-sm);
     overflow: hidden;
   }
   .scheduler-row {
@@ -209,7 +216,7 @@
     align-items: center;
     gap: 1rem;
     padding: 0.75rem 1rem;
-    border-bottom: 1px solid #e5e7eb;
+    border-bottom: 1px solid var(--color-border);
   }
   .scheduler-row:last-child {
     border-bottom: none;
@@ -224,11 +231,11 @@
   .scheduler-name {
     font-weight: 600;
     font-size: 0.875rem;
-    color: #111;
+    color: var(--color-foreground);
   }
   .scheduler-meta {
     font-size: 0.75rem;
-    color: #6b7280;
+    color: var(--color-muted-foreground);
   }
   .scheduler-slots {
     display: flex;
@@ -240,11 +247,11 @@
     width: 8px;
     height: 8px;
     border-radius: 50%;
-    background: #e5e7eb;
+    background: var(--color-border);
     transition: background 0.2s;
   }
   .slot.filled {
-    background: #22c55e;
+    background: var(--color-success);
   }
 
   .links-section {
@@ -257,8 +264,8 @@
     display: flex;
     flex-direction: column;
     gap: 0;
-    border: 1px solid #e5e7eb;
-    border-radius: 8px;
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-md);
     overflow: hidden;
   }
   .card {
@@ -267,8 +274,8 @@
     justify-content: space-between;
     gap: 0.75rem;
     padding: 0.875rem 1rem;
-    background: #fff;
-    border-bottom: 1px solid #e5e7eb;
+    background: var(--color-card);
+    border-bottom: 1px solid var(--color-border);
     text-decoration: none;
     transition: background 0.15s;
   }
@@ -276,7 +283,7 @@
     border-bottom: none;
   }
   .card:hover {
-    background: #fafafa;
+    background: var(--color-muted);
   }
   .card-main {
     flex: 1;
@@ -288,7 +295,7 @@
   .card-label {
     font-size: 0.9rem;
     font-weight: 500;
-    color: #111;
+    color: var(--color-foreground);
     line-height: 1.4;
   }
   .card:hover .card-label {
@@ -296,17 +303,18 @@
   }
   .card-desc {
     font-size: 0.75rem;
-    color: #888;
+    color: var(--color-muted-foreground-soft);
     line-height: 1.3;
   }
   .card-arrow {
     font-size: 1rem;
-    color: #9ca3af;
+    color: var(--color-muted-foreground);
     flex-shrink: 0;
   }
 
   @media (max-width: 600px) {
-    .feed-wrap { max-width: 100%; }
-    .feed-col { border: none; }
+    .feed-wrap {
+      max-width: 100%;
+    }
   }
 </style>

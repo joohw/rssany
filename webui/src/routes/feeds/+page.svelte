@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { PRODUCT_NAME } from '$lib/brand';
   /// <reference path="../../lucide-svelte.d.ts" />
   import { onDestroy, onMount } from 'svelte';
   import { page } from '$app/stores';
@@ -287,7 +288,7 @@
 </script>
 
 <svelte:head>
-  <title>Feeds - RssAny</title>
+  <title>Feeds - {PRODUCT_NAME}</title>
 </svelte:head>
 
 

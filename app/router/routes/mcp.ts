@@ -2,6 +2,7 @@
 
 import type { Hono } from "hono";
 import { createMcpHandler } from "../../agent/mcp/server.js";
+import { PRODUCT_NAME } from "../../config/brand.js";
 
 export function registerMcpRoutes(app: Hono): void {
   // MCP：Streamable HTTP（SSE），GET 建 SSE / POST 发 JSON-RPC
@@ -13,7 +14,7 @@ export function registerMcpRoutes(app: Hono): void {
   // MCP 一键安装脚本：合并 rssany 到 ~/.cursor/mcp.json
   app.get("/api/mcp/install.sh", (c) => {
     const script = `#!/bin/sh
-# RssAny MCP: add streamableHttp server to Cursor (~/.cursor/mcp.json)
+# ${PRODUCT_NAME} MCP: add streamableHttp server to Cursor (~/.cursor/mcp.json)
 set -e
 BASE_URL="${"${1:-http://127.0.0.1:3751}"}"
 MCP_URL="$BASE_URL/mcp"
@@ -39,7 +40,7 @@ console.log(JSON.stringify(config, null, 2));
   exit 1
 }
 echo "$NEW_CONFIG" > "$MCP_JSON"
-echo "RssAny MCP added: $MCP_URL"
+echo "${PRODUCT_NAME} MCP added: $MCP_URL"
 echo "Restart Cursor to take effect."
 `;
     return c.text(script, 200, {

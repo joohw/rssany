@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { PRODUCT_NAME } from '$lib/brand';
   import { onMount, onDestroy } from 'svelte';
   import { page } from '$app/stores';
   import { marked } from 'marked';
@@ -158,7 +159,7 @@
 </script>
 
 <svelte:head>
-  <title>{dateParam} · {topic} - 任务 - RssAny</title>
+  <title>{dateParam} · {topic} - 任务 - {PRODUCT_NAME}</title>
 </svelte:head>
 
 <div class="wrap">

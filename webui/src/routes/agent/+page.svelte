@@ -24,6 +24,7 @@
   import type { TokenUsage } from '$lib/agentSession';
   import { agentInOverlayKey } from '$lib/agentInOverlay';
   import { agentOverlayOpen } from '$lib/agentOverlay';
+  import { PRODUCT_NAME } from '$lib/brand';
 
   marked.setOptions({ breaks: true, gfm: true });
 
@@ -53,8 +54,8 @@
   /** 与 app/agent/tools/definitions 中 name 一一对应；兼容旧 MCP 名称 */
   const TOOL_LABELS: Record<string, string> = {
     list_channels: '列出频道',
-    search_sources: '搜索信源',
     get_feeds: '获取文章列表',
+    feeds_search: '信息流全文检索',
     get_feed_detail: '获取文章详情',
     web_search: '网页搜索',
     web_fetch: '抓取网页正文',
@@ -110,7 +111,7 @@
 
   function backendLabel(id: string): string {
     if (id === 'openclaw') return 'OpenClaw Gateway';
-    return 'RssAny Agent';
+    return `${PRODUCT_NAME} Agent`;
   }
 
   function toolLabel(name: string): string {
@@ -364,7 +365,7 @@
 </script>
 
 <svelte:head>
-  <title>Agent - RssAny</title>
+  <title>Agent - {PRODUCT_NAME}</title>
 </svelte:head>
 
 <div class="agent-wrap">
@@ -455,7 +456,7 @@
                 class="agent-backend-select"
                 bind:value={selectedBackend}
                 disabled={streaming || !canUseChat}
-                title="选择对话引擎：RssAny 使用本服务 MCP 工具；OpenClaw 走已配置的 Gateway（OpenResponses）"
+                title={`选择对话引擎：${PRODUCT_NAME} 使用本服务 MCP 工具；OpenClaw 走已配置的 Gateway（OpenResponses）`}
                 on:change={() => {
                   try {
                     localStorage.setItem(BACKEND_STORAGE_KEY, selectedBackend);

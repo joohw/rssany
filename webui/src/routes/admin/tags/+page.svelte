@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { PRODUCT_NAME } from '$lib/brand';
   import { onMount } from 'svelte';
   import { fetchJson } from '$lib/fetchJson.js';
   import { showToast } from '$lib/toastStore.js';
@@ -136,12 +137,12 @@
 </script>
 
 <svelte:head>
-  <title>标签 - RssAny</title>
+  <title>标签 - {PRODUCT_NAME}</title>
 </svelte:head>
 
 <div class="feed-wrap">
   <div class="feed-col">
-    <div class="feed-header">
+    <div class="feed-header ui-rule-b">
       <div class="header-left">
         <h2>系统标签</h2>
         <p class="page-desc">
@@ -252,10 +253,11 @@
 
 <style>
   .feed-wrap {
-    min-height: 100vh;
+    min-height: 0;
+    flex: 1;
     display: flex;
     overflow: auto;
-    max-width: 720px;
+    max-width: min(720px, var(--feeds-column-max, 720px));
     width: 100%;
     margin: 0 auto;
   }
@@ -263,7 +265,7 @@
     width: 4px;
   }
   .feed-wrap::-webkit-scrollbar-thumb {
-    background: #ddd;
+    background: var(--color-scrollbar-thumb);
     border-radius: 2px;
   }
 
@@ -272,14 +274,12 @@
     display: flex;
     flex-direction: column;
     overflow: hidden;
-    background: #fff;
-    border-left: 1px solid #e5e7eb;
-    border-right: 1px solid #e5e7eb;
+    min-height: 0;
+    background: transparent;
   }
 
   .feed-header {
     padding: 0.875rem 1.25rem;
-    border-bottom: 1px solid #f0f0f0;
     display: flex;
     align-items: flex-start;
     justify-content: space-between;
@@ -290,11 +290,12 @@
     font-size: 0.9375rem;
     font-weight: 600;
     margin: 0 0 0.15rem;
+    color: var(--color-foreground);
   }
 
   .page-desc {
     font-size: 0.75rem;
-    color: #aaa;
+    color: var(--color-muted-foreground-soft);
     margin: 0;
   }
 
@@ -307,14 +308,14 @@
     width: 4px;
   }
   .body::-webkit-scrollbar-thumb {
-    background: #ddd;
+    background: var(--color-scrollbar-thumb);
     border-radius: 2px;
   }
 
   .section-title {
     font-size: 0.8125rem;
     font-weight: 600;
-    color: #6b7280;
+    color: var(--color-muted-foreground);
     margin: 0 0 0.5rem;
   }
 
@@ -328,8 +329,10 @@
     flex: 1;
     padding: 0.4rem 0.6rem;
     font-size: 0.875rem;
-    border: 1px solid #e5e7eb;
-    border-radius: 6px;
+    border: 1px solid var(--color-input);
+    border-radius: var(--radius-sm);
+    background: var(--color-card-elevated);
+    color: var(--color-foreground);
   }
   .tag-input:focus {
     outline: none;
@@ -339,14 +342,14 @@
   .btn {
     padding: 0.35rem 0.85rem;
     border: none;
-    border-radius: 6px;
+    border-radius: var(--radius-sm);
     cursor: pointer;
     font-size: 0.8125rem;
     font-family: inherit;
   }
   .btn-primary {
     background: var(--color-primary);
-    color: #fff;
+    color: var(--color-primary-foreground);
   }
   .btn-primary:hover:not(:disabled) {
     background: var(--color-primary-hover);
@@ -363,7 +366,7 @@
 
   .empty-hint {
     font-size: 0.8125rem;
-    color: #9ca3af;
+    color: var(--color-muted-foreground-soft);
     margin: 0;
   }
 
@@ -378,13 +381,13 @@
     align-items: center;
     gap: 0.35rem;
     padding: 0.25rem 0.5rem;
-    background: #f3f4f6;
-    border-radius: 6px;
+    background: var(--color-muted);
+    border-radius: var(--radius-sm);
     font-size: 0.8125rem;
   }
 
   .tag-name {
-    color: #111;
+    color: var(--color-foreground);
     text-decoration: none;
   }
   .tag-name:hover {
@@ -393,7 +396,7 @@
 
   .tag-meta {
     font-size: 0.7rem;
-    color: #9ca3af;
+    color: var(--color-muted-foreground-soft);
   }
 
   .tag-remove,
@@ -401,7 +404,7 @@
     padding: 0 0.2rem;
     font-size: 1rem;
     line-height: 1;
-    color: #9ca3af;
+    color: var(--color-muted-foreground-soft);
     background: none;
     border: none;
     cursor: pointer;
@@ -409,16 +412,16 @@
   }
   .tag-remove:hover:not(:disabled),
   .tag-add:hover:not(:disabled) {
-    color: #e53e3e;
-    background: #fee2e2;
+    color: var(--color-destructive);
+    background: color-mix(in srgb, var(--color-destructive) 16%, transparent);
   }
   .tag-add:hover:not(:disabled) {
-    color: #1a7f37;
-    background: #dcfce7;
+    color: var(--color-success);
+    background: color-mix(in srgb, var(--color-success) 18%, transparent);
   }
 
   .tag-badge.suggested {
-    background: #fef3c7;
+    background: color-mix(in srgb, var(--color-primary) 14%, transparent);
   }
 
   .context-menu {
@@ -426,10 +429,10 @@
     z-index: 100;
     min-width: 180px;
     padding: 0.25rem 0;
-    background: #fff;
-    border: 1px solid #e5e7eb;
-    border-radius: 6px;
-    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+    background: var(--color-card-elevated);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-sm);
+    box-shadow: var(--shadow-panel);
   }
 
   .context-menu-item {
@@ -438,13 +441,13 @@
     padding: 0.4rem 0.75rem;
     font-size: 0.8125rem;
     text-align: left;
-    color: #111;
+    color: var(--color-foreground);
     background: none;
     border: none;
     cursor: pointer;
   }
   .context-menu-item:hover:not(:disabled) {
-    background: #f3f4f6;
+    background: var(--color-muted);
   }
   .context-menu-item:disabled {
     opacity: 0.5;
@@ -454,16 +457,13 @@
   .state {
     text-align: center;
     padding: 4rem;
-    color: #aaa;
+    color: var(--color-muted-foreground-soft);
     font-size: 0.875rem;
   }
 
   @media (max-width: 600px) {
     .feed-wrap {
       max-width: 100%;
-    }
-    .feed-col {
-      border: none;
     }
   }
 </style>

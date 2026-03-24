@@ -8,6 +8,7 @@ import { extractFromLink } from "../../scraper/sources/web/extractor/index.js";
 import { CACHE_DIR } from "../../config/paths.js";
 import { AuthRequiredError } from "../../scraper/auth/index.js";
 import { parseUrlFromPath, readStaticHtml, escapeHtml } from "../utils.js";
+import { requireAdmin } from "../../auth/middleware.js";
 
 export function registerAdminRoutes(app: Hono): void {
   async function render401(listUrl: string): Promise<string> {
@@ -16,7 +17,7 @@ export function registerAdminRoutes(app: Hono): void {
   }
 
   /** Parse 与插件解耦：始终通过 getSource(url) 解析，无匹配插件时自动走 generic（浏览器抓取 + LLM 解析），与 /rss/* 行为一致 */
-  app.get("/admin/parse/*", async (c) => {
+  app.get("/admin/parse/*", requireAdmin(), async (c) => {
     const url = parseUrlFromPath(c.req.path, "/admin/parse");
     if (!url) return c.text("无效 URL，格式: /admin/parse/https://... 或 /admin/parse/example.com/...", 400);
     try {
@@ -37,7 +38,7 @@ export function registerAdminRoutes(app: Hono): void {
     }
   });
 
-  app.get("/admin/extractor/*", async (c) => {
+  app.get("/admin/extractor/*", requireAdmin(), async (c) => {
     const url = parseUrlFromPath(c.req.path, "/admin/extractor");
     if (!url) return c.text("无效 URL，格式: /admin/extractor/https://... 或 /admin/extractor/example.com/...", 400);
     try {

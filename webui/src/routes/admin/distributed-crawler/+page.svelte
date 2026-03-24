@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { PRODUCT_NAME } from '$lib/brand';
   import { page } from '$app/stores';
   import { onMount } from 'svelte';
 
@@ -30,7 +31,7 @@
 </script>
 
 <svelte:head>
-  <title>分布式爬虫 - RssAny</title>
+  <title>分布式爬虫 - {PRODUCT_NAME}</title>
 </svelte:head>
 
 <div class="feed-wrap">
@@ -73,56 +74,85 @@
 
 <style>
   .feed-wrap {
-    height: 100vh;
-    display: flex;
-    overflow: hidden;
-    max-width: 720px;
+    max-width: min(720px, var(--feeds-column-max, 720px));
     width: 100%;
     margin: 0 auto;
+    flex: 1;
+    min-height: 0;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
   }
   .feed-col {
     flex: 1;
     display: flex;
     flex-direction: column;
     overflow: hidden;
-    background: #fff;
-    border-left: 1px solid #e5e7eb;
-    border-right: 1px solid #e5e7eb;
+    min-height: 0;
+    background: transparent;
   }
   .body {
     flex: 1;
     overflow-y: auto;
     padding: 1rem 1.25rem;
   }
-  .body::-webkit-scrollbar { width: 4px; }
-  .body::-webkit-scrollbar-thumb { background: #ddd; border-radius: 2px; }
+  .body::-webkit-scrollbar {
+    width: 4px;
+  }
+  .body::-webkit-scrollbar-thumb {
+    background: var(--color-scrollbar-thumb);
+    border-radius: 2px;
+  }
 
-  .intro { color: #444; margin: 0 0 1.25rem; line-height: 1.5; font-size: 0.875rem; }
+  .intro {
+    color: var(--color-muted-foreground-strong);
+    margin: 0 0 1.25rem;
+    line-height: 1.5;
+    font-size: 0.875rem;
+  }
   .section-title {
     font-size: 0.8125rem;
     font-weight: 600;
-    color: #6b7280;
+    color: var(--color-muted-foreground);
     margin: 0 0 0.5rem;
   }
-  .doc-section { margin-bottom: 1.25rem; }
-  .doc-list { margin: 0.25rem 0 0 1rem; padding: 0; }
-  .doc-list li { margin-bottom: 0.35rem; font-size: 0.8125rem; line-height: 1.5; }
-  .doc-p { margin: 0 0 0.5rem; font-size: 0.8125rem; line-height: 1.5; }
+  .doc-section {
+    margin-bottom: 1.25rem;
+  }
+  .doc-list {
+    margin: 0.25rem 0 0 1rem;
+    padding: 0;
+  }
+  .doc-list li {
+    margin-bottom: 0.35rem;
+    font-size: 0.8125rem;
+    line-height: 1.5;
+  }
+  .doc-p {
+    margin: 0 0 0.5rem;
+    font-size: 0.8125rem;
+    line-height: 1.5;
+  }
   .code-block {
-    background: #f9fafb;
-    border: 1px solid #e5e7eb;
-    color: #374151;
+    background: var(--color-card);
+    border: 1px solid var(--color-border);
+    color: var(--color-muted-foreground-strong);
     padding: 0.75rem 1rem;
-    border-radius: 6px;
+    border-radius: var(--radius-sm);
     font-size: 0.8125rem;
     overflow-x: auto;
     white-space: pre-wrap;
     word-break: break-all;
   }
-  .hint { font-size: 0.75rem; color: #9ca3af; margin: 0.5rem 0 0; }
+  .hint {
+    font-size: 0.75rem;
+    color: var(--color-muted-foreground-soft);
+    margin: 0.5rem 0 0;
+  }
 
   @media (max-width: 600px) {
-    .feed-wrap { max-width: 100%; }
-    .feed-col { border: none; }
+    .feed-wrap {
+      max-width: 100%;
+    }
   }
 </style>

@@ -1,6 +1,7 @@
 // /api/tags — 系统标签（pipeline tagger）；原 /api/topics 任务接口已迁至 /api/agent-tasks
 
 import type { Hono } from "hono";
+import { requireAdmin } from "../../../auth/middleware.js";
 import {
   getSuggestedTags,
   getSystemTags,
@@ -24,7 +25,7 @@ export function registerTopicsRoutes(app: Hono): void {
     });
   });
 
-  app.put("/api/tags", async (c) => {
+  app.put("/api/tags", requireAdmin(), async (c) => {
     try {
       const body = await c.req.json<{ tags?: string[] }>();
       const list = Array.isArray(body?.tags) ? body.tags : [];
@@ -46,7 +47,7 @@ export function registerTopicsRoutes(app: Hono): void {
   });
 
   /** 从所有条目的 tags 中移除指定标签 */
-  app.post("/api/tags/remove-from-items", async (c) => {
+  app.post("/api/tags/remove-from-items", requireAdmin(), async (c) => {
     try {
       const body = await c.req.json<{ tag?: string }>();
       const tag = typeof body?.tag === "string" ? body.tag.trim() : "";

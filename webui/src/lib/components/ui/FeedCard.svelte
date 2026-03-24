@@ -66,22 +66,11 @@
   on:contextmenu={handleContextMenu}
   role="article"
 >
-  {#if authors && authors.length > 0}
-    <div class="item-author-top">
-      {#each authors as a, i}
-        <a class="item-author-link" href={a.href} title="筛选该作者">{a.name}</a>{#if i < authors.length - 1}<span class="item-author-sep">、</span>{/if}
-      {/each}
-    </div>
-  {:else if author}
-    <div class="item-author-top">
-      {#if authorHref}
-        <a class="item-author-link" href={authorHref} title="筛选该作者">{author}</a>
-      {:else}
-        {author}
-      {/if}
-    </div>
+  {#if link}
+    <a class="item-title" href={link} target="_blank" rel="noopener">{title || '(无标题)'}</a>
+  {:else}
+    <span class="item-title">{title || '(无标题)'}</span>
   {/if}
-  <span class="item-title">{title || '(无标题)'}</span>
   {#if summary}
     <p class="item-summary">{summary}</p>
   {/if}
@@ -108,11 +97,28 @@
       {:else}
         <span class="item-source">{source}</span>
       {/if}
+    {/if}
+    {#if authors && authors.length > 0}
+      {#if source}<span class="item-dot"></span>{/if}
+      <span class="item-meta-authors">
+        <span class="item-by">by </span>
+        {#each authors as a, i}
+          <a class="item-author-link" href={a.href} title="筛选该作者">{a.name}</a>{#if i < authors.length - 1}<span class="item-author-sep">、</span>{/if}
+        {/each}
+      </span>
+    {:else if author}
+      {#if source}<span class="item-dot"></span>{/if}
+      <span class="item-by">by </span>
+      {#if authorHref}
+        <a class="item-author-link" href={authorHref} title="筛选该作者">{author}</a>
+      {:else}
+        <span class="item-author-plain">{author}</span>
+      {/if}
+    {/if}
+    {#if source || author || (authors && authors.length)}
       <span class="item-dot"></span>
     {/if}
     <span>{relativeTime(pubDate)}</span>
-    <span class="item-dot"></span>
-    <a class="item-read-link" href={link} target="_blank" rel="noopener">阅读原文</a>
   </div>
 </div>
 
@@ -179,11 +185,15 @@
     color: var(--color-destructive);
   }
 
-  .item-author-top {
-    font-size: 0.75rem;
-    font-weight: 500;
-    color: var(--color-muted-foreground-strong);
-    margin-bottom: 0.3rem;
+  .item-by {
+    color: var(--color-muted-foreground-soft);
+    font-weight: normal;
+    margin-right: 0.15em;
+  }
+
+  .item-meta-authors {
+    min-width: 0;
+    max-width: 280px;
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
@@ -195,6 +205,9 @@
   .item-author-link:hover {
     color: var(--color-primary);
     text-decoration: underline;
+  }
+  .item-author-plain {
+    color: inherit;
   }
   .item-author-sep {
     color: var(--color-muted-foreground-soft);
@@ -209,6 +222,14 @@
     display: block;
     line-height: 1.45;
     margin-bottom: 0.3rem;
+  }
+  a.item-title {
+    text-decoration: none;
+    color: inherit;
+  }
+  a.item-title:hover {
+    color: var(--color-primary);
+    text-decoration: underline;
   }
 
   .item-summary {
@@ -283,12 +304,4 @@
     border-radius: 50%;
     flex-shrink: 0;
   }
-
-  .item-read-link {
-    color: inherit;
-    text-decoration: none;
-    white-space: nowrap;
-    flex-shrink: 0;
-  }
-  .item-read-link:hover { color: var(--color-primary); text-decoration: underline; }
 </style>

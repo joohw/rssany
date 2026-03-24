@@ -1,14 +1,20 @@
 <script lang="ts">
   /// <reference path="../lucide-svelte.d.ts" />
   import { browser } from '$app/environment';
+  import { goto } from '$app/navigation';
   import { page } from '$app/stores';
+  import { get } from 'svelte/store';
   import { onDestroy, onMount } from 'svelte';
   import MessageCircle from 'lucide-svelte/icons/message-circle';
   import Settings from 'lucide-svelte/icons/settings';
   import FeedsNavBar from '$lib/components/FeedsNavBar.svelte';
   import { agentOverlayOpen } from '$lib/agentOverlay';
   import AgentOverlayHost from '$lib/AgentOverlayHost.svelte';
-  import { syncAgentSessionFromApi } from '$lib/agentSession';
+  import {
+    syncAgentSessionFromApi,
+    agentSessionReady,
+    agentSessionUserId,
+  } from '$lib/agentSession';
   import '../app.css';
 
   onMount(() => {
@@ -24,6 +30,19 @@
 
   function toggleAgentOverlay() {
     agentOverlayOpen.update((o) => !o);
+  }
+
+  /** 未登录时与 /me 一致：最终到首页（见 me/+layout 鉴权跳转） */
+  async function onAgentButtonClick() {
+    if (!get(agentSessionReady)) {
+      await syncAgentSessionFromApi();
+    }
+    if (get(agentSessionUserId) === null) {
+      agentOverlayOpen.set(false);
+      await goto('/');
+      return;
+    }
+    toggleAgentOverlay();
   }
 
   function onWindowKeydown(e: KeyboardEvent) {
@@ -65,7 +84,7 @@
             aria-label="Ask"
             aria-expanded={$agentOverlayOpen}
             aria-pressed={$agentOverlayOpen}
-            on:click={toggleAgentOverlay}
+            on:click={onAgentButtonClick}
           >
             <span class="topbar-icon"><MessageCircle size={20} /></span>
           </button>

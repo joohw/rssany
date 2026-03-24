@@ -269,7 +269,7 @@ export async function getOrCreateBrowser(config: {
           if (isAlreadyRunningError(e)) {
             const dir = userDataDir ?? "browser_data/main";
             throw new Error(
-              `Chrome 的 profile 目录已被占用（${dir}）。通常是因为上次未正常退出或同时运行了多个 RssAny 进程。请关闭占用该目录的 Chrome 进程后重试，或设置环境变量 CACHE_DIR 使用不同缓存目录。`
+              `Chrome 的 profile 目录已被占用（${dir}）。通常是因为上次未正常退出或同时运行了多个本服务实例。请关闭占用该目录的 Chrome 进程后重试，或设置环境变量 CACHE_DIR 使用不同缓存目录。`
             );
           }
           throw e;

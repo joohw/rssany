@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { PRODUCT_NAME } from '$lib/brand';
   import { onMount } from 'svelte';
   import { showToast } from '$lib/toastStore.js';
 
@@ -64,12 +65,12 @@
 </script>
 
 <svelte:head>
-  <title>插件 - RssAny</title>
+  <title>插件 - {PRODUCT_NAME}</title>
 </svelte:head>
 
 <div class="feed-wrap">
   <div class="feed-col">
-    <div class="feed-header">
+    <div class="feed-header ui-rule-b">
       <h2>插件</h2>
       <p class="sub">已加载的站点插件，需登录的站点可在此检查或打开登录页</p>
     </div>
@@ -103,36 +104,37 @@
 
 <style>
   .feed-wrap {
-    height: 100vh;
-    display: flex;
-    overflow: hidden;
-    max-width: 720px;
+    max-width: min(720px, var(--feeds-column-max, 720px));
     width: 100%;
     margin: 0 auto;
+    flex: 1;
+    min-height: 0;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
   }
   .feed-col {
     flex: 1;
     display: flex;
     flex-direction: column;
     overflow: hidden;
-    background: #fff;
-    border-left: 1px solid #e5e7eb;
-    border-right: 1px solid #e5e7eb;
+    min-height: 0;
+    background: transparent;
   }
 
   .feed-header {
     padding: 0.875rem 1.25rem;
-    border-bottom: 1px solid #f0f0f0;
     flex-shrink: 0;
   }
   .feed-header h2 {
     font-size: 0.9375rem;
     font-weight: 600;
     margin: 0 0 0.25rem;
+    color: var(--color-foreground);
   }
   .sub {
     font-size: 0.75rem;
-    color: #aaa;
+    color: var(--color-muted-foreground-soft);
     margin: 0;
   }
 
@@ -143,11 +145,11 @@
     justify-content: center;
     text-align: center;
     padding: 1.5rem;
-    color: #888;
+    color: var(--color-muted-foreground);
     font-size: 0.875rem;
   }
   .state.error {
-    color: #c53030;
+    color: var(--color-destructive);
   }
 
   .list {
@@ -156,16 +158,21 @@
     display: flex;
     flex-direction: column;
   }
-  .list::-webkit-scrollbar { width: 4px; }
-  .list::-webkit-scrollbar-thumb { background: #ddd; border-radius: 2px; }
+  .list::-webkit-scrollbar {
+    width: 4px;
+  }
+  .list::-webkit-scrollbar-thumb {
+    background: var(--color-scrollbar-thumb);
+    border-radius: 2px;
+  }
 
   .row {
     display: flex;
     align-items: center;
     gap: 0.75rem;
     padding: 1rem 1.25rem;
-    border-bottom: 1px solid #e5e7eb;
-    background: #fff;
+    border-bottom: 1px solid var(--color-border);
+    background: var(--color-card);
     transition: background 0.15s;
     flex-shrink: 0;
   }
@@ -173,7 +180,7 @@
     border-bottom: none;
   }
   .row:hover {
-    background: #fafafa;
+    background: var(--color-muted);
   }
 
   .row-main {
@@ -186,12 +193,12 @@
   .row-id {
     font-size: 0.9rem;
     font-weight: 500;
-    color: #111;
+    color: var(--color-foreground);
   }
   .row-pattern {
     font-size: 0.78rem;
     font-family: monospace;
-    color: #666;
+    color: var(--color-muted-foreground-strong);
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
@@ -212,15 +219,31 @@
     font-family: inherit;
     transition: background 0.15s;
   }
-  .btn-primary { background: var(--color-primary); color: #fff; }
-  .btn-primary:hover { background: var(--color-primary-hover); }
-  .btn-secondary { background: #f0f0f0; color: #333; }
-  .btn-secondary:hover { background: #e0e0e0; }
+  .btn-primary {
+    background: var(--color-primary);
+    color: var(--color-primary-foreground);
+  }
+  .btn-primary:hover {
+    background: var(--color-primary-hover);
+  }
+  .btn-secondary {
+    background: var(--color-muted);
+    color: var(--color-foreground);
+    border: 1px solid var(--color-border);
+  }
+  .btn-secondary:hover {
+    background: var(--color-accent);
+  }
 
   @media (max-width: 600px) {
-    .feed-wrap { max-width: 100%; }
-    .feed-col { border: none; }
-    .row { flex-wrap: wrap; }
-    .row-pattern { display: none; }
+    .feed-wrap {
+      max-width: 100%;
+    }
+    .row {
+      flex-wrap: wrap;
+    }
+    .row-pattern {
+      display: none;
+    }
   }
 </style>

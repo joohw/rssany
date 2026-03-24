@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { PRODUCT_NAME } from '$lib/brand';
   import { onMount } from 'svelte';
   import { fetchJson } from '$lib/fetchJson.js';
   import { showToast } from '$lib/toastStore.js';
@@ -77,7 +78,7 @@
 </script>
 
 <svelte:head>
-  <title>投递 - RssAny</title>
+  <title>投递 - {PRODUCT_NAME}</title>
 </svelte:head>
 
 <div class="feed-wrap">
@@ -131,21 +132,22 @@
 
 <style>
   .feed-wrap {
-    height: 100vh;
-    display: flex;
-    overflow: hidden;
-    max-width: 720px;
+    max-width: min(720px, var(--feeds-column-max, 720px));
     width: 100%;
     margin: 0 auto;
+    flex: 1;
+    min-height: 0;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
   }
   .feed-col {
     flex: 1;
     display: flex;
     flex-direction: column;
     overflow: hidden;
-    background: #fff;
-    border-left: 1px solid #e5e7eb;
-    border-right: 1px solid #e5e7eb;
+    min-height: 0;
+    background: transparent;
   }
   .body {
     flex: 1;
@@ -156,25 +158,19 @@
     width: 4px;
   }
   .body::-webkit-scrollbar-thumb {
-    background: #ddd;
+    background: var(--color-scrollbar-thumb);
     border-radius: 2px;
   }
   .intro {
-    color: #444;
+    color: var(--color-muted-foreground-strong);
     margin: 0 0 1.25rem;
     line-height: 1.5;
     font-size: 0.875rem;
   }
-  .intro code {
-    background: #f3f4f6;
-    padding: 0.1em 0.35em;
-    border-radius: 3px;
-    font-size: 0.9em;
-  }
   .section-title {
     font-size: 0.8125rem;
     font-weight: 600;
-    color: #6b7280;
+    color: var(--color-muted-foreground);
     margin: 0 0 0.5rem;
   }
   .form-section {
@@ -184,11 +180,13 @@
     width: 100%;
     padding: 0.5rem 0.75rem;
     font-size: 0.875rem;
-    border: 1px solid #e5e7eb;
-    border-radius: 6px;
+    border: 1px solid var(--color-input);
+    border-radius: var(--radius-sm);
+    background: var(--color-card-elevated);
+    color: var(--color-foreground);
   }
   .url-input::placeholder {
-    color: #9ca3af;
+    color: var(--color-muted-foreground-soft);
   }
   .toggle-wrap {
     display: flex;
@@ -205,7 +203,7 @@
   .toggle-slider {
     width: 36px;
     height: 20px;
-    background: #d1d5db;
+    background: rgba(255, 255, 255, 0.14);
     border-radius: 10px;
     transition: background 0.2s;
   }
@@ -214,11 +212,11 @@
     display: block;
     width: 16px;
     height: 16px;
-    background: #fff;
+    background: var(--color-card-elevated);
     border-radius: 50%;
     margin: 2px 0 0 2px;
     transition: transform 0.2s;
-    box-shadow: 0 1px 2px rgba(0, 0, 0, 0.2);
+    box-shadow: 0 1px 2px rgba(0, 0, 0, 0.35);
   }
   .toggle-wrap input:checked + .toggle-slider {
     background: var(--color-primary);
@@ -231,7 +229,7 @@
   }
   .hint {
     font-size: 0.75rem;
-    color: #9ca3af;
+    color: var(--color-muted-foreground-soft);
     margin: 0.5rem 0 0;
   }
   .btn-row {
@@ -247,18 +245,18 @@
   }
   .btn-primary {
     background: var(--color-primary);
-    color: #fff;
+    color: var(--color-primary-foreground);
   }
   .btn-primary:hover:not(:disabled) {
     background: var(--color-primary-hover);
   }
   .btn-secondary {
-    background: #f3f4f6;
-    color: #374151;
-    border: 1px solid #e5e7eb;
+    background: var(--color-muted);
+    color: var(--color-foreground);
+    border: 1px solid var(--color-border);
   }
   .btn-secondary:hover:not(:disabled) {
-    background: #e5e7eb;
+    background: var(--color-accent);
   }
   .btn:disabled {
     opacity: 0.6;
@@ -268,9 +266,6 @@
   @media (max-width: 600px) {
     .feed-wrap {
       max-width: 100%;
-    }
-    .feed-col {
-      border: none;
     }
   }
 </style>

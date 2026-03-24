@@ -2,9 +2,10 @@
 
 import type { Hono } from "hono";
 import { getPluginSites } from "../../../scraper/sources/web/index.js";
+import { requireAdmin } from "../../../auth/middleware.js";
 
 export function registerPluginsRoutes(app: Hono): void {
-  app.get("/api/plugins", (c) => {
+  app.get("/api/plugins", requireAdmin(), (c) => {
     const plugins = getPluginSites().map((s) => ({
       id: s.id,
       listUrlPattern: typeof s.listUrlPattern === "string" ? s.listUrlPattern : String(s.listUrlPattern),

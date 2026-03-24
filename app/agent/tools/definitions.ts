@@ -81,32 +81,13 @@ const toolDefsWithoutSandbox: ToolDef[] = [
     },
   },
   {
-    name: "search_sources",
-    label: "Search sources",
-    description:
-      "Search or filter sources (sources.json) by keyword (ref, label, description) and/or channel_id. Returns ref, label, description, and which channel_ids each source belongs to.",
-    params: {
-      q: { type: "string", optional: true, description: "Keyword to match in ref, label, or description" },
-      channel_id: { type: "string", optional: true, description: "Only sources that belong to this channel" },
-    },
-    run: async (args) => {
-      const a = args as { q?: string; channel_id?: string };
-      const { sources } = await fn.searchSources({ q: a.q, channel_id: a.channel_id });
-      return {
-        content: [{ type: "text" as const, text: JSON.stringify({ sources }, null, 2) }],
-        details: { sources },
-      };
-    },
-  },
-  {
     name: "get_feeds",
     label: "Get feeds",
     description:
-      "Get feed items with full params: channel_id, source_url, full-text q, since/until, tags, author, limit, offset. No content in list; use get_feed_detail with item id for full content.",
+      "List and browse feed items from your index by channel, source, date range, tags, or author. Does not run full-text keyword search—use feeds_search for title/summary/content search. Returned rows omit content; use get_feed_detail for full text.",
     params: {
       channel_id: { type: "string", optional: true, description: "Scope to this channel; omit for all channels" },
       source_url: { type: "string", optional: true, description: "Scope to this source URL (single source)" },
-      q: { type: "string", optional: true, description: "Full-text search (title/summary/content)" },
       since: { type: "string", optional: true, description: "Only items after date (YYYY-MM-DD or ISO 8601)" },
       until: { type: "string", optional: true, description: "Only items before date (YYYY-MM-DD or ISO 8601)" },
       tags: { type: "string", optional: true, description: "Comma-separated tags; match any" },
@@ -118,7 +99,51 @@ const toolDefsWithoutSandbox: ToolDef[] = [
       const a = args as {
         channel_id?: string;
         source_url?: string;
-        q?: string;
+        since?: string;
+        until?: string;
+        tags?: string;
+        author?: string;
+        limit?: number;
+        offset?: number;
+      };
+      const tagsArr = typeof a.tags === "string" ? a.tags.split(",").map((t) => t.trim()).filter(Boolean) : undefined;
+      const { items, total } = await fn.getFeeds({
+        channel_id: a.channel_id,
+        source_url: a.source_url,
+        since: a.since,
+        until: a.until,
+        tags: tagsArr,
+        author: a.author,
+        limit: a.limit,
+        offset: a.offset,
+      });
+      return {
+        content: [{ type: "text" as const, text: JSON.stringify({ items, total }, null, 2) }],
+        details: { items, total },
+      };
+    },
+  },
+  {
+    name: "feeds_search",
+    label: "Feeds search",
+    description:
+      "Full-text search over indexed feed items (title/summary/content), optionally scoped like get_feeds. Pairs with web_search (external) the same way: use this for your RSS corpus. List rows omit content; use get_feed_detail for full text.",
+    params: {
+      q: { type: "string", minLength: 1, description: "Full-text query (title/summary/content)" },
+      channel_id: { type: "string", optional: true, description: "Scope to this channel; omit for all channels" },
+      source_url: { type: "string", optional: true, description: "Scope to this source URL (single source)" },
+      since: { type: "string", optional: true, description: "Only items after date (YYYY-MM-DD or ISO 8601)" },
+      until: { type: "string", optional: true, description: "Only items before date (YYYY-MM-DD or ISO 8601)" },
+      tags: { type: "string", optional: true, description: "Comma-separated tags; match any" },
+      author: { type: "string", optional: true, description: "Author fuzzy match (min 2 chars)" },
+      limit: { type: "number", optional: true, default: 50, minimum: 1, maximum: 200 },
+      offset: { type: "number", optional: true, default: 0, minimum: 0 },
+    },
+    run: async (args) => {
+      const a = args as {
+        q: string;
+        channel_id?: string;
+        source_url?: string;
         since?: string;
         until?: string;
         tags?: string;

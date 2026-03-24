@@ -2,38 +2,16 @@
   import { onMount } from 'svelte';
   import { goto } from '$app/navigation';
   import { fetchJson } from '$lib/fetchJson.js';
+  import { meDailyReports, loadDailyReports, patchDailyReportEnabled } from '$lib/meAreaStore';
 
-  interface SystemReportRow {
-    key: string;
-    title: string;
-    description: string;
-    enabled: boolean;
-  }
-
-  let systemReports: SystemReportRow[] = [];
-  /** false 表示未建表 user_daily_subscriptions，开关仅展示 JSON 默认且无法持久化 */
-  let subsDbReady = true;
-  let loading = true;
-  let loadError = '';
   /** 每条日报的切换序号，用于并发请求时仅对「当前这次」的失败回滚 */
   let toggleGen: Record<string, number> = {};
   let saveMsg = '';
 
-  async function load() {
-    loading = true;
-    loadError = '';
-    try {
-      const sysRes = await fetchJson<{ reports?: SystemReportRow[]; dbReady?: boolean }>('/api/daily-reports');
-      systemReports = sysRes?.reports ?? [];
-      subsDbReady = sysRes?.dbReady !== false;
-    } catch (e) {
-      loadError = e instanceof Error ? e.message : String(e);
-      systemReports = [];
-      subsDbReady = true;
-    } finally {
-      loading = false;
-    }
-  }
+  $: systemReports = $meDailyReports.reports;
+  $: subsDbReady = $meDailyReports.subsDbReady;
+  $: loading = $meDailyReports.loading;
+  $: loadError = $meDailyReports.loadError;
 
   async function toggleSystem(key: string, nextEnabled: boolean) {
     if (!subsDbReady) return;
@@ -42,24 +20,25 @@
     const prevEnabled = row.enabled;
     const gen = (toggleGen[key] ?? 0) + 1;
     toggleGen = { ...toggleGen, [key]: gen };
-    systemReports = systemReports.map((r) => (r.key === key ? { ...r, enabled: nextEnabled } : r));
+    patchDailyReportEnabled(key, nextEnabled);
     saveMsg = '';
     try {
       const data = await fetchJson<{ ok?: boolean; message?: string }>('/api/daily-reports', {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ key, enabled: nextEnabled }),
+        credentials: 'include',
       });
       if (!data?.ok) throw new Error(data?.message ?? '保存失败');
     } catch (e) {
       if (toggleGen[key] !== gen) return;
-      systemReports = systemReports.map((r) => (r.key === key ? { ...r, enabled: prevEnabled } : r));
+      patchDailyReportEnabled(key, prevEnabled);
       saveMsg = e instanceof Error ? e.message : String(e);
     }
   }
 
   onMount(() => {
-    load();
+    void loadDailyReports();
   });
 </script>
 
@@ -76,7 +55,7 @@
           </div>
         </div>
         <p class="sub">
-          以下为平台提供的日报栏目，可按需订阅；默认开启「AI通用资讯」。
+          订阅对应栏目后每天上午将会收到系统推送的当天的日报邮件
         </p>
         {#if !subsDbReady}
           <p class="db-banner" role="status">

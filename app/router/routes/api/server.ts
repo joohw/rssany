@@ -2,11 +2,12 @@
 
 import { networkInterfaces } from "node:os";
 import type { Hono } from "hono";
+import { requireAdmin } from "../../../auth/middleware.js";
 
 const PORT = Number(process.env.PORT) || 3751;
 
 export function registerServerRoutes(app: Hono): void {
-  app.get("/api/server-info", (c) => {
+  app.get("/api/server-info", requireAdmin(), (c) => {
     const lanIp = Object.values(networkInterfaces())
       .flat()
       .find((iface) => iface?.family === "IPv4" && !iface.internal)?.address;

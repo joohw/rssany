@@ -3,9 +3,10 @@
 import type { Hono } from "hono";
 import { queryLogs } from "../../../db/index.js";
 import type { LogCategory } from "../../../core/logger/types.js";
+import { requireAdmin } from "../../../auth/middleware.js";
 
 export function registerLogsRoutes(app: Hono): void {
-  app.get("/api/logs", async (c) => {
+  app.get("/api/logs", requireAdmin(), async (c) => {
     const levelParam = c.req.query("level");
     const level = levelParam === "error" || levelParam === "warn" || levelParam === "info" || levelParam === "debug" ? levelParam : undefined;
     const categoryParam = c.req.query("category");

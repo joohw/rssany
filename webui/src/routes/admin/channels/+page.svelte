@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { PRODUCT_NAME } from '$lib/brand';
   import { onMount } from 'svelte';
 
   let content = '';
@@ -96,12 +97,12 @@
 </script>
 
 <svelte:head>
-  <title>频道 - RssAny</title>
+  <title>频道 - {PRODUCT_NAME}</title>
 </svelte:head>
 
 <div class="feed-wrap">
   <div class="feed-col">
-    <div class="feed-header">
+    <div class="feed-header ui-rule-b">
       <div class="header-left">
         <h2>频道</h2>
         <p class="page-desc">
@@ -133,7 +134,7 @@
       </div>
     {/if}
 
-    <div class="footer">
+    <div class="footer ui-rule-t">
       {#if error}
         <span class="msg error">✗ {error}</span>
       {:else if saveMsg}
@@ -151,10 +152,11 @@
 
 <style>
   .feed-wrap {
-    min-height: 100vh;
+    min-height: 0;
+    flex: 1;
     display: flex;
     overflow: auto;
-    max-width: 720px;
+    max-width: min(720px, var(--feeds-column-max, 720px));
     width: 100%;
     margin: 0 auto;
   }
@@ -162,7 +164,7 @@
     width: 4px;
   }
   .feed-wrap::-webkit-scrollbar-thumb {
-    background: #ddd;
+    background: var(--color-scrollbar-thumb);
     border-radius: 2px;
   }
 
@@ -171,14 +173,12 @@
     display: flex;
     flex-direction: column;
     overflow: hidden;
-    background: #fff;
-    border-left: 1px solid #e5e7eb;
-    border-right: 1px solid #e5e7eb;
+    min-height: 0;
+    background: transparent;
   }
 
   .feed-header {
     padding: 0.875rem 1.25rem;
-    border-bottom: 1px solid #f0f0f0;
     display: flex;
     align-items: flex-start;
     justify-content: space-between;
@@ -189,11 +189,12 @@
     font-size: 0.9375rem;
     font-weight: 600;
     margin: 0 0 0.15rem;
+    color: var(--color-foreground);
   }
 
   .page-desc {
     font-size: 0.75rem;
-    color: #aaa;
+    color: var(--color-muted-foreground-soft);
     margin: 0;
   }
 
@@ -209,7 +210,7 @@
     align-items: center;
     padding: 0.35rem 0.85rem;
     border: none;
-    border-radius: 6px;
+    border-radius: var(--radius-sm);
     cursor: pointer;
     font-size: 0.8125rem;
     font-family: inherit;
@@ -218,17 +219,18 @@
   }
   .btn-primary {
     background: var(--color-primary);
-    color: #fff;
+    color: var(--color-primary-foreground);
   }
   .btn-primary:hover:not(:disabled) {
     background: var(--color-primary-hover);
   }
   .btn-secondary {
-    background: #f0f0f0;
-    color: #333;
+    background: var(--color-muted);
+    color: var(--color-foreground);
+    border: 1px solid var(--color-border);
   }
   .btn-secondary:hover:not(:disabled) {
-    background: #e0e0e0;
+    background: var(--color-accent);
   }
   .btn:disabled {
     opacity: 0.4;
@@ -243,7 +245,7 @@
     transition: border-color 0.15s;
   }
   .editor-wrap.has-error {
-    border-top-color: #e53e3e;
+    border-top-color: var(--color-destructive);
   }
 
   .editor {
@@ -257,7 +259,7 @@
     font-family: 'Menlo', 'Monaco', 'Consolas', monospace;
     font-size: 0.8125rem;
     line-height: 1.65;
-    color: #222;
+    color: var(--color-foreground);
     background: transparent;
     tab-size: 2;
   }
@@ -265,14 +267,13 @@
     width: 4px;
   }
   .editor::-webkit-scrollbar-thumb {
-    background: #ddd;
+    background: var(--color-scrollbar-thumb);
     border-radius: 2px;
   }
 
   .footer {
     flex-shrink: 0;
     padding: 0.4rem 1.25rem;
-    border-top: 1px solid #f0f0f0;
     min-height: 2rem;
     display: flex;
     align-items: center;
@@ -282,28 +283,25 @@
     font-size: 0.75rem;
   }
   .msg.error {
-    color: #e53e3e;
+    color: var(--color-destructive);
   }
   .msg.success {
-    color: #1a7f37;
+    color: var(--color-success);
   }
   .msg.hint {
-    color: #bbb;
+    color: var(--color-muted-foreground);
   }
 
   .state {
     text-align: center;
     padding: 4rem;
-    color: #aaa;
+    color: var(--color-muted-foreground-soft);
     font-size: 0.875rem;
   }
 
   @media (max-width: 600px) {
     .feed-wrap {
       max-width: 100%;
-    }
-    .feed-col {
-      border: none;
     }
     .feed-header {
       flex-direction: column;

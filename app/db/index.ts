@@ -68,8 +68,25 @@ function toDbItem(row: Record<string, unknown>): DbItem {
   return { ...rest, author, tags, translations } as DbItem;
 }
 
-function throwIfError(error: { message: string } | null, ctx: string): void {
-  if (error) throw new Error(`[db:${ctx}] ${error.message}`);
+function formatSupabaseErrorMessage(error: { message: string; cause?: unknown }): string {
+  const parts: string[] = [error.message];
+  let cur: unknown = error;
+  for (let d = 0; d < 4 && cur && typeof cur === "object" && "cause" in cur; d++) {
+    const c = (cur as { cause?: unknown }).cause;
+    if (c instanceof Error && c.message) {
+      parts.push(c.message);
+      cur = c;
+    } else if (c != null) {
+      const code = typeof c === "object" && c !== null && "code" in c ? String((c as { code?: string }).code ?? "") : "";
+      parts.push(code ? `${String(c)} (${code})` : String(c));
+      break;
+    } else break;
+  }
+  return parts.join(" · ");
+}
+
+function throwIfError(error: { message: string; cause?: unknown } | null, ctx: string): void {
+  if (error) throw new Error(`[db:${ctx}] ${formatSupabaseErrorMessage(error)}`);
 }
 
 // ─── items CRUD ────────────────────────────────────────────────────────────

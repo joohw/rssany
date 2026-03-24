@@ -1,218 +1,196 @@
 # RssAny 项目架构说明
 
-## 产品定位（面向用户）
+面向 AI 与贡献者的架构速览；实现细节以代码为准。
 
-RssAny **对外呈现**类似 Alpha Signal 一类产品：**每天用约 5 分钟**，把 **AI 领域最新的信息差**（论文、产品、人物、研究动向等）浓缩成可读信息流，而不是以「订阅很多信源、自己聚合」为卖点。多源抓取与频道编排是**后台能力**，用于支撑这条 curated 体验。
+## 产品定位
 
-- **Feeds 页面**：访客需**填写邮箱**通过校验后才能进入（留资 / 订阅入口）；实现细节以 WebUI 路由与中间件为准。
-- **Admin 页面**：**暂时不做访问限制**（后续再补门禁，如 token 或独立鉴权）。
+RssAny **对外**类似 Alpha Signal：**每天用约几分钟**，把 **AI 领域信息差**（论文、产品、人物、动向等）压成可读信息流。多源抓取与频道编排是 **后台能力**，用于支撑这条 curated 体验，而不是「堆订阅源」本身。
+
+| 区域 | 说明 |
+|------|------|
+| **Feeds** | 访客需 **邮箱校验** 后进入（留资 / 订阅）；具体以 WebUI 路由与中间件为准。 |
+| **Admin（`/admin`）** | 需 **已登录** 且数据库 **`users.role === 'admin'`**；对应 API 经 **`requireAdmin()`** 校验。管理员可在 **`/me`** 进入后台入口。 |
 
 ---
 
-RssAny **技术内核**仍是通用的 RSS/Atom/JSON Feed 生成与入库管线：可将任意网页内容转为可订阅源，条目持久化到 **Supabase（PostgreSQL）**，并可供 OpenWebUI、MCP 等消费。项目采用模块化架构，支持插件扩展、站点认证、智能解析与提取。
+## 技术内核
 
-## 核心功能
+通用 **RSS / Atom / JSON Feed** 生成与入库：网页 → 可订阅源，条目进 **Supabase（PostgreSQL）**，可供 OpenWebUI、MCP 等消费；模块化、可插拔解析与提取。
 
-- **RSS 生成**：根据列表页 URL 自动抓取、解析并生成 RSS XML
-- **智能解析**：支持自定义解析器与 LLM 解析两种模式
-- **正文提取**：支持自定义提取器、Readability 与 LLM 提取
-- **认证管理**：支持需要登录的站点，通过 Puppeteer 管理 cookies
-- **插件系统**：内置插件（`plugins/`）+ 用户插件（`.rssany/plugins/`）双目录加载
-- **缓存机制**：多级缓存策略，提升性能与稳定性
-- **持久化存储**：Supabase（PostgreSQL）存储条目与日志，支持全文检索等查询
-- **频道与多源编排**：通过 `channels.json` 等在后台组织多路信源，支撑日报式内容生产（非面向用户的「信源聚合」卖点）
+### 核心能力（摘要）
 
-## 目录结构
+- **RSS 生成**：列表 URL → 抓取 → 解析 → RSS XML  
+- **解析**：自定义 Parser → LLM → 通用兜底  
+- **正文**：自定义 Extractor、Readability、LLM  
+- **站点登录**：Puppeteer 管理 cookies（与产品账户无关）  
+- **插件**：内置 `plugins/` + 用户 `.rssany/plugins/`  
+- **缓存**：多级目录与 key 策略  
+- **数据**：条目、日志、全文检索等  
+- **频道**：`channels.json` 等编排多路信源，支撑日报式生产  
 
-项目按 **core**、**feeder**、**scraper**、**db** 四大块组织；用户数据与运行时分离。
+---
+
+## 仓库目录（与代码一致）
 
 ```
-项目文件（纳入版本管理）
-├── src/
-│   ├── app/                HTTP 路由层（Hono）
-│   ├── core/               基础设施
-│   │   ├── cacher/         缓存 key 与目录策略
-│   │   ├── channel/        频道配置（channels.json 读写；支撑 curated 信息流的后台编排）
-│   │   ├── events/         应用内事件（如 feed:updated）
-│   │   ├── logger/          统一日志（落库）
-│   │   └── llm/             OpenAI 封装
-│   ├── config/             路径、adminToken 等配置
-│   ├── db/                  Supabase 客户端、FeedItem CRUD、日志表（外层统一）
-│   ├── feeder/              RSS 生成核心
-│   ├── pipeline/            入库前固定处理链（tagger、translator，与 plugins 同级别）
-│   ├── mcp/                 MCP 服务（stdio，list_channels / get_channel_feeds / get_feed_detail / search_feeds）  
-│   ├── scraper/             抓取与信源
-│   │   ├── sources/        getSource、web/api/email
-│   │   │   ├── web/        Site 插件、fetcher/parser/extractor/pluginLoader
-│   │   │   ├── api/        RSS/Atom/JSON Feed
-│   │   │   └── email/      IMAP
-│   │   ├── enrich/          正文提取任务队列
-│   │   ├── auth/            认证抽象
-│   │   ├── subscription/    sources.json 读写
-│   │   └── scheduler/       定时抓取
-│   ├── types/               FeedItem、译文等
-│   └── utils/               refreshInterval 等
-├── plugins/                内置站点插件（sources、enrich，*.rssany.{js,ts}）
-└── statics/                静态 HTML
+项目根（版本库）
+├── app/                      # 后端：Hono、业务与任务
+│   ├── router/               # HTTP 路由（rss、api、mcp、auth、userAuth、admin…）
+│   ├── core/                 # cacher、channel、events、logger
+│   ├── db/                   # Supabase、FeedItem、日志、用户等
+│   ├── feeder/               # RSS 生成与入库主流程
+│   ├── pipeline/             # 固定链：tagger、translator 等
+│   ├── mcp/                  # MCP（Streamable HTTP / SSE）
+│   ├── scraper/              # sources、enrich、auth、subscription、scheduler
+│   ├── topics/               # Agent 日报生成 / 调度（与 scheduler 协作）
+│   ├── agent/                # 对话 Agent、LLM 封装（如 parser/extractor 复用）
+│   ├── auth/                 # JWT、中间件（requireAuth / requireAdmin）
+│   ├── config/               # 路径、adminToken 等
+│   ├── scheduler/            # 通用任务调度（分组、cron）
+│   └── tasks/                # 异步任务状态（如信源拉取）
+├── webui/                    # SvelteKit 前端（Feeds、/me、/admin、Agent…）
+├── plugins/                  # 内置站点插件（*.rssany.{js,ts}）
+└── statics/                  # 静态 HTML 等
 
-用户数据（.rssany/，首次启动自动创建）
-├── sources.json            爬虫配置 { sources: [] }
-├── channels.json           频道配置（id 英文、title 中文：产品/项目/人物/研究/论文/资讯）
-├── config.json             enrich、pipeline 等
-├── cache/                  运行时缓存（fetched、extracted、feeds、domains、browser_data）
-└── plugins/                用户插件
+用户数据（.rssany/，首次启动创建，一般不提交 Git）
+├── sources.json              # 爬虫订阅
+├── channels.json             # 频道编排
+├── config.json               # enrich、pipeline、deliver 等
+├── cache/                    # fetched / extracted / feeds / domains / browser_data
+└── plugins/                  # 用户插件（可覆盖同名内置）
 ```
 
-> **四块对应**：**core** = `src/core/`；**feeder** = `src/feeder/`；**scraper** = `src/scraper/`；**db** = `app/db/`（Supabase 与 CRUD）。
+**四块对应**：**core** → `app/core/`；**feeder** → `app/feeder/`；**scraper** → `app/scraper/`；**db** → `app/db/`。
 
-## 架构模块（core / feeder / scraper / db）
+---
 
-### core（基础设施）
-- **cacher**：缓存 key 与目录（fetched/extracted/feeds/domains）。
-- **channel**：channels.json 读写、getAllChannelConfigs、collectAllSourceRefs（多源引用收集，供内容侧编排）。
-- **events**：事件总线（emitFeedUpdated / onFeedUpdated）。
-- **logger**：统一日志落库，供 API/页面查看；依赖 db.insertLog。
-- **llm**：OpenAI 封装，供 parser/extractor 的 LLM 模式。
+## 架构模块
 
-### feeder（RSS 生成核心）
-- 根据 URL 生成 RSS：缓存 → getSource → fetchItems → upsertItems → buildRssXml；有 enrichItem 则提交队列，完成后 **pipeline**（仅一次）→ updateItemContent 并更新缓存；无 enrich 时 pipeline 在入库后对每条执行一次。支持 `lng` 译文输出。writeDb 时写库并可选用写文件模块将条目落盘（见下文「写文件模块」）。
+### core
 
-### pipeline（入库前固定处理链）
-- **职责**：对条目执行固定流程（打标签、翻译），与 plugins 同级别，不作为插件。
-- **位置**：`app/pipeline/`（tagger、translator 等固定步骤）。
-- **配置**：`.rssany/config.json` 的 `pipeline.steps` 控制步骤开关与排序，格式 `[{ id, enabled }]`。
-- **投递**：独立于 pipeline，由 `deliver.enabled` 与 `deliver.url` 配置；需同时开启且填写 URL 才生效。启用后不写本机数据库，仅 POST 到该 URL（纯转发节点）。
-- **执行时机**：每条条目仅执行一次——有 enrich 时在 enrichItem 完成后；无 enrich 时在 upsertItems 之后。
+缓存目录策略、频道配置读写、事件总线（如 `feed:updated`）、日志落库。
 
-### scraper（抓取与信源）
-- **sources**：Source 接口与 getSource；web（Site + fetcher/parser/extractor/pluginLoader）、api（RSS/Atom/JSON）、email（IMAP）。
-- **enrich**：正文提取任务队列，并发/重试可配置，完成后更新 feed 缓存。
-- **auth**：AuthFlow、AuthRequiredError，与 fetcher 配合；401 由 router 处理。
-- **subscription**：sources.json 读写。
-- **scheduler**：定时抓取调度。
+### feeder
 
-### db（数据库层）
-- 实现位于 **`app/db/`**：Supabase 客户端、FeedItem CRUD、日志表、全文检索（如 `query_items` RPC）。getItemById 按 id（guid）查单条供 MCP/API 详情使用。
+`URL → getSource → fetchItems → upsertItems → buildRssXml`；若有 **enrichItem** 则先入队，完成后 **pipeline（每条仅一次）** → `updateItemContent` 与缓存更新；无 enrich 则在入库后对每条跑 pipeline。支持 `lng` 译文。写库时可配合写文件模块落盘。
 
-### MCP 服务
-- **入口**：与主站同进程，路径 **`GET/POST /mcp`**，采用 **Streamable HTTP（SSE）** 传输；客户端 GET 建立 SSE、POST 发送 JSON-RPC。
-- **工具**：`list_channels`（频道列表 id/title/description）、`get_channel_feeds`（指定频道或全部的条目列表，不含 content）、`get_feed_detail`（按 item_id 返回单条完整详情含 content）、`search_feeds`（全文搜索 title/summary/content，支持 source_url 过滤与分页）。
-- **数据**：复用 .rssany/channels.json 与 Supabase `items` 表，与 HTTP API 同源。实现见 `app/mcp/`（或同进程路由）。
+### pipeline（固定链，非插件）
 
-### app（HTTP 路由层）
-- **职责**：Hono 框架实现的 HTTP 服务，负责路由分发、参数解析、错误处理
-- **路由**：
-  - `/rss/*`：生成 RSS XML
-  - `/admin/parse/*`、`/admin/extractor/*`：开发调试工具（Parse/Enrich 返回 JSON）
-  - `/feed`、`/subscriptions`：管理页面；`/admin` 下含频道、**信源（sources.json）**、插件、日志、MCP、Parse、Enrich
-  - **`/mcp`**：MCP 服务（Streamable HTTP/SSE，工具 list_channels / get_channel_feeds / get_feed_detail / search_feeds）
-  - `/api/items`：数据库条目查询（含全文搜索）
-  - `/api/items/pending-push`、`/api/items/mark-pushed`：OpenWebUI 推送接口
-  - `/auth/*`：认证管理
-- **解耦**：与业务逻辑（feeder）解耦，可替换为 Express 等框架。路由支持 `lng` 参数时按译文输出（/rss/*、/api/rss、/api/feed、/api/items）。
+- **位置**：`app/pipeline/`  
+- **配置**：`.rssany/config.json` 的 `pipeline.steps`，形如 `[{ id, enabled }]`  
+- **投递（deliver）**：独立开关；开启且配置 URL 时可将条目 **POST 到远端**，本机可不写库（纯转发节点）  
+- **时机**：有 enrich 时在 enrich 完成之后；无 enrich 时在 `upsertItems` 之后  
+
+### scraper
+
+- **sources**：`getSource`；web / api / email  
+- **enrich**：正文队列，并发与重试可配  
+- **auth**：站点登录流、`AuthRequiredError`  
+- **subscription**：`sources.json`  
+- **scheduler**：信源定时抓取  
+
+### db
+
+`app/db/`：Supabase、条目 CRUD、日志、`query_items` 等；`getItemById` 供 MCP/API 详情。
+
+### HTTP 层（`app/router`）
+
+| 路径 | 作用 |
+|------|------|
+| `/rss/*` | 输出 RSS XML |
+| `/api/*` | JSON API（feed、items、channels、sources、plugins、logs、…） |
+| `/api/auth/*` | 产品用户：注册/登录/OAuth/JWT Cookie、`/me` 等 |
+| `/admin/parse/*`、`/admin/extractor/*` | Parse / Enrich 调试 JSON（**admin**） |
+| `/auth/*` | **站点** Puppeteer 登录（与 `/api/auth` 不同） |
+| `/mcp` | MCP 工具（list_channels、get_feeds、feeds_search、…） |
+
+支持 `lng` 的路由按译文输出（如 `/rss/*`、部分 `/api/*`）。
+
+### Agent 日报调度（摘要）
+
+- 调度分组：**`topics`**（生成 Markdown，默认本地 **5:00**）与 **`email`**（发邮件，默认 **6:00**）。  
+- 可通过环境变量 **`DAILY_DIGEST_GENERATE_*`** / **`DAILY_DIGEST_SEND_*`** 调整时刻。  
+- 详见 `app/topics/scheduler.ts`。
+
+---
 
 ## 数据流程
 
-1. **RSS 生成 + 入库流程**：
-   ```
-   URL → getSource() → preCheckAuth() → fetchItems()
-     → upsertItems() → buildRssXml()
-     → [后台] enrichItem() → pipeline（仅一次）→ updateItemContent() → 更新缓存
-   ```
-   （无 enrich 时：upsertItems 后对每条执行 pipeline → updateItemContent）
+**1. RSS 与入库**
 
-2. **认证流程**：
-   ```
-   检查 cache/domains/{domain}.json → 无效则 ensureAuth() → 打开有头浏览器 →
-   用户登录 → 保存 cookies → 后续请求自动携带
-   ```
+```
+URL → getSource() → preCheckAuth() → fetchItems()
+  → upsertItems() → buildRssXml()
+  → [后台] enrichItem() → pipeline（一次）→ updateItemContent() → 更新缓存
+```
 
-3. **插件加载流程**：
-   ```
-   启动时扫描 plugins/*.rssany.{js,ts}（内置）
-         + .rssany/plugins/*.rssany.{js,ts}（用户）
-   → 合并到 registeredSources（用户插件覆盖同 id 内置插件）
-   → 开发模式监听两个目录文件变化自动重载
-   ```
+无 enrich：`upsertItems` 后对每条执行 pipeline → `updateItemContent`。
 
-## 关键特性
+**2. 站点登录（插件站点）**
 
-- **模块解耦**：各模块职责清晰，通过接口交互，便于测试与替换
-- **插件化**：站点规则通过插件扩展，用户插件独立于项目代码
-- **用户数据隔离**：`.rssany/` 目录存放所有用户数据，gitignore，升级时不覆盖
-- **智能降级**：自定义解析器 → LLM 解析 → 通用兜底
-- **增量存储**：按条目 id 插入去重，`pushed_at` 追踪推送状态
-- **缓存策略**：时间窗口 key（10min/30min/1h/6h/12h/1day/3day/7day），过期即重抓
-- **代理支持**：在插件 `Site.proxy` 或 `sources.json` 的 `sources[].proxy` 字段中配置，无需全局 sites.json
-- **认证管理**：自动检测登录状态，支持有头浏览器手动登录
-- **Agent 页面**：对话区不显示角色标签（如「用户」「助手」），仅通过背景色区分；整体配色素雅（如用户消息浅灰 `#f5f5f5`），与项目风格一致。
+```
+cache/domains/{domain}.json 有效？
+  否 → ensureAuth() → 有头浏览器登录 → 写回 cookies → 后续请求携带
+```
 
-## 插件规则
+**3. 插件加载**
 
-### 两阶段插件系统 + 固定 pipeline
+```
+plugins/*.rssany.{js,ts}  +  .rssany/plugins/*.rssany.{js,ts}
+  → 合并 registeredSources（用户覆盖同 id 内置）
+  → 开发模式可监听重载
+```
 
-插件按职责分为两个阶段，pipeline 为固定流程（与 plugins 同级别）：
+---
 
-| 阶段 | 目录 | 职责 | 执行时机 |
-|------|------|------|----------|
-| **sources** | `plugins/sources/`、`.rssany/plugins/sources/` | 定义信源（Site/Source），负责列表抓取与解析 | fetchItems 时 |
-| **enrich** | `plugins/enrich/`、`.rssany/plugins/enrich/` | 对单条补全正文（content）等 | enrichItem 队列中，列表入库后异步执行 |
-| **pipeline** | `app/pipeline/` | 固定流程：打标签、翻译（非插件） | 每条仅一次：有 enrich 在补全后；无 enrich 在入库后 |
+## 关键特性（速览）
 
-- **sources**：决定「抓什么、怎么抓」；内置 web/api/email 等信源类型，用户可扩展 Site 或 Source。
-- **enrich**：决定「补全什么」；通过 `match(item, ctx)` 判断是否适用，`enrichItem` 返回带 content 的完整条目。
-- **pipeline**：固定流程，位于 `app/pipeline/`，包含 tagger（打标签）、translator（翻译）等步骤，按顺序执行。
+- 插件扩展站点；用户插件不污染主仓库  
+- `.rssany/` 与代码分离，升级不覆盖用户数据  
+- 解析/提取：**自定义 → LLM → 兜底**  
+- 条目按 id 去重；`pushed_at` 等用于推送追踪  
+- 缓存窗口：`10min` … `7day`（见插件与订阅配置）  
+- **代理**：`sources.json` 单源 > Feeder 传入 > `Site.proxy` > `HTTP_PROXY`  
+- **Agent 页**：对话区无角色标签，靠背景区分样式（如用户区浅灰 `#f5f5f5`）  
 
-**分布式爬虫**：若需将抓取任务分散到多机，可在 pipeline 中扩展步骤，对条目执行 `fetch(url, { method: 'POST', body: JSON.stringify(item) })` 投递到其他节点的接收路由，由远端完成入库或二次处理；本地可选择跳过入库或仅做轻量记录。
+---
 
-### 文件规范
+## 插件体系
 
-- **文件命名**：必须以 `.rssany.js` 或 `.rssany.ts` 结尾
-- **内置插件**：放在项目根目录 `plugins/` 下，随代码版本管理
-- **用户插件**：放在 `.rssany/plugins/` 下，不纳入版本管理，可覆盖同 id 的内置插件
-- **模块格式**：必须使用 ESM 模块，通过 `export default` 导出 Site 对象
+两阶段插件 + **固定 pipeline**（pipeline 不是插件）：
+
+| 阶段 | 目录 | 职责 | 时机 |
+|------|------|------|------|
+| **sources** | `plugins/sources/`、`.rssany/plugins/sources/` | Site/Source，列表抓取与解析 | `fetchItems` |
+| **enrich** | `plugins/enrich/`、`.rssany/plugins/enrich/` | 单条补全 `content` 等 | enrich 队列 |
+| **pipeline** | `app/pipeline/` | 打标签、翻译等 | 每条一次（enrich 后或入库后） |
+
+**分布式**：可在 pipeline 中 `fetch` POST 到其他节点网关，由远端入库或二次处理。
+
+### 文件约定
+
+- 后缀：**`.rssany.js`** 或 **`.rssany.ts`**  
+- **ESM**，**`export default`** 导出 Site（或 enrich 插件约定）  
+- 内置在仓库 `plugins/`；用户在 `.rssany/plugins/`  
 
 ### Site 接口
 
-插件必须实现 `Site` 接口（定义在 `src/scraper/sources/web/site.ts`），包含以下字段：
+定义见 **`app/scraper/sources/web/site.ts`**。
 
-#### 必填字段
+**必填**：`id`，`listUrlPattern`  
 
-- **`id`** (string)：站点唯一标识符，如 `"xiaohongshu"`、`"lingowhale"`
-- **`listUrlPattern`** (string | RegExp)：列表页 URL 匹配模式
+**常用可选**：`detailUrlPattern`，`refreshInterval`（默认 `1day`），`proxy`，`parser`，`extractor`，`checkAuth` / `loginUrl` / `domain`，`enrichItem`，超时与轮询等  
 
-#### 可选字段
+**enrichItem 上下文**：`ctx.fetchHtml`，`ctx.extractItem`；即时资讯可不实现 enrich。
 
-- **`detailUrlPattern`** (string | RegExp | null)：详情页 URL 模式
-- **`refreshInterval`** (RefreshInterval | null)：条目有效时间窗口，作用于缓存键、DB 查询和调度间隔；不填默认 `1day`
-- **`proxy`** (string | null)：代理地址，如 `http://127.0.0.1:7890`、`socks5://127.0.0.1:1080`；不填则使用 env `HTTP_PROXY`
-- **`parser`** (CustomParserFn | null)：自定义列表页解析函数
-- **`extractor`** (CustomExtractorFn | null)：自定义正文提取函数
-- **`checkAuth`** (CheckAuthFn | null)：检查是否已登录
-- **`loginUrl`** (string | null)：登录页 URL
-- **`domain`** (string | null)：域名，用于保存 cookies
-- **`loginTimeoutMs`** (number | null)：登录超时（毫秒，默认 300000）
-- **`pollIntervalMs`** (number | null)：轮询间隔（毫秒，默认 2000）
-- **`enrichItem`** (function | null)：对单条补全正文（后台任务）；不实现则不做正文抓取，适合即时资讯类（如 X）
-
-### 正文补全（enrichItem）与上下文
-
-- **fetchItems** 只负责列表；需要详情正文时实现 **enrichItem(item, ctx)**，返回带 `content` 的完整条目。
-- **ctx** 提供：
-  - **ctx.fetchHtml(url, opts?)**：用浏览器抓取 URL，返回 `{ html, finalUrl, status }`（带认证与 cookie）。
-  - **ctx.extractItem(item, opts?)**：默认正文提取——拉取 `item.link` 后用 Readability 提取并合并回条目。需要正文但无需自写解析时可直接 `return ctx.extractItem(item)`；自定义解析则 `ctx.fetchHtml(item.link)` 后自行解析。
-- **即时资讯类**（如 X、HN 最新）：不实现 `enrichItem` 即可，列表即最终内容。
-
-### 示例
+### 示例（节选）
 
 ```javascript
-// plugins/example.rssany.js  （内置）
-// .rssany/plugins/example.rssany.js  （用户，可覆盖上面的内置版本）
 import { parse } from "node-html-parser";
 
 function parser(html, url) {
   const root = parse(html);
-  return root.querySelectorAll(".item").map(item => ({
+  return root.querySelectorAll(".item").map((item) => ({
     title: item.querySelector(".title")?.textContent || "",
     link: new URL(item.querySelector("a")?.getAttribute("href"), url).href,
     description: item.querySelector(".summary")?.textContent || "",
@@ -231,9 +209,9 @@ export default {
 };
 ```
 
-### 订阅配置中的代理与刷新间隔（`.rssany/sources.json`）
+### `.rssany/sources.json` 中的覆盖
 
-也可在爬虫配置（sources.json）中对单个信源设置代理或刷新间隔，优先级高于插件声明：
+可对单源设置 `refresh`、`proxy` 等，优先级高于插件内声明。
 
 ```json
 {
@@ -251,15 +229,19 @@ export default {
 }
 ```
 
-支持的刷新间隔：`10min` / `30min` / `1h` / `6h` / `12h` / `1day`（默认）/ `3day` / `7day`
+**合法 refresh**：`10min` / `30min` / `1h` / `6h` / `12h` / `1day`（默认）/ `3day` / `7day`
 
-### 代理优先级链
+### 代理优先级
 
 ```
-SubscriptionSource.proxy（sources.json 单源覆盖）
-  → FeederConfig.proxy（调用方传入）
-  → Source.proxy / Site.proxy（插件声明）
-  → process.env.HTTP_PROXY（环境变量兜底）
+sources.json 单源 proxy
+  → FeederConfig.proxy（调用方）
+  → Source / Site.proxy（插件）
+  → process.env.HTTP_PROXY
 ```
 
-### 不要在项目中引入历史包袱，把项目当成开发阶段，不需要做任何fallback也不需要迁移任何数据
+---
+
+## 开发原则
+
+不把历史包袱带进新代码：当前按**开发阶段**迭代，**不做无意义 fallback，不做数据迁移脚本**（除非单独需求）。

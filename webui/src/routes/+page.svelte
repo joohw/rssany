@@ -4,6 +4,7 @@
   import { page } from '$app/stores';
   import Coffee from 'lucide-svelte/icons/coffee';
   import { siGithub } from 'simple-icons';
+  import { PRODUCT_NAME } from '$lib/brand';
 
   type Step = 'email' | 'code';
 
@@ -156,10 +157,10 @@
 </script>
 
 <svelte:head>
-  <title>rssany</title>
+  <title>{PRODUCT_NAME}</title>
   <meta
     name="description"
-    content="rssany：五分钟消除信息差。产品、论文、人物，你关心的 AI 资讯一网打尽；建议搭配浓缩咖啡。邮箱登录即可使用 Feeds、Agent 与订阅管理。"
+    content="{PRODUCT_NAME}：五分钟消除信息差。产品、论文、人物，你关心的 AI 资讯一网打尽；建议搭配浓缩咖啡。邮箱登录即可使用 Feeds、Agent 与订阅管理。"
   />
 </svelte:head>
 
@@ -178,29 +179,17 @@
   {/if}
   <header class="top">
     <div class="top-row">
-      <div class="logo" aria-label="rssany">
+      <div class="logo" aria-label={PRODUCT_NAME}>
         <span class="logo-icon" aria-hidden="true">
           <Coffee size={16} />
         </span>
-        <span>rssany</span>
+        <span>{PRODUCT_NAME}</span>
       </div>
-      <a
-        class="github-repo"
-        href="https://github.com/joohw/research-any"
-        target="_blank"
-        rel="noopener noreferrer"
-        aria-label="在 GitHub 上查看源码"
-      >
-        <svg
-          class="github-icon"
-          role="img"
-          viewBox="0 0 24 24"
-          aria-hidden="true"
-          xmlns="http://www.w3.org/2000/svg"
-        >
+      <span class="github-mark" aria-hidden="true">
+        <svg class="github-icon" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
           <path fill="currentColor" d={siGithub.path} />
         </svg>
-      </a>
+      </span>
     </div>
   </header>
 
@@ -499,28 +488,18 @@
     gap: 0.85rem;
   }
 
-  .github-repo {
+  .github-mark {
     display: inline-flex;
     align-items: center;
-    gap: 0.4rem;
-    font-size: 0.8125rem;
-    font-weight: 500;
-    color: #a1a1aa;
-    text-decoration: none;
-    transition: color 0.15s ease;
     flex-shrink: 0;
-  }
-
-  .github-repo:hover {
-    color: #fafafa;
+    color: #a1a1aa;
   }
 
   .github-icon {
     width: 18px;
     height: 18px;
-    flex-shrink: 0;
-    opacity: 0.9;
     display: block;
+    opacity: 0.9;
   }
 
   .logo {

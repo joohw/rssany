@@ -201,7 +201,7 @@ Control steps via `.rssany/config.json`:
 │   ├── core/         Infrastructure (cache, logger, events, LLM)
 │   ├── db/           Supabase / PostgreSQL (FeedItem CRUD, search RPCs)
 │   ├── feeder/       RSS generation core
-│   ├── mcp/          MCP server (list_channels / search_feeds / ...)
+│   ├── mcp/          MCP server (list_channels / get_feeds / feeds_search / web_search / ...)
 │   ├── router/       HTTP routes (Hono)
 │   └── scraper/      Scrapers (web / api / email / enrich)
 ├── plugins/          Built-in plugins

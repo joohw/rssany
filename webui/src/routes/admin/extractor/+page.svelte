@@ -1,4 +1,6 @@
 <script lang="ts">
+  import { PRODUCT_NAME } from '$lib/brand';
+
   let urlInput = '';
   let headful = false;
 
@@ -10,7 +12,7 @@
 </script>
 
 <svelte:head>
-  <title>Enrich - RssAny</title>
+  <title>Enrich - {PRODUCT_NAME}</title>
 </svelte:head>
 
 <div class="main">
@@ -55,29 +57,46 @@
     padding: 4rem 1.5rem 3rem;
   }
   .hero { text-align: center; margin-bottom: 2.25rem; }
-  .hero-eyebrow { font-size: 0.75rem; font-weight: 600; color: #bbb; text-transform: uppercase; letter-spacing: 0.09em; margin-bottom: 0.5rem; }
+  .hero-eyebrow {
+    font-size: 0.75rem;
+    font-weight: 600;
+    color: var(--color-muted-foreground);
+    text-transform: uppercase;
+    letter-spacing: 0.09em;
+    margin-bottom: 0.5rem;
+  }
   .hero-title { font-size: 1.75rem; font-weight: 800; letter-spacing: -0.04em; margin-bottom: 0.6rem; }
-  .hero-sub { font-size: 0.9rem; color: #777; line-height: 1.6; max-width: 400px; margin: 0 auto; }
+  .hero-sub {
+    font-size: 0.9rem;
+    color: var(--color-muted-foreground-strong);
+    line-height: 1.6;
+    max-width: 400px;
+    margin: 0 auto;
+  }
 
   .form-wrap { width: 100%; max-width: 520px; }
   .url-row { display: flex; gap: 0.5rem; margin-bottom: 0.75rem; }
   .url-row input {
     flex: 1;
     padding: 0.65rem 1rem;
-    border: 1px solid #ddd;
-    border-radius: 8px;
+    border: 1px solid var(--color-input);
+    border-radius: var(--radius-md);
     font-size: 0.9375rem;
     outline: none;
-    transition: border 0.15s;
+    transition: border 0.15s, box-shadow 0.15s;
     min-width: 0;
-    background: #fff;
+    background: var(--color-card-elevated);
+    color: var(--color-foreground);
     font-family: inherit;
   }
-  .url-row input:focus { border-color: #111; box-shadow: 0 0 0 3px rgba(0,0,0,0.06); }
+  .url-row input:focus {
+    border-color: var(--color-primary);
+    box-shadow: 0 0 0 3px var(--color-primary-light);
+  }
   .url-row button {
     padding: 0.65rem 1.375rem;
     background: var(--color-primary);
-    color: #fff;
+    color: var(--color-primary-foreground);
     border: none;
     border-radius: 8px;
     cursor: pointer;
@@ -95,25 +114,36 @@
     gap: 0.35rem;
     font-size: 0.8125rem;
     cursor: pointer;
-    color: #666;
+    color: var(--color-muted-foreground-strong);
     user-select: none;
   }
-  .form-opts input[type='checkbox'] { margin: 0; accent-color: #111; }
-  .hint { font-size: 0.775rem; color: #bbb; }
+  .form-opts input[type='checkbox'] {
+    margin: 0;
+    accent-color: var(--color-primary);
+  }
+  .hint {
+    font-size: 0.775rem;
+    color: var(--color-muted-foreground);
+  }
 
   .info-box {
     margin-top: 2rem;
     width: 100%;
     max-width: 520px;
-    background: #f8f9ff;
-    border: 1px solid #dde4ff;
-    border-radius: 8px;
+    background: var(--color-primary-light);
+    border: 1px solid color-mix(in srgb, var(--color-primary) 38%, transparent);
+    border-radius: var(--radius-md);
     padding: 0.875rem 1.125rem;
     font-size: 0.8rem;
-    color: #555;
+    color: var(--color-muted-foreground-strong);
     line-height: 1.7;
   }
-  .info-box code { background: #eef; padding: 0.1rem 0.35rem; border-radius: 3px; font-family: monospace; }
+  .info-box code {
+    background: var(--color-muted);
+    padding: 0.1rem 0.35rem;
+    border-radius: 3px;
+    font-family: monospace;
+  }
 
   @media (max-width: 600px) { .main { padding: 2.5rem 1rem 2rem; } }
 </style>

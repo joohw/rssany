@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { PRODUCT_NAME } from '$lib/brand';
   import { onMount } from 'svelte';
 
   interface UserChannel {
@@ -115,7 +116,7 @@
 </script>
 
 <svelte:head>
-  <title>我的频道 - RssAny</title>
+  <title>我的频道 - {PRODUCT_NAME}</title>
 </svelte:head>
 
 <div class="feed-wrap">

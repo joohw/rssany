@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { PRODUCT_NAME } from '$lib/brand';
   import { onMount } from 'svelte';
   import { fetchJson } from '$lib/fetchJson.js';
   import { showToast } from '$lib/toastStore.js';
@@ -90,12 +91,12 @@
 </script>
 
 <svelte:head>
-  <title>Pipeline - RssAny</title>
+  <title>Pipeline - {PRODUCT_NAME}</title>
 </svelte:head>
 
 <div class="feed-wrap">
   <div class="feed-col">
-    <div class="feed-header">
+    <div class="feed-header ui-rule-b">
       <h2>Pipeline</h2>
       <p class="page-desc">
         入库前处理（打标签、翻译），可调整顺序与开关。
@@ -152,41 +153,42 @@
 
 <style>
   .feed-wrap {
-    height: 100vh;
-    display: flex;
-    overflow: hidden;
-    max-width: 720px;
+    max-width: min(720px, var(--feeds-column-max, 720px));
     width: 100%;
     margin: 0 auto;
+    flex: 1;
+    min-height: 0;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
   }
   .feed-col {
     flex: 1;
     display: flex;
     flex-direction: column;
     overflow: hidden;
-    background: #fff;
-    border-left: 1px solid #e5e7eb;
-    border-right: 1px solid #e5e7eb;
+    min-height: 0;
+    background: transparent;
   }
   .feed-header {
     padding: 0.875rem 1.25rem;
-    border-bottom: 1px solid #f0f0f0;
     flex-shrink: 0;
   }
   .feed-header h2 {
     font-size: 0.9375rem;
     font-weight: 600;
     margin: 0 0 0.25rem;
+    color: var(--color-foreground);
   }
   .page-desc {
     font-size: 0.75rem;
-    color: #aaa;
+    color: var(--color-muted-foreground-soft);
     margin: 0;
   }
   .state {
     padding: 2rem;
     text-align: center;
-    color: #888;
+    color: var(--color-muted-foreground);
     font-size: 0.875rem;
   }
   .body {
@@ -198,18 +200,18 @@
     width: 4px;
   }
   .body::-webkit-scrollbar-thumb {
-    background: #ddd;
+    background: var(--color-scrollbar-thumb);
     border-radius: 2px;
   }
   .section-title {
     font-size: 0.8125rem;
     font-weight: 600;
-    color: #6b7280;
+    color: var(--color-muted-foreground);
     margin: 0 0 0.25rem;
   }
   .hint {
     font-size: 0.75rem;
-    color: #9ca3af;
+    color: var(--color-muted-foreground-soft);
     margin: 0 0 0.5rem;
   }
   .pipeline-section {
@@ -219,8 +221,8 @@
     display: flex;
     flex-direction: column;
     gap: 0;
-    border: 1px solid #e5e7eb;
-    border-radius: 6px;
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-sm);
     overflow: hidden;
   }
   .step-row {
@@ -228,8 +230,8 @@
     align-items: center;
     gap: 0.5rem;
     padding: 0.5rem 0.75rem;
-    background: #fff;
-    border-bottom: 1px solid #e5e7eb;
+    background: var(--color-card);
+    border-bottom: 1px solid var(--color-border);
     cursor: grab;
   }
   .step-row:last-child {
@@ -240,7 +242,7 @@
     cursor: grabbing;
   }
   .drag-handle {
-    color: #9ca3af;
+    color: var(--color-muted-foreground-soft);
     font-size: 0.875rem;
     cursor: grab;
     user-select: none;
@@ -259,7 +261,7 @@
   .toggle-slider {
     width: 36px;
     height: 20px;
-    background: #d1d5db;
+    background: rgba(255, 255, 255, 0.14);
     border-radius: 10px;
     transition: background 0.2s;
   }
@@ -268,14 +270,14 @@
     display: block;
     width: 16px;
     height: 16px;
-    background: #fff;
+    background: var(--color-card-elevated);
     border-radius: 50%;
     margin: 2px 0 0 2px;
     transition: transform 0.2s;
-    box-shadow: 0 1px 2px rgba(0, 0, 0, 0.2);
+    box-shadow: 0 1px 2px rgba(0, 0, 0, 0.35);
   }
   .toggle-wrap input:checked + .toggle-slider {
-    background: #22c55e;
+    background: var(--color-success);
   }
   .toggle-wrap input:checked + .toggle-slider::after {
     transform: translateX(16px);
@@ -284,19 +286,20 @@
     flex: 1;
     font-size: 0.875rem;
     min-width: 0;
+    color: var(--color-foreground);
   }
   .btn-add {
     margin-top: 0.5rem;
     padding: 0.35rem 0.75rem;
     font-size: 0.8125rem;
-    color: #6b7280;
-    background: #f9fafb;
-    border: 1px solid #e5e7eb;
+    color: var(--color-muted-foreground);
+    background: var(--color-muted);
+    border: 1px solid var(--color-border);
     border-radius: 4px;
     cursor: pointer;
   }
   .btn-add:hover:not(:disabled) {
-    background: #f3f4f6;
+    background: var(--color-accent);
   }
   .save-row {
     margin-top: 1rem;
@@ -304,13 +307,13 @@
   .btn {
     padding: 0.5rem 1rem;
     font-size: 0.875rem;
-    border-radius: 6px;
+    border-radius: var(--radius-sm);
     cursor: pointer;
     border: none;
   }
   .btn-primary {
     background: var(--color-primary);
-    color: #fff;
+    color: var(--color-primary-foreground);
   }
   .btn-primary:hover:not(:disabled) {
     background: var(--color-primary-hover);
@@ -323,9 +326,6 @@
   @media (max-width: 600px) {
     .feed-wrap {
       max-width: 100%;
-    }
-    .feed-col {
-      border: none;
     }
   }
 </style>

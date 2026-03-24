@@ -1,6 +1,7 @@
 // /api/pipeline（步骤开关与排序）
 
 import type { Hono } from "hono";
+import { requireAdmin } from "../../../auth/middleware.js";
 import {
   loadPipelineConfig,
   savePipelineConfig,
@@ -36,7 +37,7 @@ function dedupeSteps<T extends { id: string }>(steps: T[]): T[] {
 }
 
 export function registerPipelineRoutes(app: Hono): void {
-  app.get("/api/pipeline", async (c) => {
+  app.get("/api/pipeline", requireAdmin(), async (c) => {
     const config = await loadPipelineConfig();
     return c.json({
       steps: config.steps,
@@ -45,7 +46,7 @@ export function registerPipelineRoutes(app: Hono): void {
     });
   });
 
-  app.put("/api/pipeline", async (c) => {
+  app.put("/api/pipeline", requireAdmin(), async (c) => {
     try {
       const body = await c.req.json<{ steps?: unknown[] }>();
       const rawSteps = Array.isArray(body?.steps) ? body.steps : [];

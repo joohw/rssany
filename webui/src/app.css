@@ -179,3 +179,35 @@ body {
 .page-header .options-menu-trigger {
   margin-top: 0.1rem;
 }
+
+/**
+ * Hairline under/over full-width blocks, inset to match horizontal padding (not edge-to-edge).
+ * Match --ui-rule-inset to the block's padding-inline (default 1.25rem).
+ */
+.ui-rule-b {
+  position: relative;
+  border-bottom: none;
+}
+.ui-rule-b::after {
+  content: '';
+  position: absolute;
+  inset-inline: var(--ui-rule-inset, 1.25rem);
+  bottom: 0;
+  height: 1px;
+  background: var(--ui-rule-color, var(--color-border-muted));
+  pointer-events: none;
+}
+
+.ui-rule-t {
+  position: relative;
+  border-top: none;
+}
+.ui-rule-t::before {
+  content: '';
+  position: absolute;
+  inset-inline: var(--ui-rule-inset, 1.25rem);
+  top: 0;
+  height: 1px;
+  background: var(--ui-rule-color, var(--color-border-muted));
+  pointer-events: none;
+}

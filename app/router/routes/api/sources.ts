@@ -9,17 +9,17 @@ import { getSourcesRaw, saveSourcesFile } from "../../../scraper/subscription/in
 import type { SourceType } from "../../../scraper/subscription/types.js";
 import type { RefreshInterval } from "../../../utils/refreshInterval.js";
 import { VALID_INTERVALS } from "../../../utils/refreshInterval.js";
-import { requireAuth } from "../../../auth/middleware.js";
+import { requireAuth, requireAdmin } from "../../../auth/middleware.js";
 import { getUserSources, setUserSources, addUserSource, removeUserSource } from "../../../db/userSources.js";
 
 export function registerSourcesRoutes(app: Hono): void {
-  app.get("/api/sources/stats", async (c) => {
+  app.get("/api/sources/stats", requireAdmin(), async (c) => {
     const stats = await getSourceStats();
     return c.json(stats);
   });
 
   /** 批量查询 ref 是否匹配 Site 插件，返回 { [ref]: pluginId | null } */
-  app.post("/api/sources/plugin-match", async (c) => {
+  app.post("/api/sources/plugin-match", requireAdmin(), async (c) => {
     try {
       const body = await c.req.json<{ refs?: string[] }>();
       const refs = Array.isArray(body?.refs) ? body.refs : [];
@@ -35,7 +35,7 @@ export function registerSourcesRoutes(app: Hono): void {
     }
   });
 
-  app.get("/api/sources/raw", async (c) => {
+  app.get("/api/sources/raw", requireAdmin(), async (c) => {
     try {
       const raw = await getSourcesRaw();
       return c.text(raw, 200, { "Content-Type": "application/json; charset=utf-8" });
@@ -44,7 +44,7 @@ export function registerSourcesRoutes(app: Hono): void {
     }
   });
 
-  app.put("/api/sources/raw", async (c) => {
+  app.put("/api/sources/raw", requireAdmin(), async (c) => {
     try {
       const body = await c.req.json<{ sources?: unknown[] }>();
       const list = Array.isArray(body?.sources) ? body.sources : [];

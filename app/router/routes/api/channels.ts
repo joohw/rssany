@@ -7,7 +7,7 @@ import { CHANNELS_CONFIG_PATH } from "../../../config/paths.js";
 import { getAllChannelConfigs, collectAllSourceRefs } from "../../../core/channel/index.js";
 import { getEffectiveItemFields, type ItemTranslationFields } from "../../../types/feedItem.js";
 import { queryFeedItems } from "../../../db/index.js";
-import { requireAuth } from "../../../auth/middleware.js";
+import { requireAuth, requireAdmin } from "../../../auth/middleware.js";
 import { getUserChannels, setUserChannels, upsertUserChannel, deleteUserChannel } from "../../../db/userChannels.js";
 import { getUserSourceRefs } from "../../../db/userSources.js";
 
@@ -22,7 +22,7 @@ export function registerChannelsRoutes(app: Hono): void {
     return c.json(list);
   });
 
-  app.get("/api/channels/raw", async (c) => {
+  app.get("/api/channels/raw", requireAdmin(), async (c) => {
     try {
       const raw = await readFile(CHANNELS_CONFIG_PATH, "utf-8");
       return c.text(raw, 200, { "Content-Type": "application/json; charset=utf-8" });
@@ -31,7 +31,7 @@ export function registerChannelsRoutes(app: Hono): void {
     }
   });
 
-  app.put("/api/channels/raw", async (c) => {
+  app.put("/api/channels/raw", requireAdmin(), async (c) => {
     try {
       const raw = await c.req.text();
       JSON.parse(raw);

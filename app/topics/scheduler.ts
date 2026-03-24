@@ -1,4 +1,5 @@
-// 话题报告调度：每个系统日报两条 cron — 提前生成 Markdown → 固定时刻发邮件
+// 话题报告调度：生成与发送分属两个调度分组（topics / email）
+// — 生成按 refresh 提前跑 Markdown；发送在固定时刻（默认每天 6:00）按同一 refresh 发邮件
 // node-cron：分 时 日 月 周，本地时区
 
 import * as scheduler from "../scheduler/index.js";
@@ -10,13 +11,16 @@ import { logger } from "../core/logger/index.js";
 
 let cachedTopicBaseDir: string | null = null;
 
+/** 日报生成（Agent 写 Markdown） */
 const TOPICS_GROUP = "topics";
+/** 日报邮件发送，与生成隔离并发与展示 */
+const EMAIL_GROUP = "email";
 /** Agent 任务组最大并发数 */
 const TOPICS_CONCURRENCY = 1;
 
-/** 生成日报：默认每天 5:30（本地时间），早于发送以便模型跑完 */
+/** 生成日报：默认每天 5:00（本地时间），早于发送以便模型有足够时间跑完 */
 const DIGEST_GENERATE_HOUR = Number(process.env.DAILY_DIGEST_GENERATE_HOUR ?? 5);
-const DIGEST_GENERATE_MINUTE = Number(process.env.DAILY_DIGEST_GENERATE_MINUTE ?? 30);
+const DIGEST_GENERATE_MINUTE = Number(process.env.DAILY_DIGEST_GENERATE_MINUTE ?? 0);
 
 /** 发送邮件：默认每天 6:00（本地时间） */
 const DIGEST_SEND_HOUR = Number(process.env.DAILY_DIGEST_SEND_HOUR ?? 6);
@@ -61,9 +65,10 @@ function refreshDaysToCron(refreshDays: number, hour: number, minute: number): s
   return `${m} ${h} 1-31/${n} * *`;
 }
 
-/** 每个系统日报：注册「生成」与「发邮件」两条 cron；生成始终执行，发邮件前仍检查是否有订阅者 */
+/** 每个系统日报：生成注册在 topics；发邮件注册在 email（默认 6:00 等由环境变量控制） */
 async function rescheduleTopics(baseDir: string, runNow: boolean): Promise<void> {
   scheduler.unscheduleGroup(TOPICS_GROUP);
+  scheduler.unscheduleGroup(EMAIL_GROUP);
 
   let defs: Awaited<ReturnType<typeof loadDailyReports>>;
   try {
@@ -93,7 +98,7 @@ async function rescheduleTopics(baseDir: string, runNow: boolean): Promise<void>
       }
     );
     scheduler.schedule(
-      TOPICS_GROUP,
+      EMAIL_GROUP,
       topicSendTaskId(def.key),
       createSendTask(title, def.key),
       {
@@ -107,7 +112,7 @@ async function rescheduleTopics(baseDir: string, runNow: boolean): Promise<void>
     registered += 2;
   }
 
-  logger.info("scheduler", "Agent 日报调度已注册（生成→邮件）", {
+  logger.info("scheduler", "Agent 日报调度已注册（topics 生成 / email 邮件）", {
     taskPairs: registered / 2,
     defs: defs.length,
     generateAt: `${DIGEST_GENERATE_HOUR}:${String(DIGEST_GENERATE_MINUTE).padStart(2, "0")}`,

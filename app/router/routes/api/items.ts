@@ -5,7 +5,7 @@ import type { Hono } from "hono";
 import { getAllChannelConfigs, collectAllSourceRefs } from "../../../core/channel/index.js";
 import { getEffectiveItemFields, type ItemTranslationFields } from "../../../types/feedItem.js";
 import { queryItems, getPendingPushItems, markPushed, deleteItem, deleteItemsBySourceUrl } from "../../../db/index.js";
-import { requireAuth } from "../../../auth/middleware.js";
+import { requireAuth, requireAdmin } from "../../../auth/middleware.js";
 import { getUserSourceRefs } from "../../../db/userSources.js";
 import { getUserChannels } from "../../../db/userChannels.js";
 
@@ -36,7 +36,7 @@ export function registerItemsRoutes(app: Hono): void {
   });
 
   /** 清空指定信源（source_url）下所有已入库条目 */
-  app.delete("/api/items/by-source", async (c) => {
+  app.delete("/api/items/by-source", requireAdmin(), async (c) => {
     const sourceUrl = (c.req.query("source_url") ?? "").trim();
     if (!sourceUrl) return c.json({ ok: false, message: "source_url 不能为空" }, 400);
     const deleted = await deleteItemsBySourceUrl(sourceUrl);
