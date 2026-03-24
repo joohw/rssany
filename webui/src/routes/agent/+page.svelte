@@ -431,6 +431,17 @@
     <header class="agent-header">
       <div class="agent-header-inner" class:agent-header-inner-full={inOverlay}>
         <div class="agent-header-actions">
+          {#if inOverlay}
+            <button
+              type="button"
+              class="agent-header-btn agent-header-btn-icon"
+              title="关闭"
+              aria-label="关闭"
+              on:click={closeAgentOverlay}
+            >
+              <X size={20} strokeWidth={2} />
+            </button>
+          {/if}
           <button
             type="button"
             class="agent-header-btn agent-header-btn-icon"
@@ -443,9 +454,11 @@
           >
             <History size={20} strokeWidth={2} />
           </button>
-          <button type="button" class="agent-header-btn agent-header-btn-icon" title="新建会话" disabled={streaming || !canUseChat} on:click={handleNewSession}>
-            <Plus size={20} strokeWidth={2} />
-          </button>
+          {#if !inOverlay}
+            <button type="button" class="agent-header-btn agent-header-btn-icon" title="新建会话" disabled={streaming || !canUseChat} on:click={handleNewSession}>
+              <Plus size={20} strokeWidth={2} />
+            </button>
+          {/if}
         </div>
         <div class="agent-header-title-wrap">
           <span class="agent-title">{$currentSession?.title ?? '新对话'}</span>
@@ -474,14 +487,8 @@
         </div>
         {#if inOverlay}
           <div class="agent-header-side-right">
-            <button
-              type="button"
-              class="agent-header-btn agent-header-btn-icon"
-              title="关闭"
-              aria-label="关闭"
-              on:click={closeAgentOverlay}
-            >
-              <X size={20} strokeWidth={2} />
+            <button type="button" class="agent-header-btn agent-header-btn-icon" title="新建会话" disabled={streaming || !canUseChat} on:click={handleNewSession}>
+              <Plus size={20} strokeWidth={2} />
             </button>
           </div>
         {/if}

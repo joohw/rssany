@@ -196,7 +196,7 @@
     min-height: 0;
     display: flex;
     overflow: hidden;
-    max-width: min(720px, var(--feeds-column-max, 720px));
+    max-width: var(--feeds-column-max, 720px);
     width: 100%;
     margin: 0 auto;
   }

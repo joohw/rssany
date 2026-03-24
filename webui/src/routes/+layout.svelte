@@ -5,6 +5,8 @@
   import { page } from '$app/stores';
   import { get } from 'svelte/store';
   import { onDestroy, onMount } from 'svelte';
+  import { fade, fly } from 'svelte/transition';
+  import { cubicIn, cubicOut } from 'svelte/easing';
   import MessageCircle from 'lucide-svelte/icons/message-circle';
   import Settings from 'lucide-svelte/icons/settings';
   import FeedsNavBar from '$lib/components/FeedsNavBar.svelte';
@@ -109,8 +111,13 @@
       role="dialog"
       aria-modal="true"
       aria-label="NewsClaw"
+      in:fade={{ duration: 280, easing: cubicOut }}
+      out:fade={{ duration: 200, easing: cubicIn }}
     >
-      <div class="agent-me-overlay-body">
+      <div
+        class="agent-me-overlay-body"
+        in:fly={{ y: 28, duration: 360, delay: 40, easing: cubicOut }}
+      >
         <AgentOverlayHost />
       </div>
     </div>
