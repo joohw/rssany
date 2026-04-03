@@ -39,8 +39,6 @@ export interface FeederConfig {
   refreshInterval?: RefreshInterval;
   /** 调用方传入的代理覆盖：优先级最高，覆盖 source 声明 */
   proxy?: string;
-  /** 为 true 时写入数据库（upsertItems / updateItemContent），默认不写入 */
-  writeDb?: boolean;
   /** 目标语种（BCP 47，如 zh-CN、en）；有值时 RSS/API 优先使用 item.translations[lng] */
   lng?: string;
   /** 为 true 时跳过 generatingKeys 去重，强制发起独立抓取（手动触发时使用） */

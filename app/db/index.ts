@@ -1,31 +1,140 @@
-// 数据库模块：Supabase（PostgreSQL）
+// ?????????????? SQLite ????????schema ?????????? FeedItem CRUD??????????????
 
-import { readFile, writeFile } from "node:fs/promises";
-import { supabase } from "./client.js";
+import Database from "better-sqlite3";
+import { mkdir, readFile, writeFile } from "node:fs/promises";
+import { join } from "node:path";
+import { existsSync, openSync, closeSync, writeSync, unlinkSync, readFileSync } from "node:fs";
+
+/** ??????????? WAL???? "delete" ??????? DELETE ??????? Windows ???????/???????????????????????? */
+const MAIN_DB_JOURNAL = (process.env.RSSANY_DB_JOURNAL ?? "wal").toLowerCase() === "delete" ? "DELETE" : "WAL";
 import type { FeedItem } from "../types/feedItem.js";
 import { normalizeAuthor } from "../types/feedItem.js";
 import type { LogEntry } from "../core/logger/types.js";
-import { TAGS_CONFIG_PATH } from "../config/paths.js";
+import { DATA_DIR, TAGS_CONFIG_PATH } from "../config/paths.js";
 
-// Postgres 处理并发，此处为纯 pass-through，保留导出供现有调用方使用
-export async function withWriteLock<T>(fn: () => Promise<T>): Promise<T> {
-  return fn();
+let _db: Database.Database | null = null;
+
+/** ?????????????????????????/??????????????? getDb() ???????????? new Database() + initSchema????????????????????????????????????? SQLITE_CORRUPT_VTAB / database disk image is malformed????? */
+let _dbInit: Promise<Database.Database> | null = null;
+
+/** ???????????????????? Enrich ?????????????????? updateItemContent/upsertItems ?????????????????????????? WAL ???????? transient ????????? */
+let _writeLock: Promise<void> = Promise.resolve();
+
+/** ???????????????????????????????????????????????????????? */
+const MAIN_DB_LOCK_PATH = join(DATA_DIR, "rssany.db.lock");
+
+/** ?? stderr ????????????????????????????????????????? db?? */
+function logCorruptDiagnostic(operation: string, err: unknown): void {
+  const code = (err as { code?: string })?.code;
+  const msg = err instanceof Error ? err.message : String(err);
+  const lines = [
+    "[rssany db] ??????????????",
+    `  ?????: ${operation}`,
+    `  ????: ${code ?? "unknown"} - ${msg}`,
+    "  ????????:",
+    "    1. ??????/????????????????????????? tsx --watch ?????????????????????????????????????????????",
+    "    2. ???????????????????WAL ????? checkpoint",
+    "    3. ????/?????/?????????????????????????",
+    "  ??:",
+    "    - ??????????????? --watch???????????????????????????????",
+    "    - ???????????? RSSANY_DB_JOURNAL=delete ?????? DELETE ???????????????????",
+    "    - ?????? .rssany/data/rssany.db ????? -wal???-shm???rssany.db.lock ??????",
+  ];
+  process.stderr.write(lines.join("\n") + "\n");
 }
 
-// Supabase 不需要 integrity check，返回固定字符串
-export async function runIntegrityCheck(): Promise<string> {
-  const { error } = await supabase.from("items").select("id").limit(1);
-  return error ? `Supabase 连接异常: ${error.message}` : "ok";
+/** ????????????????????????????????????????????????????????????????????????????????????? */
+function acquireDbLock(dbDir: string): void {
+  const lockPath = join(dbDir, "rssany.db.lock");
+  const pid = process.pid;
+  const tryCreate = (): void => {
+    try {
+      const fd = openSync(lockPath, "wx");
+      writeSync(fd, String(pid), 0, "utf8");
+      closeSync(fd);
+      return;
+    } catch (e: unknown) {
+      const code = (e as NodeJS.ErrnoException)?.code;
+      if (code !== "EEXIST") throw e;
+    }
+    if (!existsSync(lockPath)) {
+      tryCreate();
+      return;
+    }
+    let oldPid: number | null = null;
+    try {
+      const buf = readFileSync(lockPath, "utf8");
+      const n = parseInt(buf.trim(), 10);
+      if (!Number.isNaN(n)) oldPid = n;
+    } catch {
+      /* ????????????????????? */
+    }
+    if (oldPid !== null && oldPid !== pid) {
+      const stillRunning = ((): boolean => {
+        try {
+          process.kill(oldPid!, 0);
+          return true;
+        } catch {
+          return false;
+        }
+      })();
+      if (stillRunning) {
+        throw new Error(
+          `???????????????????????????PID ${oldPid}??????????? tsx --watch ?????????????????????????????????? ${lockPath} ??????????`
+        );
+      }
+    }
+    try {
+      unlinkSync(lockPath);
+    } catch {
+      /* ignore */
+    }
+    tryCreate();
+  };
+  tryCreate();
 }
 
-// ─── 辅助 ──────────────────────────────────────────────────────────────────
+/** ????????????????????????????????????????? */
+function releaseDbLock(): void {
+  if (!existsSync(MAIN_DB_LOCK_PATH)) return;
+  try {
+    unlinkSync(MAIN_DB_LOCK_PATH);
+  } catch {
+    /* ignore */
+  }
+}
+
+export function withWriteLock<T>(fn: () => Promise<T>): Promise<T> {
+  const prev = _writeLock;
+  let resolveOut!: (v: T) => void;
+  let rejectOut!: (e: unknown) => void;
+  const out = new Promise<T>((res, rej) => {
+    resolveOut = res;
+    rejectOut = rej;
+  });
+  _writeLock = prev
+    .then(() => fn())
+    .then(
+      (v) => { resolveOut(v); },
+      (e: unknown) => {
+        if (isCorruptError(e)) {
+          logCorruptDiagnostic("???????????? updateItemContent/upsertItems??", e);
+        }
+        rejectOut(e);
+        throw e;
+      },
+    );
+  return out;
+}
 
 const DATE_ONLY_TITLE_RE =
-  /^(?:jan|feb|mar|apr|may|jun|jul|aug|sep|sept|oct|nov|dec)\b[\s\d,，./-]*(?:st|nd|rd|th)?[\s\d,，./-]*$/i;
+  /^(?:jan|feb|mar|apr|may|jun|jul|aug|sep|sept|oct|nov|dec)\b[\s\d,??./-]*(?:st|nd|rd|th)?[\s\d,??./-]*$/i;
+
 
 function normalizeText(text: string | null | undefined): string {
   return (text ?? "").replace(/\s+/g, " ").trim();
 }
+
 
 function isDateOnlyTitle(title: string | null | undefined): boolean {
   const normalized = normalizeText(title);
@@ -33,12 +142,15 @@ function isDateOnlyTitle(title: string | null | undefined): boolean {
   return DATE_ONLY_TITLE_RE.test(normalized);
 }
 
+
 function toMs(input: string | null | undefined): number | null {
   if (!input) return null;
   const ms = Date.parse(input);
   return Number.isNaN(ms) ? null : ms;
 }
 
+
+/** ?? DB ??? author ???????? string[]???????? JSON ???????????????????? */
 export function parseAuthorFromDb(raw: string | null | undefined): string[] | undefined {
   if (!raw?.trim()) return undefined;
   try {
@@ -50,6 +162,7 @@ export function parseAuthorFromDb(raw: string | null | undefined): string[] | un
   }
 }
 
+/** ?? raw DB row ?? DbItem?????? author / tags / translations ?? JSON ????? */
 function toDbItem(row: Record<string, unknown>): DbItem {
   const author = parseAuthorFromDb(row.author as string) ?? null;
   const parseJsonArr = (v: unknown): string[] | null => {
@@ -62,172 +175,353 @@ function toDbItem(row: Record<string, unknown>): DbItem {
       const p = JSON.parse(row.translations) as unknown;
       if (p && typeof p === "object") translations = p as Record<string, { title?: string; summary?: string; content?: string }>;
     }
-  } catch { /* ignore */ }
-  // drop search_vector from DbItem
-  const { search_vector: _, total_count: __, ...rest } = row as Record<string, unknown>;
-  return { ...rest, author, tags, translations } as DbItem;
-}
-
-function formatSupabaseErrorMessage(error: { message: string; cause?: unknown }): string {
-  const parts: string[] = [error.message];
-  let cur: unknown = error;
-  for (let d = 0; d < 4 && cur && typeof cur === "object" && "cause" in cur; d++) {
-    const c = (cur as { cause?: unknown }).cause;
-    if (c instanceof Error && c.message) {
-      parts.push(c.message);
-      cur = c;
-    } else if (c != null) {
-      const code = typeof c === "object" && c !== null && "code" in c ? String((c as { code?: string }).code ?? "") : "";
-      parts.push(code ? `${String(c)} (${code})` : String(c));
-      break;
-    } else break;
+  } catch {
+    /* ignore */
   }
-  return parts.join(" · ");
+  return { ...row, author, tags, translations } as DbItem;
 }
 
-function throwIfError(error: { message: string; cause?: unknown } | null, ctx: string): void {
-  if (error) throw new Error(`[db:${ctx}] ${formatSupabaseErrorMessage(error)}`);
+function mapRowsToDbItems(rows: Record<string, unknown>[]): DbItem[] {
+  return rows.map(toDbItem);
 }
 
-// ─── items CRUD ────────────────────────────────────────────────────────────
 
-export async function upsertItems(
-  items: FeedItem[],
-  sourceUrlOverride?: string,
-): Promise<{ newCount: number; newIds: Set<string> }> {
+/** ??????????????/FTS ??????????? */
+function isCorruptError(err: unknown): boolean {
+  const code = (err as { code?: string })?.code;
+  const msg = err instanceof Error ? err.message : String(err);
+  return (
+    code === "SQLITE_CORRUPT" ||
+    code === "SQLITE_CORRUPT_VTAB" ||
+    msg.includes("database disk image is malformed")
+  );
+}
+
+/** ?????????????????????????????????????????????? .rssany/data/rssany.db??? */
+export async function getDb(): Promise<Database.Database> {
+  if (_db) return _db;
+  if (_dbInit) return _dbInit;
+  const dbPath = join(DATA_DIR, "rssany.db");
+  _dbInit = (async (): Promise<Database.Database> => {
+    await mkdir(DATA_DIR, { recursive: true });
+    acquireDbLock(DATA_DIR);
+    let db: Database.Database | null = null;
+    try {
+      db = new Database(dbPath);
+      db.pragma(`journal_mode = ${MAIN_DB_JOURNAL}`);
+      db.pragma("synchronous = NORMAL");
+      initSchema(db);
+      _db = db;
+      return db;
+    } catch (err: unknown) {
+      _dbInit = null;
+      releaseDbLock();
+      if (db) {
+        try {
+          db.close();
+        } catch {
+          /* ignore */
+        }
+        db = null;
+      }
+      if (isCorruptError(err)) {
+        logCorruptDiagnostic("?????/??????????? (getDb)", err);
+      }
+      throw err;
+    }
+  })();
+  return _dbInit;
+}
+
+/** ??? PRAGMA integrity_check??????????????????ok ????????????????????????????database disk image is malformed???????????????????????????????????? catch??? */
+export async function runIntegrityCheck(): Promise<string> {
+  const db = await getDb();
+  try {
+    const row = db.prepare("PRAGMA integrity_check").get() as { integrity_check: string } | undefined;
+    return row?.integrity_check ?? "unknown";
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : String(err);
+    return `integrity_check ???????: ${msg}`;
+  }
+}
+
+
+/** ??????????????????????????????????????????? */
+const LOGS_DB_PATH = join(DATA_DIR, "logs.db");
+
+let _logsDb: Database.Database | null = null;
+let _logsDbInit: Promise<Database.Database> | null = null;
+
+function initLogsSchema(db: Database.Database): void {
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS logs (
+      id          INTEGER PRIMARY KEY AUTOINCREMENT,
+      level       TEXT NOT NULL,
+      category    TEXT NOT NULL,
+      message     TEXT NOT NULL,
+      payload     TEXT,
+      source_url  TEXT,
+      created_at  TEXT NOT NULL
+    );
+    CREATE INDEX IF NOT EXISTS idx_logs_level_created ON logs(level, created_at);
+    CREATE INDEX IF NOT EXISTS idx_logs_source_created ON logs(source_url, created_at);
+  `);
+}
+
+/** ??????????????????????????? .rssany/data/logs.db???????????????????????????????????????? */
+export async function getLogsDb(): Promise<Database.Database> {
+  if (_logsDb) return _logsDb;
+  if (_logsDbInit) return _logsDbInit;
+  _logsDbInit = (async (): Promise<Database.Database> => {
+    await mkdir(DATA_DIR, { recursive: true });
+    const db = new Database(LOGS_DB_PATH);
+    db.pragma("journal_mode = WAL");
+    db.pragma("synchronous = NORMAL");
+    initLogsSchema(db);
+    _logsDb = db;
+    return db;
+  })();
+  return _logsDbInit;
+}
+
+/** ????items ?? + FTS5 ???????????????? items_fts_src + ????????? zh-CN?????????????????? .rssany/data/rssany.db ?? -wal???-shm ?????????????????????????????????? logs.db??? */
+function initSchema(db: Database.Database): void {
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS items (
+      id          TEXT PRIMARY KEY,
+      url         TEXT UNIQUE NOT NULL,
+      source_url  TEXT NOT NULL,
+      title       TEXT,
+      author      TEXT,
+      summary     TEXT,
+      content     TEXT,
+      image_url   TEXT,
+      tags        TEXT,
+      translations TEXT,
+      pub_date    TEXT,
+      fetched_at  TEXT NOT NULL,
+      pushed_at   TEXT
+    );
+    CREATE INDEX IF NOT EXISTS idx_items_source    ON items(source_url);
+    CREATE INDEX IF NOT EXISTS idx_items_fetched   ON items(fetched_at);
+    CREATE INDEX IF NOT EXISTS idx_items_pushed    ON items(pushed_at);
+  `);
+
+  db.exec(`
+    CREATE VIEW IF NOT EXISTS items_fts_src AS
+    SELECT rowid, title, summary, content,
+      json_extract(translations, '$."zh-CN".title') AS title_zh,
+      json_extract(translations, '$."zh-CN".summary') AS summary_zh,
+      json_extract(translations, '$."zh-CN".content') AS content_zh
+    FROM items;
+    CREATE VIRTUAL TABLE IF NOT EXISTS items_fts USING fts5(
+      title, summary, content, title_zh, summary_zh, content_zh,
+      content='items_fts_src',
+      content_rowid='rowid'
+    );
+    CREATE TRIGGER IF NOT EXISTS items_fts_after_insert AFTER INSERT ON items
+    BEGIN
+      INSERT INTO items_fts(rowid, title, summary, content, title_zh, summary_zh, content_zh)
+      VALUES (
+        NEW.rowid, NEW.title, NEW.summary, NEW.content,
+        json_extract(NEW.translations, '$."zh-CN".title'),
+        json_extract(NEW.translations, '$."zh-CN".summary'),
+        json_extract(NEW.translations, '$."zh-CN".content')
+      );
+    END;
+    CREATE TRIGGER IF NOT EXISTS items_fts_after_update AFTER UPDATE ON items
+    BEGIN
+      INSERT INTO items_fts(items_fts, rowid, title, summary, content, title_zh, summary_zh, content_zh)
+      VALUES (
+        'delete', OLD.rowid, OLD.title, OLD.summary, OLD.content,
+        json_extract(OLD.translations, '$."zh-CN".title'),
+        json_extract(OLD.translations, '$."zh-CN".summary'),
+        json_extract(OLD.translations, '$."zh-CN".content')
+      );
+      INSERT INTO items_fts(rowid, title, summary, content, title_zh, summary_zh, content_zh)
+      VALUES (
+        NEW.rowid, NEW.title, NEW.summary, NEW.content,
+        json_extract(NEW.translations, '$."zh-CN".title'),
+        json_extract(NEW.translations, '$."zh-CN".summary'),
+        json_extract(NEW.translations, '$."zh-CN".content')
+      );
+    END;
+    CREATE TRIGGER IF NOT EXISTS items_fts_after_delete AFTER DELETE ON items
+    BEGIN
+      INSERT INTO items_fts(items_fts, rowid, title, summary, content, title_zh, summary_zh, content_zh)
+      VALUES (
+        'delete', OLD.rowid, OLD.title, OLD.summary, OLD.content,
+        json_extract(OLD.translations, '$."zh-CN".title'),
+        json_extract(OLD.translations, '$."zh-CN".summary'),
+        json_extract(OLD.translations, '$."zh-CN".content')
+      );
+    END;
+  `);
+
+  // ???????????????? image_url ???????????????????????
+  try {
+    const info = db.prepare("PRAGMA table_info(items)").all() as { name: string }[];
+    if (info && !info.some((c) => c.name === "image_url")) {
+      db.exec("ALTER TABLE items ADD COLUMN image_url TEXT");
+    }
+  } catch {
+    /* ignore */
+  }
+
+}
+
+
+/** ????????????????????????????????????????????????????????????????? ID ????????source_url ????? item.sourceRef???????????????????????????? sourceUrl ?????????????????????? */
+export async function upsertItems(items: FeedItem[], sourceUrlOverride?: string): Promise<{ newCount: number; newIds: Set<string> }> {
   if (items.length === 0) return { newCount: 0, newIds: new Set() };
   const sourceUrl = sourceUrlOverride ?? items[0].sourceRef;
-  if (!sourceUrl) throw new Error("upsertItems: 需在每条 item 上设置 sourceRef，或传入 sourceUrlOverride");
-
+  if (!sourceUrl) {
+    throw new Error("upsertItems: ???????? item ???? sourceRef????????? sourceUrlOverride");
+  }
+  return withWriteLock(async () => {
+  const db = await getDb();
+  const stmt = db.prepare(`
+    INSERT OR IGNORE INTO items (id, url, source_url, title, author, summary, image_url, tags, pub_date, fetched_at)
+    VALUES (@id, @url, @sourceUrl, @title, @author, @summary, @imageUrl, @tags, @pubDate, @fetchedAt)
+  `);
+  const selectExistingStmt = db.prepare(`
+    SELECT id, title, author, summary, image_url, pub_date, fetched_at
+    FROM items
+    WHERE id = @id
+  `);
+  const repairExistingStmt = db.prepare(`
+    UPDATE items
+    SET title = @title,
+        author = @author,
+        summary = @summary,
+        image_url = @imageUrl,
+        pub_date = @pubDate,
+        fetched_at = @fetchedAt
+    WHERE id = @id
+  `);
   const now = new Date().toISOString();
-  const rows = items.map((item) => {
-    const nextTitle = normalizeText(item.title) || null;
-    const nextSummary = normalizeText(item.summary) || null;
-    const nextAuthorArr = normalizeAuthor(item.author);
-    const nextAuthor = nextAuthorArr?.length ? JSON.stringify(nextAuthorArr) : null;
-    const nextPubDate = item.pubDate instanceof Date ? item.pubDate.toISOString() : (item.pubDate ?? null);
-    const nextTags = item.tags?.length ? JSON.stringify(item.tags) : null;
-    const nextImageUrl = typeof item.imageUrl === "string" && item.imageUrl.trim() ? item.imageUrl.trim() : null;
-    return {
-      id: item.guid,
-      url: item.link,
-      source_url: sourceUrl,
-      title: nextTitle,
-      author: nextAuthor,
-      summary: nextSummary,
-      image_url: nextImageUrl,
-      tags: nextTags,
-      pub_date: nextPubDate,
-      fetched_at: now,
-    };
-  });
-
-  // 先查出哪些 id 已存在
-  const ids = rows.map((r) => r.id);
-  const { data: existing } = await supabase
-    .from("items")
-    .select("id, title, author, summary, image_url, pub_date, fetched_at")
-    .in("id", ids);
-  const existingMap = new Map<string, Record<string, unknown>>(
-    (existing ?? []).map((r) => [r.id as string, r as Record<string, unknown>])
-  );
-
-  const toInsert: typeof rows = [];
-  const toRepair: Array<{ id: string; [k: string]: unknown }> = [];
-
-  for (const row of rows) {
-    const ex = existingMap.get(row.id);
-    if (!ex) {
-      toInsert.push(row);
-      continue;
-    }
-    // repair logic
-    const shouldRepairTitle =
-      !!row.title && !isDateOnlyTitle(row.title) &&
-      (isDateOnlyTitle(ex.title as string) || !normalizeText(ex.title as string));
-    const shouldRepairSummary =
-      !!row.summary && normalizeText(ex.summary as string).length < row.summary.length;
-    const shouldRepairImageUrl = !!row.image_url && !(ex.image_url as string)?.trim();
-    const existingAuthorArr = parseAuthorFromDb(ex.author as string);
-    const nextAuthorArr = row.author ? JSON.parse(row.author) as string[] : null;
-    const shouldRepairAuthor = !!nextAuthorArr?.length && !existingAuthorArr?.length;
-    const existingPubDateMs = toMs(ex.pub_date as string);
-    const existingFetchedAtMs = toMs(ex.fetched_at as string);
-    const nextPubDateMs = toMs(row.pub_date);
-    const existingPubDateLooksFallback =
-      existingPubDateMs != null && existingFetchedAtMs != null &&
-      Math.abs(existingPubDateMs - existingFetchedAtMs) <= 5 * 60 * 1000;
-    const shouldRepairPubDate =
-      nextPubDateMs != null && (
-        existingPubDateMs == null ||
-        (existingPubDateLooksFallback && nextPubDateMs < existingPubDateMs - 24 * 60 * 60 * 1000)
-      );
-    if (!(shouldRepairTitle || shouldRepairSummary || shouldRepairImageUrl || shouldRepairAuthor || shouldRepairPubDate)) continue;
-    toRepair.push({
-      id: row.id,
-      title: shouldRepairTitle ? row.title : (ex.title ?? null),
-      author: shouldRepairAuthor ? row.author : (ex.author ?? null),
-      summary: shouldRepairSummary ? row.summary : (ex.summary ?? null),
-      image_url: shouldRepairImageUrl ? row.image_url : (ex.image_url ?? null),
-      pub_date: shouldRepairPubDate ? row.pub_date : (ex.pub_date ?? null),
-      fetched_at: now,
-    });
-  }
-
+  let newCount = 0;
   const newIds = new Set<string>();
-  if (toInsert.length > 0) {
-    const { error } = await supabase.from("items").insert(toInsert);
-    throwIfError(error, "upsertItems.insert");
-    for (const r of toInsert) newIds.add(r.id);
-  }
-  for (const r of toRepair) {
-    const { id, ...update } = r;
-    await supabase.from("items").update(update).eq("id", id);
-  }
+  const run = db.transaction((rows: FeedItem[]) => {
+    for (const item of rows) {
+      const nextTitle = normalizeText(item.title) || null;
+      const nextSummary = normalizeText(item.summary) || null;
+      const nextAuthorArr = normalizeAuthor(item.author);
+      const nextAuthor = nextAuthorArr?.length ? JSON.stringify(nextAuthorArr) : null;
+      const nextPubDate =
+        item.pubDate instanceof Date ? item.pubDate.toISOString() : (item.pubDate ?? null);
+      const nextTags = item.tags?.length ? JSON.stringify(item.tags) : null;
+      const nextImageUrl = typeof item.imageUrl === "string" && item.imageUrl.trim() ? item.imageUrl.trim() : null;
+      const info = stmt.run({
+        id: item.guid,
+        url: item.link,
+        sourceUrl,
+        title: nextTitle,
+        author: nextAuthor,
+        summary: nextSummary,
+        imageUrl: nextImageUrl,
+        tags: nextTags,
+        pubDate: nextPubDate,
+        fetchedAt: now,
+      });
+      newCount += info.changes;
+      if (info.changes > 0) newIds.add(item.guid);
 
-  return { newCount: newIds.size, newIds };
+      if (info.changes > 0) continue;
+      const existing = selectExistingStmt.get({ id: item.guid }) as {
+        title: string | null;
+        author: string | null;
+        summary: string | null;
+        image_url: string | null;
+        pub_date: string | null;
+        fetched_at: string | null;
+      } | undefined;
+      if (!existing) continue;
+
+      const shouldRepairTitle =
+        !!nextTitle && !isDateOnlyTitle(nextTitle) &&
+        (isDateOnlyTitle(existing.title) || !normalizeText(existing.title));
+      const shouldRepairSummary =
+        !!nextSummary && normalizeText(existing.summary).length < nextSummary.length;
+      const shouldRepairImageUrl = !!nextImageUrl && !(existing.image_url?.trim());
+      const existingAuthorArr = parseAuthorFromDb(existing.author);
+      const shouldRepairAuthor = !!nextAuthorArr?.length && !existingAuthorArr?.length;
+
+      const existingPubDateMs = toMs(existing.pub_date);
+      const existingFetchedAtMs = toMs(existing.fetched_at);
+      const nextPubDateMs = toMs(nextPubDate);
+      const existingPubDateLooksFallback =
+        existingPubDateMs != null &&
+        existingFetchedAtMs != null &&
+        Math.abs(existingPubDateMs - existingFetchedAtMs) <= 5 * 60 * 1000;
+      const shouldRepairPubDate =
+        nextPubDateMs != null &&
+        (
+          existingPubDateMs == null ||
+          (existingPubDateLooksFallback && nextPubDateMs < existingPubDateMs - 24 * 60 * 60 * 1000)
+        );
+
+      if (!(shouldRepairTitle || shouldRepairSummary || shouldRepairImageUrl || shouldRepairAuthor || shouldRepairPubDate)) {
+        continue;
+      }
+
+      repairExistingStmt.run({
+        id: item.guid,
+        title: shouldRepairTitle ? nextTitle : existing.title,
+        author: shouldRepairAuthor ? nextAuthor : (existing.author ?? null),
+        summary: shouldRepairSummary ? nextSummary : existing.summary,
+        imageUrl: shouldRepairImageUrl ? nextImageUrl : (existing.image_url ?? null),
+        pubDate: shouldRepairPubDate ? nextPubDate : existing.pub_date,
+        fetchedAt: now,
+      });
+    }
+  });
+  run(items);
+  return { newCount, newIds };
+  });
 }
 
+
+/** ??????????????? GUID ??????????????????????????? ID ?????????????????? pipeline ?????????????? */
 export async function getExistingIds(guids: string[]): Promise<Set<string>> {
   if (guids.length === 0) return new Set();
-  const { data } = await supabase.from("items").select("id").in("id", guids);
-  return new Set((data ?? []).map((r) => r.id as string));
+  const db = await getDb();
+  const placeholders = guids.map(() => "?").join(",");
+  const rows = db.prepare(`SELECT id FROM items WHERE id IN (${placeholders})`).all(...guids) as { id: string }[];
+  return new Set(rows.map((r) => r.id));
 }
 
+
+/** ???????????????????????????????? id ???????????????? url ?? id ??????????????????content/translations ??? COALESCE ???????????????? */
 export async function updateItemContent(item: FeedItem): Promise<void> {
-  const authorArr = normalizeAuthor(item.author);
-  const author = authorArr?.length ? JSON.stringify(authorArr) : null;
-  const pubDate = item.pubDate instanceof Date ? item.pubDate.toISOString() : (item.pubDate ?? null);
-  const tags = item.tags?.length ? JSON.stringify(item.tags) : null;
-  const translations =
-    item.translations && Object.keys(item.translations).length > 0
-      ? JSON.stringify(item.translations)
-      : null;
-  const imageUrl =
-    typeof item.imageUrl === "string" && item.imageUrl.trim()
-      ? item.imageUrl.trim()
-      : null;
-
-  // COALESCE logic: only set content/translations if not already present
-  const { data: existing } = await supabase
-    .from("items")
-    .select("content, translations")
-    .eq("id", item.guid)
-    .single();
-
-  const update: Record<string, unknown> = {
-    tags,
-    ...(imageUrl ? { image_url: imageUrl } : {}),
-    ...(author ? { author } : {}),
-    ...(pubDate ? { pub_date: pubDate } : {}),
-    ...(item.content && !existing?.content ? { content: item.content } : {}),
-    ...(translations && !existing?.translations ? { translations } : {}),
-  };
-
-  const { error } = await supabase.from("items").update(update).eq("id", item.guid);
-  throwIfError(error, "updateItemContent");
+  return withWriteLock(async () => {
+  const db = await getDb();
+  db.prepare(`
+    UPDATE items
+    SET content      = COALESCE(content, @content),
+        image_url   = COALESCE(@imageUrl, image_url),
+        author      = COALESCE(@author, author),
+        pub_date    = COALESCE(@pubDate, pub_date),
+        tags        = @tags,
+        translations = COALESCE(@translations, translations)
+    WHERE id = @id
+  `).run({
+    id: item.guid,
+    content: item.content ?? null,
+    imageUrl: typeof item.imageUrl === "string" && item.imageUrl.trim() ? item.imageUrl.trim() : null,
+    author: (() => {
+      const arr = normalizeAuthor(item.author);
+      return arr?.length ? JSON.stringify(arr) : null;
+    })(),
+    pubDate: item.pubDate instanceof Date ? item.pubDate.toISOString() : (item.pubDate ?? null),
+    tags: item.tags?.length ? JSON.stringify(item.tags) : null,
+    translations: item.translations && Object.keys(item.translations).length > 0 ? JSON.stringify(item.translations) : null,
+  });
+  });
 }
 
+
+/** ????????????????????????????????????????????????????????since/until ???????????????YYYY-MM-DD ??? ISO ?????? */
 export async function queryFeedItems(
   sourceUrls: string[],
   limit: number,
@@ -235,62 +529,61 @@ export async function queryFeedItems(
   opts?: { since?: string; until?: string },
 ): Promise<{ items: DbItem[]; hasMore: boolean }> {
   if (sourceUrls.length === 0) return { items: [], hasMore: false };
-
-  let query = supabase
-    .from("items")
-    .select("*")
-    .in("source_url", sourceUrls)
-    .order("pub_date", { ascending: false, nullsFirst: false })
-    .order("fetched_at", { ascending: false })
-    .range(offset, offset + limit); // fetch limit+1 to detect hasMore
-
+  const db = await getDb();
+  const placeholders = sourceUrls.map((_, i) => `@u${i}`).join(", ");
+  const conditions: string[] = [`source_url IN (${placeholders})`];
+  const params: Record<string, unknown> = { lim: limit + 1, off: offset };
+  sourceUrls.forEach((url, i) => { params[`u${i}`] = url; });
   if (opts?.since) {
-    const since = opts.since.length === 10 ? `${opts.since}T00:00:00.000Z` : opts.since;
-    query = query.gte("fetched_at", since);
+    conditions.push("COALESCE(pub_date, fetched_at) >= @since");
+    params.since = opts.since.length === 10 ? `${opts.since}T00:00:00.000Z` : opts.since;
   }
   if (opts?.until) {
-    let until = opts.until;
-    if (until.length === 10) {
-      const d = new Date(until + "T12:00:00Z");
+    conditions.push("COALESCE(pub_date, fetched_at) < @until");
+    if (opts.until.length === 10) {
+      const d = new Date(opts.until + "T12:00:00Z");
       d.setUTCDate(d.getUTCDate() + 1);
-      until = d.toISOString();
+      params.until = d.toISOString();
+    } else {
+      params.until = opts.until;
     }
-    query = query.lt("fetched_at", until);
   }
-
-  const { data, error } = await query;
-  throwIfError(error, "queryFeedItems");
-  const rows = (data ?? []) as Record<string, unknown>[];
+  const where = conditions.length ? `WHERE ${conditions.join(" AND ")}` : "";
+  const rows = db.prepare(`
+    SELECT * FROM items
+    ${where}
+    ORDER BY COALESCE(pub_date, fetched_at) DESC
+    LIMIT @lim OFFSET @off
+  `).all(params) as Record<string, unknown>[];
   const hasMore = rows.length > limit;
-  return { items: (hasMore ? rows.slice(0, limit) : rows).map(toDbItem), hasMore };
+  const items = mapRowsToDbItems(hasMore ? rows.slice(0, limit) : rows);
+  return { items, hasMore };
 }
 
+
+/** ??????? id??guid????????????? MCP/API ????????? */
 export async function getItemById(id: string): Promise<DbItem | null> {
-  const { data, error } = await supabase.from("items").select("*").eq("id", id).maybeSingle();
-  throwIfError(error, "getItemById");
-  return data ? toDbItem(data as Record<string, unknown>) : null;
+  const db = await getDb();
+  const row = db.prepare("SELECT * FROM items WHERE id = @id").get({ id }) as Record<string, unknown> | undefined;
+  return row ? toDbItem(row) : null;
 }
 
-export async function queryItemsBySource(
-  sourceUrl: string,
-  limit = 50,
-  since?: Date,
-): Promise<DbItem[]> {
-  let query = supabase
-    .from("items")
-    .select("*")
-    .eq("source_url", sourceUrl)
-    .order("pub_date", { ascending: false, nullsFirst: false })
-    .order("fetched_at", { ascending: false })
-    .limit(limit);
 
-  if (since) query = query.gte("fetched_at", since.toISOString());
-
-  const { data, error } = await query;
-  throwIfError(error, "queryItemsBySource");
-  return (data ?? []).map((r) => toDbItem(r as Record<string, unknown>));
+/** ???????? URL ????????????????????????????????????? /api/feed ??????since ????????????????????????????????? */
+export async function queryItemsBySource(sourceUrl: string, limit = 50, since?: Date): Promise<DbItem[]> {
+  const db = await getDb();
+  const sinceClause = since ? "AND COALESCE(pub_date, fetched_at) >= @since" : "";
+  const rows = db.prepare(`
+    SELECT * FROM items
+    WHERE source_url = @sourceUrl ${sinceClause}
+    ORDER BY COALESCE(pub_date, fetched_at) DESC
+    LIMIT @limit
+  `).all({ sourceUrl, limit, since: since?.toISOString() ?? null }) as Record<string, unknown>[];
+  return mapRowsToDbItems(rows);
 }
 
+
+/** ??????????????????????? source_url???sourceUrls???author???tags ????????????????? since ????????????????????????? */
 export async function queryItems(opts: {
   sourceUrl?: string;
   sourceUrls?: string[];
@@ -302,96 +595,181 @@ export async function queryItems(opts: {
   since?: Date;
   until?: Date;
 }): Promise<{ items: DbItem[]; total: number }> {
+  const db = await getDb();
   const { sourceUrl, sourceUrls, author, q, tags: tagsFilter, limit = 20, offset = 0, since, until } = opts;
-
-  const { data, error } = await supabase.rpc("query_items", {
-    p_source_url: sourceUrl ?? null,
-    p_source_urls: sourceUrls?.length ? sourceUrls : null,
-    p_author: author?.trim().length && author.trim().length >= 2 ? author.trim() : null,
-    p_q: q ?? null,
-    p_tags: tagsFilter?.length ? tagsFilter : null,
-    p_since: since?.toISOString() ?? null,
-    p_until: until?.toISOString() ?? null,
-    p_limit: limit,
-    p_offset: offset,
-  });
-  throwIfError(error, "queryItems");
-  const rows = (data ?? []) as (Record<string, unknown> & { total_count: string | number })[];
-  const total = rows.length > 0 ? Number(rows[0].total_count) : 0;
-  return { items: rows.map(toDbItem), total };
+  const conditions: string[] = [];
+  const params: Record<string, unknown> = { limit, offset };
+  if (sourceUrl) {
+    conditions.push("i.source_url = @sourceUrl");
+    params.sourceUrl = sourceUrl;
+  } else if (sourceUrls && sourceUrls.length > 0) {
+    const placeholders = sourceUrls.map((_, i) => `@src${i}`).join(", ");
+    conditions.push(`i.source_url IN (${placeholders})`);
+    sourceUrls.forEach((s, i) => ((params as Record<string, unknown>)[`src${i}`] = s));
+  }
+  if (author && author.trim().length >= 2) {
+    conditions.push("instr(i.author, @author) > 0");
+    params.author = author.trim();
+  }
+  if (q) {
+    conditions.push("i.rowid IN (SELECT rowid FROM items_fts WHERE items_fts MATCH @q)");
+    params.q = q;
+  }
+  if (tagsFilter && tagsFilter.length > 0) {
+    const trimmed = tagsFilter.filter((t) => typeof t === "string" && t.trim()).map((t) => (t as string).trim());
+    if (trimmed.length > 0) {
+      const tagConds = trimmed
+        .map((_, i) => `LOWER(TRIM(json_each.value)) = LOWER(@tag${i})`)
+        .join(" OR ");
+      conditions.push(
+        `i.tags IS NOT NULL AND EXISTS (SELECT 1 FROM json_each(i.tags) WHERE ${tagConds})`
+      );
+      trimmed.forEach((t, i) => {
+        (params as Record<string, unknown>)[`tag${i}`] = t;
+      });
+    }
+  }
+  if (since) {
+    conditions.push("COALESCE(i.pub_date, i.fetched_at) >= @since");
+    params.since = since.toISOString();
+  }
+  if (until) {
+    conditions.push("COALESCE(i.pub_date, i.fetched_at) < @until");
+    params.until = until.toISOString();
+  }
+  const where = conditions.length ? `WHERE ${conditions.join(" AND ")}` : "";
+  const rows = db.prepare(`
+    SELECT i.id, i.url, i.source_url, i.title, i.author, i.summary, i.content, i.tags, i.translations, i.pub_date, i.fetched_at, i.pushed_at
+    FROM items i ${where}
+    ORDER BY COALESCE(i.pub_date, i.fetched_at) DESC
+    LIMIT @limit OFFSET @offset
+  `).all(params) as Record<string, unknown>[];
+  const { count } = db.prepare(`SELECT COUNT(*) as count FROM items i ${where}`).get(params) as { count: number };
+  return { items: mapRowsToDbItems(rows), total: count };
 }
 
+
+/** ??????????????? tags ???????????????????????????????????????????????????? */
 export async function removeTagFromAllItems(tag: string): Promise<number> {
   const trimmed = String(tag ?? "").trim();
   if (!trimmed) return 0;
-  const { data, error } = await supabase.rpc("remove_tag_from_all_items", { p_tag: trimmed });
-  throwIfError(error, "removeTagFromAllItems");
-  return Number(data ?? 0);
+  const targetLower = trimmed.toLowerCase();
+
+  return withWriteLock(async () => {
+  const db = await getDb();
+  const rows = db
+    .prepare("SELECT id, tags FROM items WHERE tags IS NOT NULL AND tags != ''")
+    .all() as { id: string; tags: string }[];
+
+  const updateStmt = db.prepare("UPDATE items SET tags = @tags WHERE id = @id");
+  let count = 0;
+  const run = db.transaction(() => {
+    for (const row of rows) {
+      let itemTags: string[];
+      try {
+        itemTags = JSON.parse(row.tags) as string[];
+      } catch {
+        continue;
+      }
+      const filtered = itemTags.filter((t) => String(t).trim().toLowerCase() !== targetLower);
+      if (filtered.length === itemTags.length) continue;
+      const nextTags = filtered.length > 0 ? JSON.stringify(filtered) : null;
+      updateStmt.run({ id: row.id, tags: nextTags });
+      count += 1;
+    }
+  });
+  run();
+  return count;
+  });
 }
 
+
+/** ???????????????? OpenWebUI???????? pushed_at ????? */
 export async function markPushed(ids: string[]): Promise<void> {
   if (ids.length === 0) return;
-  const { error } = await supabase
-    .from("items")
-    .update({ pushed_at: new Date().toISOString() })
-    .in("id", ids);
-  throwIfError(error, "markPushed");
+  return withWriteLock(async () => {
+  const db = await getDb();
+  const now = new Date().toISOString();
+  const stmt = db.prepare("UPDATE items SET pushed_at = @now WHERE id = @id");
+  const run = db.transaction((list: string[]) => {
+    for (const id of list) stmt.run({ now, id });
+  });
+  run(ids);
+  });
 }
 
+
+/** ??? id??guid??????????????????????? FTS ?????????????FTS ???? items_fts_src ???????? title_zh ??????? */
 export async function deleteItem(id: string): Promise<boolean> {
   if (!id?.trim()) return false;
-  const { error, count } = await supabase.from("items").delete({ count: "exact" }).eq("id", id.trim());
-  throwIfError(error, "deleteItem");
-  return (count ?? 0) > 0;
+  return withWriteLock(async () => {
+  const db = await getDb();
+  const run = db.transaction(() => {
+    const row = db.prepare("SELECT rowid FROM items WHERE id = @id").get({ id: id.trim() }) as { rowid: number } | undefined;
+    if (!row) return 0;
+    db.prepare("DELETE FROM items_fts WHERE rowid = @rowid").run({ rowid: row.rowid });
+    const info = db.prepare("DELETE FROM items WHERE id = @id").run({ id: id.trim() });
+    return info.changes;
+  });
+  return run() > 0;
+  });
 }
 
+/** ??? source_url ???????????????????????FTS ?????????????????????????????????????? */
 export async function deleteItemsBySourceUrl(sourceUrl: string): Promise<number> {
   if (!sourceUrl?.trim()) return 0;
-  const { error, count } = await supabase.from("items").delete({ count: "exact" }).eq("source_url", sourceUrl.trim());
-  throwIfError(error, "deleteItemsBySourceUrl");
-  return count ?? 0;
+  return withWriteLock(async () => {
+    const db = await getDb();
+    const info = db.prepare("DELETE FROM items WHERE source_url = @sourceUrl").run({ sourceUrl: sourceUrl.trim() });
+    return info.changes;
+  });
 }
 
+
+/** ??????????????????pushed_at ???? content ????? */
 export async function getPendingPushItems(limit = 100): Promise<DbItem[]> {
-  const { data, error } = await supabase
-    .from("items")
-    .select("*")
-    .is("pushed_at", null)
-    .not("content", "is", null)
-    .order("fetched_at", { ascending: true })
-    .limit(limit);
-  throwIfError(error, "getPendingPushItems");
-  return (data ?? []).map((r) => toDbItem(r as Record<string, unknown>));
+  const db = await getDb();
+  const rows = db.prepare(`
+    SELECT * FROM items
+    WHERE pushed_at IS NULL AND content IS NOT NULL
+    ORDER BY fetched_at ASC
+    LIMIT @limit
+  `).all({ limit }) as Record<string, unknown>[];
+  return mapRowsToDbItems(rows);
 }
 
+
+/** ?????????????????YYYY-MM-DD???????????????????????????????????????????? fetched_at ??????????? 300 ? */
 export async function getItemsForDate(date: string): Promise<DbItem[]> {
+  const db = await getDb();
   const start = new Date(`${date}T00:00:00`).toISOString();
   const end = new Date(`${date}T23:59:59.999`).toISOString();
-  const { data, error } = await supabase
-    .from("items")
-    .select("*")
-    .gte("fetched_at", start)
-    .lte("fetched_at", end)
-    .order("fetched_at", { ascending: false })
-    .limit(300);
-  throwIfError(error, "getItemsForDate");
-  return (data ?? []).map((r) => toDbItem(r as Record<string, unknown>));
+  const rows = db.prepare(`
+    SELECT * FROM items
+    WHERE fetched_at >= @start AND fetched_at <= @end
+    ORDER BY fetched_at DESC
+    LIMIT 300
+  `).all({ start, end }) as Record<string, unknown>[];
+  return mapRowsToDbItems(rows);
 }
 
+
+/** ??????? source_url ????????????????????????????????????????????????? */
 export async function getSourceStats(): Promise<{ source_url: string; count: number; latest_at: string | null }[]> {
-  const { data, error } = await supabase.rpc("get_source_stats");
-  throwIfError(error, "getSourceStats");
-  return (data ?? []).map((r: { source_url: string; count: string | number; latest_at: string | null }) => ({
-    source_url: r.source_url,
-    count: Number(r.count),
-    latest_at: r.latest_at,
-  }));
+  const db = await getDb();
+  return db.prepare(
+    "SELECT source_url, COUNT(*) as count, MAX(COALESCE(pub_date, fetched_at)) as latest_at FROM items GROUP BY source_url ORDER BY count DESC"
+  ).all() as { source_url: string; count: number; latest_at: string | null }[];
 }
 
-// ─── logs ──────────────────────────────────────────────────────────────────
 
+/** ??????????????????? logger ??????????????????????? logs.db?????????????????????? */
 export async function insertLog(entry: LogEntry): Promise<void> {
-  await supabase.from("logs").insert({
+  const db = await getLogsDb();
+  db.prepare(`
+    INSERT INTO logs (level, category, message, payload, source_url, created_at)
+    VALUES (@level, @category, @message, @payload, NULL, @created_at)
+  `).run({
     level: entry.level,
     category: entry.category,
     message: entry.message,
@@ -400,6 +778,8 @@ export async function insertLog(entry: LogEntry): Promise<void> {
   });
 }
 
+
+/** ????????????????????????????????????????????????????????? logs.db?? */
 export async function queryLogs(opts: {
   level?: LogEntry["level"];
   category?: LogEntry["category"];
@@ -407,89 +787,155 @@ export async function queryLogs(opts: {
   offset?: number;
   since?: Date;
 }): Promise<{ items: DbLog[]; total: number }> {
+  const db = await getLogsDb();
   const { level, category, limit = 50, offset = 0, since } = opts;
-
-  let query = supabase.from("logs").select("id, level, category, message, payload, created_at", { count: "exact" });
-  if (level) query = query.eq("level", level);
-  if (category) query = query.eq("category", category);
-  if (since) query = query.gte("created_at", since.toISOString());
-
-  const { data, error, count } = await query
-    .order("created_at", { ascending: false })
-    .range(offset, offset + limit - 1);
-
-  throwIfError(error, "queryLogs");
-  return { items: (data ?? []) as DbLog[], total: count ?? 0 };
+  const conditions: string[] = [];
+  const params: Record<string, unknown> = { limit, offset };
+  if (level) {
+    conditions.push("level = @level");
+    params.level = level;
+  }
+  if (category) {
+    conditions.push("INSTR(LOWER(category), LOWER(@categoryPattern)) > 0");
+    params.categoryPattern = category;
+  }
+  if (since) {
+    conditions.push("created_at >= @since");
+    params.since = since.toISOString();
+  }
+  const where = conditions.length ? `WHERE ${conditions.join(" AND ")}` : "";
+  const rows = db.prepare(`
+    SELECT id, level, category, message, payload, created_at
+    FROM logs ${where}
+    ORDER BY created_at DESC
+    LIMIT @limit OFFSET @offset
+  `).all(params) as DbLog[];
+  const { count } = db.prepare(`SELECT COUNT(*) as count FROM logs ${where}`).get(params) as { count: number };
+  return { items: rows, total: count };
 }
 
-// ─── 标签统计（复用 items 数据）──────────────────────────────────────────────
 
+/** ????????????????????????????? .rssany/tags.json?????? pipeline tagger ????? */
+export async function getSystemTags(): Promise<string[]> {
+  try {
+    const raw = await readFile(TAGS_CONFIG_PATH, "utf-8");
+    const parsed = JSON.parse(raw) as { tags?: unknown[] };
+    if (!Array.isArray(parsed?.tags)) return [];
+    return parsed.tags
+      .filter((t): t is string => typeof t === "string" && t.trim().length > 0)
+      .map((t) => t.trim());
+  } catch {
+    return [];
+  }
+}
+
+/** ???????????? .rssany/tags.json */
+export async function saveSystemTagsToFile(tags: string[]): Promise<void> {
+  const list = tags
+    .filter((t) => typeof t === "string" && t.trim())
+    .map((t) => t.trim());
+  await writeFile(TAGS_CONFIG_PATH, JSON.stringify({ tags: list }, null, 2), "utf-8");
+}
+
+/** ??????????????????????????????????????????????? tags.json + DB */
+export async function getSystemTagStats(): Promise<TagStat[]> {
+  const systemTags = await getSystemTags();
+  if (systemTags.length === 0) return [];
+
+  const db = await getDb();
+  const rows = db
+    .prepare("SELECT tags, pub_date, fetched_at FROM items WHERE tags IS NOT NULL AND tags != ''")
+    .all() as { tags: string; pub_date: string | null; fetched_at: string }[];
+
+  const now = Date.now();
+  const tagMap = new Map<string, { count: number; hotness: number }>();
+  for (const name of systemTags) {
+    tagMap.set(name.toLowerCase(), { count: 0, hotness: 0 });
+  }
+
+  for (const row of rows) {
+    let itemTags: string[];
+    try {
+      itemTags = JSON.parse(row.tags) as string[];
+    } catch {
+      continue;
+    }
+    const pubMs = row.pub_date ? Date.parse(row.pub_date) : null;
+    const fetchedMs = Date.parse(row.fetched_at);
+    const factor = recencyFactor(pubMs, fetchedMs, now);
+
+    for (const t of itemTags) {
+      const key = String(t).trim().toLowerCase();
+      const entry = tagMap.get(key);
+      if (entry) {
+        entry.count += 1;
+        entry.hotness += factor;
+      }
+    }
+  }
+
+  return systemTags.map((name) => {
+    const entry = tagMap.get(name.toLowerCase()) ?? { count: 0, hotness: 0 };
+    return {
+      name,
+      count: entry.count,
+      hotness: Math.round(entry.hotness * 100) / 100,
+    };
+  });
+}
+
+/** ?????????????????????????? + ???? + track ??????????? */
+export interface TagStat {
+  name: string;
+  count: number;
+  hotness: number;
+  period?: number;
+}
+
+/** ?????????????? tag ??????????? 1/(1 + days_ago/7)?????????????? */
 function recencyFactor(pubDateMs: number | null, fetchedAtMs: number, nowMs: number): number {
   const ref = pubDateMs ?? fetchedAtMs;
   const daysAgo = (nowMs - ref) / (24 * 60 * 60 * 1000);
   return 1 / (1 + Math.max(0, daysAgo) / 7);
 }
 
-export async function getSystemTagStats(): Promise<TagStat[]> {
-  const systemTags = await getSystemTags();
-  if (systemTags.length === 0) return [];
-
-  const { data } = await supabase
-    .from("items")
-    .select("tags, pub_date, fetched_at")
-    .not("tags", "is", null)
-    .neq("tags", "");
-
-  const now = Date.now();
-  const tagMap = new Map<string, { count: number; hotness: number }>();
-  for (const name of systemTags) tagMap.set(name.toLowerCase(), { count: 0, hotness: 0 });
-
-  for (const row of (data ?? [])) {
-    let itemTags: string[];
-    try { itemTags = JSON.parse(row.tags as string) as string[]; } catch { continue; }
-    const pubMs = row.pub_date ? Date.parse(row.pub_date as string) : null;
-    const fetchedMs = Date.parse(row.fetched_at as string);
-    const factor = recencyFactor(pubMs, fetchedMs, now);
-    for (const t of itemTags) {
-      const key = String(t).trim().toLowerCase();
-      const entry = tagMap.get(key);
-      if (entry) { entry.count += 1; entry.hotness += factor; }
-    }
-  }
-
-  return systemTags.map((name) => {
-    const entry = tagMap.get(name.toLowerCase()) ?? { count: 0, hotness: 0 };
-    return { name, count: entry.count, hotness: Math.round(entry.hotness * 100) / 100 };
-  });
-}
-
+/** ?????????????????????????????????????????????????????????????? 5 ??????? > 20 */
 export async function getSuggestedTags(): Promise<TagStat[]> {
   const systemTags = await getSystemTags();
   const systemLower = new Set(systemTags.map((t) => t.toLowerCase().trim()));
 
-  const { data } = await supabase
-    .from("items")
-    .select("tags, pub_date, fetched_at")
-    .not("tags", "is", null)
-    .neq("tags", "");
+  const db = await getDb();
+  const rows = db
+    .prepare("SELECT tags, pub_date, fetched_at FROM items WHERE tags IS NOT NULL AND tags != ''")
+    .all() as { tags: string; pub_date: string | null; fetched_at: string }[];
 
   const tagMap = new Map<string, { name: string; count: number; hotness: number }>();
   const now = Date.now();
 
-  for (const row of (data ?? [])) {
+  for (const row of rows) {
     let tags: string[];
-    try { tags = JSON.parse(row.tags as string) as string[]; } catch { continue; }
-    const pubMs = row.pub_date ? Date.parse(row.pub_date as string) : null;
-    const fetchedMs = Date.parse(row.fetched_at as string);
+    try {
+      tags = JSON.parse(row.tags) as string[];
+    } catch {
+      continue;
+    }
+    const pubMs = row.pub_date ? Date.parse(row.pub_date) : null;
+    const fetchedMs = Date.parse(row.fetched_at);
     const factor = recencyFactor(pubMs, fetchedMs, now);
+
     for (const t of tags) {
       const trimmed = String(t).trim();
       if (!trimmed) continue;
       const key = trimmed.toLowerCase();
       if (systemLower.has(key)) continue;
+
       const existing = tagMap.get(key);
-      if (existing) { existing.count += 1; existing.hotness += factor; }
-      else tagMap.set(key, { name: trimmed, count: 1, hotness: factor });
+      if (existing) {
+        existing.count += 1;
+        existing.hotness += factor;
+      } else {
+        tagMap.set(key, { name: trimmed, count: 1, hotness: factor });
+      }
     }
   }
 
@@ -500,45 +946,7 @@ export async function getSuggestedTags(): Promise<TagStat[]> {
     .map((s) => ({ name: s.name, count: s.count, hotness: Math.round(s.hotness * 100) / 100 }));
 }
 
-// ─── Agent 任务（Supabase user_agent_tasks）& 系统标签（文件）────────────────────────
-
-export type { AgentTask } from "./userAgentTasks.js";
-
-export {
-  ensureDailySubscriptionsForUser,
-  getDailySubscriptionMap,
-  setDailySubscription,
-  listUserIdsWithEnabledDailySubscription,
-  listUserIdsWithTopicScheduling,
-  hasAnyEnabledSubscriberForDailyKey,
-  listEnabledSubscribersWithEmailForDailyKey,
-  probeDailySubscriptionsTableAvailable,
-  subscriptionsTableNotReadyMessage,
-  isMissingSubscriptionsTableError,
-} from "./userDailySubscriptions.js";
-
-export async function getSystemTags(): Promise<string[]> {
-  try {
-    const raw = await readFile(TAGS_CONFIG_PATH, "utf-8");
-    const parsed = JSON.parse(raw) as { tags?: unknown[] };
-    if (!Array.isArray(parsed?.tags)) return [];
-    return parsed.tags
-      .filter((t): t is string => typeof t === "string" && t.trim().length > 0)
-      .map((t) => t.trim());
-  } catch { return []; }
-}
-
-export async function saveSystemTagsToFile(tags: string[]): Promise<void> {
-  const list = tags.filter((t) => typeof t === "string" && t.trim()).map((t) => t.trim());
-  await writeFile(TAGS_CONFIG_PATH, JSON.stringify({ tags: list }, null, 2), "utf-8");
-}
-
-export async function getTagPeriods(): Promise<Record<string, number>> {
-  return {};
-}
-
-// ─── 类型 ──────────────────────────────────────────────────────────────────
-
+/** ???????????????snake_case???? FeedItem ??????????author / tags ????????????? */
 export interface DbItem {
   id: string;
   url: string;
@@ -555,6 +963,7 @@ export interface DbItem {
   pushed_at: string | null;
 }
 
+/** ????????????? */
 export interface DbLog {
   id: number;
   level: string;
@@ -562,11 +971,4 @@ export interface DbLog {
   message: string;
   payload: string | null;
   created_at: string;
-}
-
-export interface TagStat {
-  name: string;
-  count: number;
-  hotness: number;
-  period?: number;
 }

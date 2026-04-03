@@ -41,6 +41,19 @@
   --radius-sm: 6px;
   --radius-md: 8px;
   --radius-lg: 10px;
+
+  /** 与顶栏对齐：主内容区最大宽度与左右留白 */
+  --shell-gutter: clamp(0.75rem, 2.5vw, 1.5rem);
+  --content-max: min(840px, calc(100vw - 2 * var(--shell-gutter)));
+
+  /** 与 `.topbar` 总高度一致：子区域 sticky 时贴在顶栏下方（随顶栏 padding 变更需同步） */
+  --topbar-sticky-offset: calc(1rem + 0.5rem + 1.625rem + 1px);
+
+  /** `+layout` 里 `main` 上内边距；信源列表吸顶条用负 margin 收回并写回吸顶层，避免该段随滚动 */
+  --main-padding-top: 1.5rem;
+
+  /** 吸顶块（工具条+表头）与下方滚动列表之间：放在 sticky 盒子内侧，避免只靠列表行 padding 时随滚动顶进吸顶区 */
+  --feed-sticky-gap-after: 1rem;
 }
 
 html {
@@ -178,36 +191,4 @@ body {
 
 .page-header .options-menu-trigger {
   margin-top: 0.1rem;
-}
-
-/**
- * Hairline under/over full-width blocks, inset to match horizontal padding (not edge-to-edge).
- * Match --ui-rule-inset to the block's padding-inline (default 1.25rem).
- */
-.ui-rule-b {
-  position: relative;
-  border-bottom: none;
-}
-.ui-rule-b::after {
-  content: '';
-  position: absolute;
-  inset-inline: var(--ui-rule-inset, 1.25rem);
-  bottom: 0;
-  height: 1px;
-  background: var(--ui-rule-color, var(--color-border-muted));
-  pointer-events: none;
-}
-
-.ui-rule-t {
-  position: relative;
-  border-top: none;
-}
-.ui-rule-t::before {
-  content: '';
-  position: absolute;
-  inset-inline: var(--ui-rule-inset, 1.25rem);
-  top: 0;
-  height: 1px;
-  background: var(--ui-rule-color, var(--color-border-muted));
-  pointer-events: none;
 }

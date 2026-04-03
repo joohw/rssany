@@ -1,127 +1,93 @@
 <script lang="ts">
   /// <reference path="../lucide-svelte.d.ts" />
-  import { browser } from '$app/environment';
-  import { goto } from '$app/navigation';
-  import { page } from '$app/stores';
-  import { get } from 'svelte/store';
-  import { onDestroy, onMount } from 'svelte';
-  import { fade, fly } from 'svelte/transition';
-  import { cubicIn, cubicOut } from 'svelte/easing';
-  import MessageCircle from 'lucide-svelte/icons/message-circle';
+  import Coffee from 'lucide-svelte/icons/coffee';
   import Settings from 'lucide-svelte/icons/settings';
-  import FeedsNavBar from '$lib/components/FeedsNavBar.svelte';
-  import { agentOverlayOpen } from '$lib/agentOverlay';
-  import AgentOverlayHost from '$lib/AgentOverlayHost.svelte';
-  import {
-    syncAgentSessionFromApi,
-    agentSessionReady,
-    agentSessionUserId,
-  } from '$lib/agentSession';
+  import { siGithub } from 'simple-icons';
+  import { page } from '$app/stores';
+  import { PRODUCT_NAME, GITHUB_REPO_URL } from '$lib/brand';
   import '../app.css';
 
-  onMount(() => {
-    if (!browser) return;
-    void syncAgentSessionFromApi();
-  });
-
-  function closeAgentOverlay() {
-    agentOverlayOpen.set(false);
-  }
-
-  function toggleAgentOverlay() {
-    agentOverlayOpen.update((o) => !o);
-  }
-
-  /** 未登录时与 /me 一致：最终到首页（见 me/+layout 鉴权跳转） */
-  async function onAgentButtonClick() {
-    // 首次 /api/auth/me 失败时 ready 已为 true 但 userId 仍为 null；须重试，否则会误判未登录
-    if (!get(agentSessionReady) || get(agentSessionUserId) === null) {
-      await syncAgentSessionFromApi();
+  /** 首页与若干后台列表页：主区域占满顶栏下剩余高度，仅内部滚动 */
+  function isMainFillRoute(pathname: string): boolean {
+    if (pathname === '/' || pathname === '/admin') return true;
+    if (
+      pathname === '/admin/sources' ||
+      pathname === '/admin/tags' ||
+      pathname === '/admin/plugins' ||
+      pathname === '/admin/logs'
+    ) {
+      return true;
     }
-    if (get(agentSessionUserId) === null) {
-      agentOverlayOpen.set(false);
-      await goto('/');
-      return;
-    }
-    toggleAgentOverlay();
+    if (pathname.startsWith('/admin/plugins/') || pathname.startsWith('/admin/logs/')) return true;
+    return false;
   }
 
-  function onWindowKeydown(e: KeyboardEvent) {
-    if (!$agentOverlayOpen) return;
-    if (e.key === 'Escape') {
-      e.preventDefault();
-      closeAgentOverlay();
-    }
-  }
+  $: pathname = $page.url.pathname;
+  $: mainFillHeight = isMainFillRoute(pathname);
 
-  $: if (browser) {
-    document.documentElement.style.overflow = $agentOverlayOpen ? 'hidden' : '';
-  }
-
-  onDestroy(() => {
-    if (browser) document.documentElement.style.overflow = '';
-  });
-
-  // Home is marketing/login only: no app chrome
-  $: bareHome = $page.url.pathname === '/';
-
+  $: navActive = {
+    logs: pathname === '/admin/logs' || pathname.startsWith('/admin/logs/'),
+    plugins: pathname.startsWith('/admin/plugins'),
+    tags: pathname === '/admin/tags' || pathname.startsWith('/admin/tags/'),
+  } as const;
 </script>
 
-<svelte:window on:keydown={onWindowKeydown} />
-
-{#if bareHome}
-  <div class="layout-bare">
-    <slot />
-  </div>
-{:else}
-  <div class="layout-outer">
+<div class="layout-outer">
+  <div id="layout-inner-scroll" class="layout-inner">
     <header class="topbar">
-      <div class="topbar-inner">
-        <nav class="topbar-left" aria-label="Primary">
-          <button
-            type="button"
-            class="topbar-link {$agentOverlayOpen ? 'topbar-link-active' : ''}"
-            title="NewsClaw"
-            aria-label="NewsClaw"
-            aria-expanded={$agentOverlayOpen}
-            aria-pressed={$agentOverlayOpen}
-            on:click={onAgentButtonClick}
+      <div class="shell topbar-row">
+        <div class="topbar-left">
+          <a href="/" class="topbar-brand">
+            <span class="logo-icon" aria-hidden="true">
+              <Coffee size={16} />
+            </span>
+            <span>{PRODUCT_NAME}</span>
+          </a>
+          <a
+            class="github-link"
+            href={GITHUB_REPO_URL}
+            target="_blank"
+            rel="noopener noreferrer"
+            aria-label="在 GitHub 打开源码仓库"
+            title="GitHub"
           >
-            <span class="topbar-icon"><MessageCircle size={20} /></span>
-          </button>
-        </nav>
-        <div class="topbar-center">
-          <FeedsNavBar />
+            <svg class="github-icon" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+              <path fill="currentColor" d={siGithub.path} />
+            </svg>
+          </a>
         </div>
-        <a href="/me" class="topbar-right" title="Settings" aria-label="Settings">
-          <span class="topbar-icon"><Settings size={20} /></span>
-        </a>
+        <div class="topbar-end">
+          <nav class="topbar-quick" aria-label="后台快捷入口">
+            <a
+              href="/admin/logs"
+              class="topbar-quick-link"
+              class:active={navActive.logs}
+              title="运行日志"
+            >日志</a>
+            <a
+              href="/admin/plugins"
+              class="topbar-quick-link"
+              class:active={navActive.plugins}
+              title="信源与扩展插件"
+            >插件</a>
+            <a
+              href="/admin/tags"
+              class="topbar-quick-link"
+              class:active={navActive.tags}
+              title="标签与分类"
+            >标签</a>
+          </nav>
+          <a href="/admin" class="topbar-right" title="管理后台" aria-label="管理后台">
+            <span class="topbar-icon"><Settings size={20} /></span>
+          </a>
+        </div>
       </div>
     </header>
-    <div id="layout-inner-scroll" class="layout-inner">
-      <main class="main">
-        <slot />
-      </main>
-    </div>
+    <main class="main shell" class:main-fill={mainFillHeight}>
+      <slot />
+    </main>
   </div>
-  {#if $agentOverlayOpen}
-    <div
-      class="agent-me-overlay"
-      role="dialog"
-      aria-modal="true"
-      aria-label="NewsClaw"
-      in:fade={{ duration: 280, easing: cubicOut }}
-      out:fade={{ duration: 200, easing: cubicIn }}
-    >
-      <div
-        class="agent-me-overlay-body"
-        in:fly={{ y: 28, duration: 360, delay: 40, easing: cubicOut }}
-      >
-        <AgentOverlayHost />
-      </div>
-    </div>
-  {/if}
-{/if}
+</div>
 
 <style>
   :global(*, *::before, *::after) {
@@ -130,7 +96,6 @@
     padding: 0;
   }
 
-  /* Default styles only for buttons with no class; styled buttons (e.g. Tailwind) keep their own */
   :global(button:not([class])),
   :global(button[class='']) {
     font: inherit;
@@ -152,21 +117,7 @@
     cursor: not-allowed;
   }
 
-  .layout-bare {
-    width: 100%;
-    flex: 1;
-    min-height: 0;
-    display: flex;
-    flex-direction: column;
-    overflow-x: hidden;
-    overflow-y: auto;
-    overscroll-behavior-y: contain;
-  }
-
   .layout-outer {
-    --shell-gutter: clamp(0.75rem, 2.5vw, 1.5rem);
-    /* Same max width as main/feeds: fluid with viewport, soft cap for line length */
-    --feeds-column-max: min(840px, calc(100vw - 2 * var(--shell-gutter)));
     box-sizing: border-box;
     display: flex;
     flex-direction: column;
@@ -175,39 +126,118 @@
     min-height: 0;
     overflow: hidden;
   }
+
+  /**
+   * 与主内容共用同一滚动条与同一列宽，避免顶栏与正文因滚动条占位不对齐。
+   * shell：统一 max-width + 水平留白（略收紧顶栏上下内边距）
+   */
+  .shell {
+    box-sizing: border-box;
+    width: 100%;
+    max-width: var(--content-max);
+    margin-left: auto;
+    margin-right: auto;
+    padding-inline: var(--shell-gutter);
+  }
+
   .topbar {
+    position: sticky;
+    top: 0;
+    z-index: 20;
     flex-shrink: 0;
     width: 100%;
-    z-index: 20;
     border-bottom: 1px solid var(--color-border);
     background: var(--color-background);
   }
-  .topbar-inner {
-    box-sizing: border-box;
-    width: 100%;
-    display: grid;
-    /* Left: Ask/Tasks | Center: feeds (same max width as main) | Right: settings */
-    grid-template-columns: 1fr minmax(0, var(--feeds-column-max)) 1fr;
-    align-items: start;
-    column-gap: clamp(0.5rem, 2vw, 1rem);
-    padding: 0.65rem var(--shell-gutter);
+  .topbar-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 1rem;
+    padding-top: 1rem;
+    padding-bottom: 0.5rem;
   }
   .topbar-left {
     display: flex;
-    flex-direction: row;
-    gap: 0.2rem;
     align-items: center;
-    justify-self: start;
-    justify-content: flex-start;
+    gap: 0.65rem;
+    min-width: 0;
+  }
+  .topbar-brand {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.45rem;
+    font-size: 0.9375rem;
+    font-weight: 600;
+    letter-spacing: -0.03em;
+    color: var(--color-foreground);
+    text-decoration: none;
+  }
+  .topbar-brand:hover {
+    color: var(--color-primary);
+  }
+  .logo-icon {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 1rem;
+    height: 1rem;
+    color: var(--color-muted-foreground);
+    opacity: 0.92;
+  }
+  .github-link {
+    display: inline-flex;
+    align-items: center;
+    flex-shrink: 0;
+    color: var(--color-muted-foreground);
+    text-decoration: none;
+    padding: 0.25rem;
+    margin: -0.25rem;
+    border-radius: 6px;
+    transition:
+      color 0.15s ease,
+      background 0.15s ease;
+  }
+  .github-link:hover {
+    color: var(--color-foreground);
+    background: var(--color-muted);
+  }
+  .github-icon {
+    width: 18px;
+    height: 18px;
+    display: block;
+    opacity: 0.92;
+  }
+  .topbar-end {
+    display: flex;
+    align-items: center;
+    gap: 0.15rem;
     flex-shrink: 0;
   }
-  .topbar-center {
-    min-width: 0;
-    width: 100%;
+  .topbar-quick {
     display: flex;
-    justify-content: flex-start;
-    align-items: flex-start;
-    padding-top: 0.1rem;
+    align-items: center;
+    gap: 0.1rem;
+    margin-right: 0.35rem;
+  }
+  .topbar-quick-link {
+    font-size: 0.8125rem;
+    font-weight: 500;
+    color: var(--color-muted-foreground-strong);
+    text-decoration: none;
+    padding: 0.35rem 0.55rem;
+    border-radius: 6px;
+    transition:
+      color 0.15s ease,
+      background 0.15s ease;
+    white-space: nowrap;
+  }
+  .topbar-quick-link:hover:not(.active) {
+    color: var(--color-foreground);
+    background: var(--color-muted);
+  }
+  .topbar-quick-link.active {
+    color: var(--color-primary);
   }
   .layout-inner {
     display: flex;
@@ -215,40 +245,24 @@
     flex: 1;
     min-height: 0;
     width: 100%;
-    padding-top: 0.75rem;
-    padding-inline: var(--shell-gutter);
     overflow-y: auto;
     overflow-x: hidden;
     overscroll-behavior-y: contain;
+    scrollbar-gutter: stable;
   }
-  .topbar-link {
+  .topbar-right {
     display: flex;
     align-items: center;
     justify-content: center;
     color: var(--color-muted-foreground);
+    padding: 0.5rem;
+    border-radius: 8px;
     text-decoration: none;
-    padding: 0.45rem;
-    border-radius: var(--radius-sm, 6px);
-    transition: color 0.12s ease, background 0.12s ease;
+    flex-shrink: 0;
   }
-  button.topbar-link {
-    appearance: none;
-    border: none;
-    background: transparent;
-    font: inherit;
-    cursor: pointer;
-  }
-  .topbar-link:hover {
-    color: var(--color-accent-foreground);
+  .topbar-right:hover {
+    color: var(--color-primary);
     background: var(--color-muted);
-  }
-  .topbar-link-active {
-    color: var(--color-primary-foreground);
-    background: var(--color-primary);
-  }
-  .topbar-link-active:hover {
-    color: var(--color-primary-foreground);
-    background: var(--color-primary-hover);
   }
   .topbar-icon {
     display: inline-flex;
@@ -262,65 +276,17 @@
     width: 20px;
     height: 20px;
   }
-  .topbar-right {
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    justify-self: end;
-    color: var(--color-muted-foreground);
-    padding: 0.5rem;
-    border-radius: 8px;
-    text-decoration: none;
-    flex-shrink: 0;
-  }
-  .topbar-right:hover {
-    color: var(--color-primary);
-    background: var(--color-muted);
-  }
   .main {
-    flex: 1;
+    flex: 0 1 auto;
     min-width: 0;
-    min-height: 0;
-    width: 100%;
-    max-width: var(--feeds-column-max);
-    margin-left: auto;
-    margin-right: auto;
     display: flex;
     flex-direction: column;
+    padding-top: var(--main-padding-top);
+    padding-bottom: 1.5rem;
   }
-  /* 小窗 + 四周等距留白 + 背景模糊衬底；中间卡片略窄于信息流栏宽 */
-  .agent-me-overlay {
-    --shell-gutter: clamp(0.75rem, 2.5vw, 1.5rem);
-    --feeds-column-max: min(840px, calc(100vw - 2 * var(--shell-gutter)));
-    --agent-overlay-inset: clamp(0.75rem, 2.2vw, 1.35rem);
-    box-sizing: border-box;
-    position: fixed;
-    inset: 0;
-    z-index: 100;
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    min-height: 0;
-    padding: var(--agent-overlay-inset);
-    overflow: hidden;
-    background: rgba(0, 0, 0, 0.52);
-    backdrop-filter: blur(12px);
-    -webkit-backdrop-filter: blur(12px);
-  }
-  .agent-me-overlay-body {
-    /* 与顶栏上下边距同一量级，避免仅左右偏大导致图标区不协调 */
-    --shell-gutter: clamp(0.65rem, 1.8vw, 0.8rem);
-    width: 100%;
-    max-width: min(720px, 100%);
+  .main.main-fill {
     flex: 1;
     min-height: 0;
-    display: flex;
-    flex-direction: column;
     overflow: hidden;
-    border-radius: var(--radius-lg, 12px);
-    background: var(--color-background);
-    box-shadow:
-      0 0 0 1px color-mix(in srgb, var(--color-border) 80%, transparent),
-      0 25px 50px -12px rgba(0, 0, 0, 0.28);
   }
 </style>

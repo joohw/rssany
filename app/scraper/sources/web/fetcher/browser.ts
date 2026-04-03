@@ -315,7 +315,7 @@ export async function ensureAuth(
   authFlow: AuthFlow,
   cacheDir: string
 ): Promise<void> {
-  const { checkAuth, loginUrl, domain, loginTimeoutMs = 60 * 1000, pollIntervalMs = 2000 } = authFlow;
+  const { checkAuth, loginUrl, loginTimeoutMs = 60 * 1000, pollIntervalMs = 2000 } = authFlow;
   const browser = await getOrCreateBrowser({ headless: false, cacheDir });
   const page = await browser.newPage();
   try {

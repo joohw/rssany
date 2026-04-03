@@ -2,8 +2,8 @@
 
 import { createHash } from "node:crypto";
 import { applyPurify } from "../fetcher/purify.js";
-import { chatJson } from "../../../../agent/llm.js";
-import { getLLMConfig } from "../../../../agent/config.js";
+import { chatJson } from "../../../../core/llm.js";
+import { getLLMConfig } from "../../../../core/llmConfig.js";
 import type { FeedItem } from "../../../../types/feedItem.js";
 import type { ParsedEntry } from "./types.js";
 

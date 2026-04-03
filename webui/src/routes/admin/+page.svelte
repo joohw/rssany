@@ -1,6 +1,7 @@
 <script lang="ts">
   import { PRODUCT_NAME } from '$lib/brand';
   import { onMount, onDestroy } from 'svelte';
+  import { adminFetch } from '$lib/adminAuth';
 
   interface GroupStats {
     running: number;
@@ -37,8 +38,6 @@
     {
       title: '管理',
       links: [
-        { href: '/admin/channels', label: '频道', desc: '首页信息流分组与信源聚合' },
-        { href: '/admin/sources', label: '信源', desc: 'sources.json 订阅列表、刷新策略与强制拉取' },
         { href: '/admin/tags', label: '标签', desc: '系统标签库，新入库条目由 LLM 自动匹配打标签' },
         { href: '/admin/pipeline', label: 'Pipeline', desc: '入库前处理（打标签、翻译），支持顺序与开关' },
         { href: '/admin/plugins', label: '插件', desc: '已加载插件与登录状态' },
@@ -47,9 +46,7 @@
     {
       title: '集成',
       links: [
-        { href: '/admin/mcp', label: 'MCP', desc: 'MCP 接入配置说明' },
-        { href: '/admin/deliver', label: '投递', desc: '开始投递后本机作为纯爬虫节点，不写本地数据库' },
-        { href: '/admin/distributed-crawler', label: '分布式爬虫', desc: '将爬虫 POST 端点指向当前服务器' },
+        { href: '/admin/deliver', label: '投递', desc: '配置下游 URL；有 URL 时抓取结果仅 POST，不入本地条目库' },
       ],
     },
     {
@@ -67,7 +64,7 @@
 
   async function fetchSchedulerStats() {
     try {
-      const r = await fetch('/api/scheduler/stats');
+      const r = await adminFetch('/api/scheduler/stats');
       const text = await r.text();
       schedulerStats = text.trim() ? JSON.parse(text) : {};
     } catch {
@@ -93,12 +90,15 @@
 
 <div class="feed-wrap">
   <div class="feed-col">
-    <div class="feed-header ui-rule-b">
-      <h2>设置</h2>
-      <p class="sub">管理入口与调试工具</p>
+    <div class="settings-toolbar-block">
+      <div class="feed-header">
+        <h2>设置</h2>
+        <p class="sub">管理入口与调试工具</p>
+      </div>
     </div>
 
-    <div class="body">
+    <div class="settings-body-scroll">
+      <div class="body">
       {#if Object.keys(schedulerStats).length > 0}
         <section class="scheduler-section">
           <h3 class="section-title">调度任务</h3>
@@ -142,32 +142,51 @@
           </div>
         </section>
       {/each}
+      </div>
     </div>
   </div>
 </div>
 
 <style>
+  /**
+   * 与首页信源区一致：对消 main padding；标题区固定；仅 `.settings-body-scroll` 内滚动。
+   */
   .feed-wrap {
-    max-width: var(--feeds-column-max, 720px);
+    margin-top: calc(-1 * var(--main-padding-top));
     width: 100%;
-    margin: 0 auto;
-    flex: 1;
-    min-height: 0;
+    max-width: 100%;
     display: flex;
     flex-direction: column;
+    flex: 1;
+    min-height: 0;
     overflow: hidden;
   }
   .feed-col {
-    flex: 1;
     display: flex;
     flex-direction: column;
-    overflow: hidden;
+    flex: 1;
     min-height: 0;
+    overflow: hidden;
     background: transparent;
   }
-  .feed-header {
-    padding: 0.875rem 1.25rem;
+  .settings-toolbar-block {
     flex-shrink: 0;
+    padding-top: var(--main-padding-top);
+    padding-bottom: var(--feed-sticky-gap-after);
+    background: var(--color-background);
+    border-bottom: 1px solid var(--color-border-muted);
+  }
+  .feed-header {
+    padding: 0;
+    flex-shrink: 0;
+  }
+  .settings-body-scroll {
+    flex: 1;
+    min-height: 0;
+    overflow-y: auto;
+    overflow-x: hidden;
+    overscroll-behavior-y: contain;
+    -webkit-overflow-scrolling: touch;
   }
   .feed-header h2 {
     font-size: 0.9375rem;
@@ -182,16 +201,8 @@
   }
 
   .body {
-    flex: 1;
-    overflow-y: auto;
-    padding: 1rem 1.25rem;
-  }
-  .body::-webkit-scrollbar {
-    width: 4px;
-  }
-  .body::-webkit-scrollbar-thumb {
-    background: var(--color-scrollbar-thumb);
-    border-radius: 2px;
+    padding: 1rem 0 1.5rem;
+    box-sizing: border-box;
   }
 
   .section-title {

@@ -1,7 +1,7 @@
 <script lang="ts">
   import { PRODUCT_NAME } from '$lib/brand';
   import { onMount } from 'svelte';
-  import { fetchJson } from '$lib/fetchJson.js';
+  import { adminFetchJson } from '$lib/adminAuth';
   import { showToast } from '$lib/toastStore.js';
 
   interface TagStat {
@@ -22,7 +22,7 @@
   async function load() {
     loading = true;
     try {
-      const data = await fetchJson<{ tags?: string[]; stats?: TagStat[]; suggestedTags?: TagStat[] }>('/api/tags');
+      const data = await adminFetchJson<{ tags?: string[]; stats?: TagStat[]; suggestedTags?: TagStat[] }>('/api/tags');
       tags = data?.tags ?? [];
       stats = data?.stats ?? [];
       suggestedTags = data?.suggestedTags ?? [];
@@ -42,7 +42,7 @@
   async function save(newTags: string[]) {
     saving = true;
     try {
-      const data = await fetchJson<{ ok?: boolean; message?: string; tags?: string[]; stats?: TagStat[]; suggestedTags?: TagStat[] }>(
+      const data = await adminFetchJson<{ ok?: boolean; message?: string; tags?: string[]; stats?: TagStat[]; suggestedTags?: TagStat[] }>(
         '/api/tags',
         {
           method: 'PUT',
@@ -99,7 +99,7 @@
     removingFromItems = true;
     contextMenu = null;
     try {
-      const data = await fetchJson<{
+      const data = await adminFetchJson<{
         ok?: boolean;
         message?: string;
         removedCount?: number;
@@ -142,20 +142,15 @@
 
 <div class="feed-wrap">
   <div class="feed-col">
-    <div class="feed-header ui-rule-b">
-      <div class="header-left">
-        <h2>系统标签</h2>
-        <p class="page-desc">
-          系统标签库，新入库条目会由 LLM 自动匹配打标签。
-        </p>
-      </div>
-    </div>
-
-    {#if loading}
-      <div class="state">加载中…</div>
-    {:else}
-      <div class="body">
-        <div class="add-row">
+    <div class="feed-toolbar-block">
+      <div class="feed-header">
+        <div class="header-left">
+          <h2>系统标签</h2>
+          <p class="page-desc">
+            系统标签库，新入库条目会由 LLM 自动匹配打标签。
+          </p>
+        </div>
+        <div class="header-right">
           <input
             type="text"
             class="tag-input"
@@ -163,11 +158,18 @@
             bind:value={newTag}
             on:keydown={(e) => e.key === 'Enter' && addTag()}
           />
-          <button type="button" class="btn btn-primary" on:click={addTag} disabled={!newTag.trim() || saving}>
+          <button type="button" class="btn-add" on:click={addTag} disabled={!newTag.trim() || saving}>
             添加
           </button>
         </div>
+      </div>
+    </div>
 
+    <div class="feed-body-scroll">
+    {#if loading}
+      <div class="state">加载中…</div>
+    {:else}
+      <div class="body">
         <div class="tags-section">
           <h3 class="section-title">当前标签 ({tags.length})</h3>
           {#if tags.length === 0}
@@ -180,9 +182,7 @@
                   class="tag-badge"
                   on:contextmenu={(e) => showContextMenu(e, tag)}
                 >
-                  <a href="/feeds?tags={encodeURIComponent(tag)}" class="tag-name" target="_blank" rel="noopener" on:click|stopPropagation>
-                    {tag}
-                  </a>
+                  <span class="tag-name">{tag}</span>
                   {#if stat}
                     <span class="tag-meta">{stat.count} 篇 · 热度 {stat.hotness}</span>
                   {/if}
@@ -228,6 +228,7 @@
         {/if}
       </div>
     {/if}
+    </div>
   </div>
 </div>
 
@@ -252,39 +253,56 @@
 {/if}
 
 <style>
+  /**
+   * 与信源列表等页一致：`main.main-fill` 不滚动，仅 `.feed-body-scroll` 内滚动，标题栏固定在上。
+   */
   .feed-wrap {
-    min-height: 0;
-    flex: 1;
-    display: flex;
-    overflow: auto;
-    max-width: var(--feeds-column-max, 720px);
+    margin-top: calc(-1 * var(--main-padding-top));
     width: 100%;
-    margin: 0 auto;
-  }
-  .feed-wrap::-webkit-scrollbar {
-    width: 4px;
-  }
-  .feed-wrap::-webkit-scrollbar-thumb {
-    background: var(--color-scrollbar-thumb);
-    border-radius: 2px;
+    max-width: 100%;
+    display: flex;
+    flex-direction: column;
+    flex: 1;
+    min-height: 0;
+    overflow: hidden;
   }
 
   .feed-col {
-    flex: 1;
     display: flex;
     flex-direction: column;
-    overflow: hidden;
+    flex: 1;
     min-height: 0;
+    overflow: hidden;
     background: transparent;
   }
 
+  .feed-toolbar-block {
+    flex-shrink: 0;
+    padding-top: var(--main-padding-top);
+    padding-bottom: var(--feed-sticky-gap-after);
+    background: var(--color-background);
+  }
+
   .feed-header {
-    padding: 0.875rem 1.25rem;
     display: flex;
-    align-items: flex-start;
+    align-items: center;
     justify-content: space-between;
     gap: 1rem;
+    padding: 0.75rem 0;
     flex-shrink: 0;
+    border-bottom: 1px solid var(--color-border-muted);
+  }
+  .header-left {
+    flex: 1;
+    min-width: 0;
+  }
+  .header-right {
+    display: flex;
+    flex-direction: row;
+    align-items: center;
+    gap: 0.5rem;
+    flex-shrink: 0;
+    min-width: 0;
   }
   .feed-header h2 {
     font-size: 0.9375rem;
@@ -299,17 +317,21 @@
     margin: 0;
   }
 
+  .feed-body-scroll {
+    flex: 1;
+    min-height: 0;
+    display: flex;
+    flex-direction: column;
+    overflow-y: auto;
+    overflow-x: hidden;
+    overscroll-behavior-y: contain;
+    -webkit-overflow-scrolling: touch;
+  }
+
   .body {
     flex: 1;
-    overflow-y: auto;
-    padding: 1rem 1.25rem;
-  }
-  .body::-webkit-scrollbar {
-    width: 4px;
-  }
-  .body::-webkit-scrollbar-thumb {
-    background: var(--color-scrollbar-thumb);
-    border-radius: 2px;
+    overflow: visible;
+    padding: 1rem 0;
   }
 
   .section-title {
@@ -319,14 +341,9 @@
     margin: 0 0 0.5rem;
   }
 
-  .add-row {
-    display: flex;
-    gap: 0.5rem;
-    margin-bottom: 1.25rem;
-  }
-
   .tag-input {
-    flex: 1;
+    width: min(100%, 18rem);
+    min-width: 10rem;
     padding: 0.4rem 0.6rem;
     font-size: 0.875rem;
     border: 1px solid var(--color-input);
@@ -339,22 +356,30 @@
     border-color: var(--color-primary);
   }
 
-  .btn {
-    padding: 0.35rem 0.85rem;
-    border: none;
-    border-radius: var(--radius-sm);
-    cursor: pointer;
+  /** 与首页信源列表「添加信源」按钮一致 */
+  .btn-add {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+    gap: 0.35rem;
+    padding: 0.35rem 0.65rem;
     font-size: 0.8125rem;
+    font-weight: 500;
     font-family: inherit;
-  }
-  .btn-primary {
-    background: var(--color-primary);
+    white-space: nowrap;
     color: var(--color-primary-foreground);
+    background: var(--color-primary);
+    border: none;
+    border-radius: 6px;
+    cursor: pointer;
+    transition: opacity 0.15s, background 0.15s;
   }
-  .btn-primary:hover:not(:disabled) {
-    background: var(--color-primary-hover);
+  .btn-add:hover:not(:disabled) {
+    opacity: 0.9;
+    background: var(--color-primary-hover, var(--color-primary));
   }
-  .btn:disabled {
+  .btn-add:disabled {
     opacity: 0.5;
     cursor: not-allowed;
   }
@@ -464,6 +489,19 @@
   @media (max-width: 600px) {
     .feed-wrap {
       max-width: 100%;
+    }
+    .feed-header {
+      flex-direction: column;
+      align-items: stretch;
+    }
+    .header-right {
+      flex-direction: row;
+      align-items: center;
+    }
+    .tag-input {
+      flex: 1;
+      width: auto;
+      min-width: 0;
     }
   }
 </style>

@@ -1,25 +1,24 @@
 # RssAny 开发约定
 
-本文件描述 RssAny 项目的代码规范、架构约定与开发模式，供 AI 编程助手（DeepWiki、Cursor 等）理解开发规范时参考。
+本文件描述 RssAny 的代码风格、模块边界与常见模式，供贡献者与 AI 助手对齐预期。**产品重心是 RSS / 订阅管线（抓取 → 入库 → 输出 RSS/API）**；实现细节以代码与 [AGENTS.md](./AGENTS.md) 为准。
 
 ---
 
 ## 技术栈
 
-
-| 层次      | 技术                                              |
-| ------- | ----------------------------------------------- |
-| 运行时     | Node.js >= 20，ESM 模块                            |
-| 语言      | TypeScript（严格模式）                                |
-| HTTP 框架 | Hono + @hono/node-server                        |
-| 数据库     | Supabase（PostgreSQL，`@supabase/supabase-js`）      |
-| 浏览器自动化  | puppeteer-core                                  |
-| HTML 解析 | node-html-parser / jsdom / @mozilla/readability |
-| LLM     | OpenAI SDK（兼容任意 OpenAI 格式接口）                    |
-| 前端      | SvelteKit（位于 `webui/` 子目录）                      |
-| 构建      | Vite                                            |
-| 测试      | Vitest                                          |
-
+| 层次 | 技术 |
+|------|------|
+| 运行时 | Node.js **20.x–23.x**（见 `package.json` `engines`），**ESM** |
+| 包管理 | **pnpm**（根目录与 `webui/` 分别安装依赖） |
+| 语言 | TypeScript（以 `tsconfig.json` / ESLint 为准） |
+| HTTP | Hono + `@hono/node-server` |
+| 数据库 | **SQLite**（`better-sqlite3`），默认路径 `.rssany/data/rssany.db` |
+| 浏览器自动化 | `puppeteer-core` |
+| HTML / 正文 | `node-html-parser`、jsdom、`@mozilla/readability` |
+| LLM（可选） | `openai`（兼容 OpenAI 式 HTTP API） |
+| 前端 | SvelteKit（`webui/`），构建产物由后端托管 |
+| 构建 | Vite（根与 `webui/` 各自配置） |
+| 测试 | Vitest（`package.json` 中已配置；测试目录与命名见下） |
 
 ---
 
@@ -27,32 +26,29 @@
 
 ### 格式规则
 
-- **函数内部**：单个函数内部不换行（紧凑书写）
-- **函数之间**：函数与函数之间空三行
-- **函数开头**：每个函数顶部写一行中文注释说明用途
+- **函数内部**：单函数内保持紧凑，避免无谓空行
+- **函数之间**：模块内函数之间空行适度（常见为**空两行**，与周边文件保持一致即可）
+- **函数开头**：复杂或非显然的函数顶部用**一行中文注释**说明用途；显而易见的可省略
 - **缩进**：2 空格
-- **引号**：双引号（字符串），单引号仅用于 JSX/模板场景
-- **分号**：省略（无分号风格）
+- **引号**：TypeScript/JavaScript 以**双引号**为主；Svelte 模板遵循项目格式化工具输出
+- **分号**：省略（与现有文件一致）
 
 ### TypeScript 规范
 
-- 所有公共接口使用 `interface` 或 `type` 显式声明，存放在同目录 `types.ts` 中
-- 避免 `any`，优先使用 `unknown` + 类型收窄
-- 异步函数统一用 `async/await`，不用 `.then()` 链式调用
-- 模块导出统一用命名导出（`export`），入口文件可用 `export default`
-- 插件文件（`*.rssany.{js,ts}`）必须 `export default` 一个实现 `Site` 接口的对象；接口定义见源码
+- 公共类型用 `interface` / `type`，放在同目录 `types.ts` 或与模块同文件（与现有模块一致即可）
+- 避免 `any`，优先 `unknown` 再收窄
+- 异步统一 `async/await`
+- 应用代码以**命名导出**为主；**插件**（`*.rssany.{js,ts}`）必须 **`export default`** 一个符合 `Site`（或 enrich 约定）的对象
 
 ### 命名约定
 
-
-| 类型      | 风格                        | 示例                                      |
-| ------- | ------------------------- | --------------------------------------- |
-| 变量 / 函数 | camelCase                 | `fetchItems`, `cacheKey`                |
-| 类 / 接口  | PascalCase                | `FeedItem`, `Source`                    |
-| 常量      | camelCase（不用 UPPER_SNAKE） | `defaultRefreshInterval`                |
-| 文件名     | kebab-case 或 camelCase    | `pluginLoader.ts`, `refreshInterval.ts` |
-| 插件文件    | `{id}.rssany.{js,ts}`     | `xiaohongshu.rssany.ts`                 |
-
+| 类型 | 风格 | 示例 |
+|------|------|------|
+| 变量 / 函数 | camelCase | `fetchItems`, `cacheKey` |
+| 类 / 接口 | PascalCase | `FeedItem`, `Source` |
+| 常量 | camelCase（非强制 UPPER_SNAKE） | `defaultRefreshInterval` |
+| 文件名 | kebab-case 或 camelCase（与目录内已有风格一致） | `pluginLoader.ts` |
+| 插件文件 | `{id}.rssany.{js,ts}` | `rss.rssany.js` |
 
 ---
 
@@ -60,61 +56,37 @@
 
 ### 模块边界
 
-- 各模块通过 `index.ts` 对外暴露接口，模块之间只依赖其公开 API，不直接引用内部文件
-- HTTP 层只调用业务模块的公开 API，不内联业务逻辑
+- 各包通过 `index.ts`（或明确入口）对外暴露能力；**优先依赖公开 API**，避免跨模块引用深层内部文件（与现有代码一致即可）
+- **路由层**（`app/router/`）负责 HTTP 形态、鉴权与错误码；核心业务在 `feeder`、`scraper`、`db`、`pipeline` 等模块
 
-### 数据流方向
+### 数据流（摘要）
 
 ```
-HTTP 请求 → feeder（协调）
-  → getSource() → source.fetchItems()（抓取+解析列表）
-  → db.upsertItems()（写库）
-  → buildRssXml()（构建 XML）
-  → [后台] source.enrichItem()（提取正文）
-  → db.updateItemContent()（更新正文）
+HTTP / 调度器 → feeder 协调
+  → getSource() → fetchItems()（列表抓取与解析）
+  → upsertItems()（写库、去重）
+  → [可选] enrich 队列 → pipeline（固定链，每条一次）→ updateItemContent()
+  → buildRssXml() / API 返回
+  → deliver.url 出站 POST（非「外部推条目入站」）
 ```
 
 ### 错误处理
 
-- 业务错误（如认证失败）使用自定义 Error 子类，在对应模块内定义
-- HTTP 层统一捕获并转换为适当状态码
-- 后台任务（enrichItem）的错误只记录日志，不影响主流程
-
-### 缓存策略
-
-- 缓存 key 由 `cacheKey(url, refreshInterval)` 生成，包含时间窗口（如 `1h_2024010112`）
-- 时间窗口过期即视为缓存失效，无需主动清理
-- feed 级缓存：仅存 items JSON（读+写），命中后由 JSON 实时生成 RSS XML；fetch/parse/extract 级：仅写（供调试分析）
-
+- 业务错误用自定义 `Error` 子类或明确错误码，在模块内定义
+- HTTP 层统一捕获并映射为合适状态码与 JSON
+- enrich 等后台任务失败以日志为主，不拖垮主拉取流程（与现有实现一致）
 ---
 
 ## 测试约定
 
-- 测试文件放在 `tests/` 目录，文件名格式：`{模块}-{功能}.{unit,e2e}.test.ts`
-- 端到端测试（e2e）可以真实调用网络，需要在 CI 中跳过或 mock
-- 单元测试 mock 外部依赖（Puppeteer、LLM、网络请求）
-
----
-
-## 环境变量
-
-
-| 变量                | 说明          | 默认值                         |
-| ----------------- | ----------- | --------------------------- |
-| `PORT`            | HTTP 监听端口   | `3751`                      |
-| `NODE_ENV`        | 运行环境        | `production`                |
-| `OPENAI_API_KEY`  | LLM API Key | —                           |
-| `OPENAI_BASE_URL` | LLM API 地址  | `https://api.openai.com/v1` |
-| `OPENAI_MODEL`    | LLM 模型名     | `gpt-4o-mini`               |
-| `HTTP_PROXY`      | 全局代理（兜底）    | —                           |
+- 使用 **Vitest**（`pnpm test` / `pnpm test:run`）
+- 新增测试时：可放在仓库根 `tests/`，或与被测文件同目录的 `*.test.ts`；命名建议能看出模块与行为（如 `feeder-upsert.unit.test.ts`）
+- 单元测试对 Puppeteer、LLM、外网请求做 mock；e2e 若打真实网络需在 CI 中跳过或单独 job
 
 
 ---
 
-## 常见模式
 
-- **新增信源类型**：在信源模块下实现 `Source` 接口并在 `getSource()` 中注册优先级；类型定义见源码。
-- **新增插件**：在插件目录创建 `{id}.rssany.{js,ts}`，实现 `Site` 接口并 `export default`；服务启动或开发模式文件变化时自动加载。
-- **新增 API 路由**：在路由层添加路由，业务逻辑委托给对应模块，路由层只做参数解析与错误转换。
-- **数据库迁移**：在数据库模块中用 `db.exec()` 执行 DDL；使用 `CREATE TABLE IF NOT EXISTS` 保证幂等，FTS 虚拟表用 `CREATE VIRTUAL TABLE IF NOT EXISTS ... USING fts5(...)`。
+## 开发原则
 
+与 [AGENTS.md](./AGENTS.md) 一致：当前阶段**不做无意义 fallback**；**不做数据迁移脚本**（除非单独需求）。新功能不要假设备库 Supabase、入站 Gateway 或已删除的 research-only 模块。

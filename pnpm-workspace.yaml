@@ -1,0 +1,3 @@
+# better-sqlite3 需在安装时拉取/编译 .node 原生绑定；禁止构建会导致「Could not locate the bindings file」
+allowBuilds:
+  better-sqlite3: true

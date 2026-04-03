@@ -4,17 +4,8 @@
 /** 日志级别：debug < info < warn < error */
 export type LogLevel = "error" | "warn" | "info" | "debug";
 
-/** 日志分类：按模块筛选，便于在 DB/控制台按 category 过滤 */
-export type LogCategory =
-  | "scraper"   // 爬虫：抓取、解析、正文提取（原 feeder + enrich + source）
-  | "scheduler" // 调度：注册信源/话题、定时拉取、话题报告
-  | "db"        // 数据库写入
-  | "plugin"    // 插件加载
-  | "app"       // HTTP 服务、启动、隧道
-  | "config"    // 配置与迁移
-  | "pipeline"  // 入库前处理链（翻译、打标签等）
-  | "email"     // 邮件报告调度与发送
-  | "topics";   // 话题/日报报告生成
+/** 日志分类：自由字符串（如 scraper、app、自定义模块名），便于按 category 筛选 */
+export type LogCategory = string;
 
 /** payload 常用字段约定（非强制）：便于查询与统计 */
 export interface LogPayloadConvention {

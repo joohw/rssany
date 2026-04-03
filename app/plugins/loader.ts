@@ -90,13 +90,16 @@ function isValidEnrichPlugin(obj: unknown): obj is EnrichPlugin {
   return typeof p.id === "string" && typeof p.match === "function" && typeof p.enrichItem === "function";
 }
 
-/** 从单个目录加载 Site / Source 插件，并记录每个 Site 的文件路径 */
+/** 从单个目录加载 Site / Source 插件，并记录每个 Site / Source 的文件路径 */
 async function loadSourcePluginsFromDir(
   dir: string,
   label: string,
-): Promise<{ siteEntries: Array<{ site: Site; filePath: string }>; sources: Source[] }> {
+): Promise<{
+  siteEntries: Array<{ site: Site; filePath: string }>;
+  sources: Array<{ source: Source; filePath: string }>;
+}> {
   const siteEntries: Array<{ site: Site; filePath: string }> = [];
-  const sources: Source[] = [];
+  const sources: Array<{ source: Source; filePath: string }> = [];
   let entries: { name: string; isFile: () => boolean }[];
   try {
     const raw = await readdir(dir, { withFileTypes: true, encoding: "utf-8" });
@@ -115,7 +118,7 @@ async function loadSourcePluginsFromDir(
       if (isValidSite(plugin)) {
         siteEntries.push({ site: plugin, filePath });
       } else if (isValidSource(plugin)) {
-        sources.push(plugin);
+        sources.push({ source: plugin, filePath });
       } else {
         logger.warn("plugin", "插件未实现 Site 或 Source 接口，已跳过", { label, name });
       }
@@ -164,8 +167,14 @@ async function loadPluginsFromDir<T>(
 
 /** 加载 sources 目录，若不存在或为空则回退到 plugins 根目录 */
 async function loadFromSourcesOrRoot(): Promise<{
-  builtin: { siteEntries: Array<{ site: Site; filePath: string }>; sources: Source[] };
-  user: { siteEntries: Array<{ site: Site; filePath: string }>; sources: Source[] };
+  builtin: {
+    siteEntries: Array<{ site: Site; filePath: string }>;
+    sources: Array<{ source: Source; filePath: string }>;
+  };
+  user: {
+    siteEntries: Array<{ site: Site; filePath: string }>;
+    sources: Array<{ source: Source; filePath: string }>;
+  };
 }> {
   const [builtinFromSources, userFromSources] = await Promise.all([
     loadSourcePluginsFromDir(BUILTIN_SOURCES_DIR, "builtin:sources"),
@@ -185,8 +194,32 @@ async function loadFromSourcesOrRoot(): Promise<{
 }
 
 
-/** Site 插件 id → 当前生效的文件路径（用户覆盖内置后的路径） */
+/** Site / Source 插件 id → 当前生效的文件路径（用户覆盖内置后的路径） */
 const pluginSitePaths = new Map<string, string>();
+
+/** 将 Source 插件路径写入 pathMap（不与 Site id 冲突；用户覆盖内置 Source） */
+function mergeSourcePluginPaths(
+  siteIds: Set<string>,
+  pathMap: Map<string, string>,
+  builtinSources: Array<{ source: Source; filePath: string }>,
+  userSources: Array<{ source: Source; filePath: string }>,
+): void {
+  for (const { source, filePath } of builtinSources) {
+    if (siteIds.has(source.id)) {
+      logger.warn("plugin", "Source 插件 id 与 Site 插件冲突，已忽略 Source 路径", { sourceId: source.id });
+      continue;
+    }
+    pathMap.set(source.id, filePath);
+  }
+  for (const { source, filePath } of userSources) {
+    if (siteIds.has(source.id)) {
+      logger.warn("plugin", "Source 插件 id 与 Site 插件冲突，已忽略 Source 路径", { sourceId: source.id });
+      continue;
+    }
+    if (pathMap.has(source.id)) logger.info("plugin", "用户 Source 插件覆盖同名内置", { sourceId: source.id });
+    pathMap.set(source.id, filePath);
+  }
+}
 
 /** 根据插件 id 获取其源文件路径（用于详情页编辑，仅当前生效的插件有路径） */
 export function getPluginFilePath(id: string): string | undefined {
@@ -207,6 +240,7 @@ export async function loadPlugins(): Promise<Site[]> {
     merged.set(site.id, site);
     pathMap.set(site.id, filePath);
   }
+  mergeSourcePluginPaths(new Set(merged.keys()), pathMap, builtin.sources, user.sources);
   pluginSitePaths.clear();
   pathMap.forEach((path, id) => pluginSitePaths.set(id, path));
   return Array.from(merged.values());
@@ -217,10 +251,10 @@ export async function loadPlugins(): Promise<Site[]> {
 export async function loadSourcePlugins(): Promise<Source[]> {
   const { builtin, user } = await loadFromSourcesOrRoot();
   const merged = new Map<string, Source>();
-  for (const src of builtin.sources) merged.set(src.id, src);
-  for (const src of user.sources) {
-    if (merged.has(src.id)) logger.info("plugin", "用户 Source 插件覆盖同名内置", { sourceId: src.id });
-    merged.set(src.id, src);
+  for (const { source } of builtin.sources) merged.set(source.id, source);
+  for (const { source } of user.sources) {
+    if (merged.has(source.id)) logger.info("plugin", "用户 Source 插件覆盖同名内置", { sourceId: source.id });
+    merged.set(source.id, source);
   }
   return Array.from(merged.values());
 }
@@ -240,11 +274,12 @@ export async function loadSiteAndSourcePlugins(): Promise<{ sites: Site[]; sourc
     siteMap.set(s.id, s);
     pathMap.set(s.id, filePath);
   }
+  mergeSourcePluginPaths(new Set(siteMap.keys()), pathMap, builtin.sources, user.sources);
   const sourceMap = new Map<string, Source>();
-  for (const s of builtin.sources) sourceMap.set(s.id, s);
-  for (const s of user.sources) {
-    if (sourceMap.has(s.id)) logger.info("plugin", "用户 Source 插件覆盖同名内置", { sourceId: s.id });
-    sourceMap.set(s.id, s);
+  for (const { source } of builtin.sources) sourceMap.set(source.id, source);
+  for (const { source } of user.sources) {
+    if (sourceMap.has(source.id)) logger.info("plugin", "用户 Source 插件覆盖同名内置", { sourceId: source.id });
+    sourceMap.set(source.id, source);
   }
   pluginSitePaths.clear();
   pathMap.forEach((path, id) => pluginSitePaths.set(id, path));

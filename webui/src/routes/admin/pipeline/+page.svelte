@@ -1,7 +1,7 @@
 <script lang="ts">
   import { PRODUCT_NAME } from '$lib/brand';
   import { onMount } from 'svelte';
-  import { fetchJson } from '$lib/fetchJson.js';
+  import { adminFetchJson } from '$lib/adminAuth';
   import { showToast } from '$lib/toastStore.js';
 
   interface StepConfig {
@@ -24,7 +24,7 @@
   async function load() {
     loading = true;
     try {
-      const data = await fetchJson<{
+      const data = await adminFetchJson<{
         steps?: StepConfig[];
         availableIds?: string[];
       }>('/api/pipeline');
@@ -41,7 +41,7 @@
   async function save() {
     saving = true;
     try {
-      const data = await fetchJson<{ ok?: boolean; message?: string; steps?: StepConfig[] }>(
+      const data = await adminFetchJson<{ ok?: boolean; message?: string; steps?: StepConfig[] }>(
         '/api/pipeline',
         {
           method: 'PUT',
@@ -97,7 +97,7 @@
 
 <div class="feed-wrap">
   <div class="feed-col">
-    <div class="feed-header ui-rule-b">
+    <div class="feed-header">
       <h2>Pipeline</h2>
       <p class="page-desc">
         入库前处理（打标签、翻译），可调整顺序与开关。
@@ -154,26 +154,25 @@
 
 <style>
   .feed-wrap {
-    max-width: var(--feeds-column-max, 720px);
     width: 100%;
-    margin: 0 auto;
-    flex: 1;
-    min-height: 0;
+    max-width: 100%;
+    margin: 0;
     display: flex;
     flex-direction: column;
-    overflow: hidden;
+    overflow: visible;
+    min-height: auto;
   }
   .feed-col {
-    flex: 1;
     display: flex;
     flex-direction: column;
-    overflow: hidden;
-    min-height: 0;
+    overflow: visible;
+    min-height: auto;
     background: transparent;
   }
   .feed-header {
-    padding: 0.875rem 1.25rem;
+    padding: 0.875rem 0;
     flex-shrink: 0;
+    border-bottom: 1px solid var(--color-border-muted);
   }
   .feed-header h2 {
     font-size: 0.9375rem;
@@ -194,15 +193,8 @@
   }
   .body {
     flex: 1;
-    overflow-y: auto;
-    padding: 1rem 1.25rem;
-  }
-  .body::-webkit-scrollbar {
-    width: 4px;
-  }
-  .body::-webkit-scrollbar-thumb {
-    background: var(--color-scrollbar-thumb);
-    border-radius: 2px;
+    overflow: visible;
+    padding: 1rem 0;
   }
   .section-title {
     font-size: 0.8125rem;

@@ -1,5 +1,4 @@
 // /api/sources/stats、/api/sources/raw、/api/sources/plugin-match（admin）
-// /api/user/sources（JWT 认证用户）
 
 import type { Hono } from "hono";
 import { getSourceStats } from "../../../db/index.js";
@@ -9,8 +8,7 @@ import { getSourcesRaw, saveSourcesFile } from "../../../scraper/subscription/in
 import type { SourceType } from "../../../scraper/subscription/types.js";
 import type { RefreshInterval } from "../../../utils/refreshInterval.js";
 import { VALID_INTERVALS } from "../../../utils/refreshInterval.js";
-import { requireAuth, requireAdmin } from "../../../auth/middleware.js";
-import { getUserSources, setUserSources, addUserSource, removeUserSource } from "../../../db/userSources.js";
+import { requireAdmin } from "../../../auth/middleware.js";
 
 export function registerSourcesRoutes(app: Hono): void {
   app.get("/api/sources/stats", requireAdmin(), async (c) => {
@@ -18,7 +16,6 @@ export function registerSourcesRoutes(app: Hono): void {
     return c.json(stats);
   });
 
-  /** 批量查询 ref 是否匹配 Site 插件，返回 { [ref]: pluginId | null } */
   app.post("/api/sources/plugin-match", requireAdmin(), async (c) => {
     try {
       const body = await c.req.json<{ refs?: string[] }>();
@@ -74,59 +71,5 @@ export function registerSourcesRoutes(app: Hono): void {
     } catch (err) {
       return c.json({ ok: false, message: err instanceof Error ? err.message : String(err) }, 400);
     }
-  });
-
-  // ─── 用户级信源（JWT 认证）───────────────────────────────────────────────────
-
-  /** 获取当前用户的信源列表 */
-  app.get("/api/user/sources", requireAuth(), async (c) => {
-    const userId = c.get("userId") as string;
-    const sources = await getUserSources(userId);
-    return c.json(sources);
-  });
-
-  /** 全量更新当前用户的信源列表 */
-  app.put("/api/user/sources", requireAuth(), async (c) => {
-    const userId = c.get("userId") as string;
-    try {
-      const body = await c.req.json<{ sources?: unknown[] }>();
-      const list = Array.isArray(body?.sources) ? body.sources : [];
-      const sources = list
-        .filter((s): s is Record<string, unknown> => s != null && typeof s === "object" && typeof (s as { ref?: unknown }).ref === "string")
-        .map((s) => ({
-          ref: String((s as { ref: string }).ref),
-          label: (s as { label?: string }).label ?? null,
-          refresh: (s as { refresh?: string }).refresh ?? null,
-          proxy: (s as { proxy?: string }).proxy ?? null,
-          cron: (s as { cron?: string }).cron ?? null,
-          weight: typeof (s as { weight?: unknown }).weight === "number" ? (s as { weight: number }).weight : null,
-        }));
-      await setUserSources(userId, sources);
-      return c.json({ ok: true });
-    } catch (err) {
-      return c.json({ ok: false, message: err instanceof Error ? err.message : String(err) }, 400);
-    }
-  });
-
-  /** 添加单个信源 */
-  app.post("/api/user/sources", requireAuth(), async (c) => {
-    const userId = c.get("userId") as string;
-    try {
-      const body = await c.req.json<{ ref?: string; label?: string; refresh?: string; proxy?: string }>();
-      if (!body.ref) return c.json({ ok: false, message: "ref 不能为空" }, 400);
-      await addUserSource(userId, { ref: body.ref, label: body.label, refresh: body.refresh, proxy: body.proxy });
-      return c.json({ ok: true });
-    } catch (err) {
-      return c.json({ ok: false, message: err instanceof Error ? err.message : String(err) }, 400);
-    }
-  });
-
-  /** 删除单个信源 */
-  app.delete("/api/user/sources", requireAuth(), async (c) => {
-    const userId = c.get("userId") as string;
-    const ref = c.req.query("ref");
-    if (!ref) return c.json({ ok: false, message: "ref 不能为空" }, 400);
-    await removeUserSource(userId, ref);
-    return c.json({ ok: true });
   });
 }

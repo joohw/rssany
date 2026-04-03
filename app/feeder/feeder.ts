@@ -1,6 +1,5 @@
 // Feeder：根据 URL 生成 RSS，直接通过 Source 接口驱动，与具体信源解耦
 
-import { createHash } from "node:crypto";
 import { cacheKey, cacheKeyFromCron } from "../core/cacher/index.js";
 import { getSource } from "../scraper/sources/index.js";
 import { getMatchedEnrichPlugin } from "../plugins/loader.js";
@@ -13,12 +12,14 @@ import type { FeedItem } from "../types/feedItem.js";
 import { normalizeAuthor, getEffectiveItemFields, isPipelineDroppedItem } from "../types/feedItem.js";
 import type { FeederConfig } from "./types.js";
 import type { SourceContext } from "../scraper/sources/types.js";
-import { upsertItems, updateItemContent, getExistingIds, getSystemTags, deleteItem } from "../db/index.js";
+import { upsertItems, updateItemContent, getSystemTags, deleteItem } from "../db/index.js";
 import { emitFeedUpdated } from "../core/events/index.js";
 import { enrichQueue } from "../scraper/enrich/index.js";
-import { chatJson, chatText } from "../agent/llm.js";
+import { chatJson, chatText } from "../core/llm.js";
 import type { PipelineContext } from "../pipeline/index.js";
 import { logger } from "../core/logger/index.js";
+import { getDeliverUrl } from "../config/deliver.js";
+import { postDeliverItemsSafe } from "../deliver/post.js";
 
 
 /** 根据 listUrl + items 构建 RssChannel（与 generateAndCache 一致，用于缓存命中时实时生成 XML）；lng 存在时设置 channel.language */
@@ -111,43 +112,46 @@ async function generateAndCache(listUrl: string, key: string, config: FeederConf
   generatingKeys.delete(key);
   logger.info("scraper", "抓取成功", { source_url: listUrl, count: items.length });
 
+  const deliverUrl = await getDeliverUrl();
+
   let newCount = 0;
   let newIds = new Set<string>();
-  if (config.writeDb) {
-    const result = await upsertItems(items).catch((err) => {
-      logger.warn("db", "upsertItems 失败", { source_url: listUrl, err: err instanceof Error ? err.message : String(err) });
-      return { newCount: 0, newIds: new Set<string>() };
-    });
-    newCount = result.newCount;
-    newIds = result.newIds;
-  }
+  const upsertResult = await upsertItems(items).catch((err) => {
+    logger.warn("db", "upsertItems 失败", { source_url: listUrl, err: err instanceof Error ? err.message : String(err) });
+    return { newCount: 0, newIds: new Set<string>() };
+  });
+  newCount = upsertResult.newCount;
+  newIds = upsertResult.newIds;
 
   let pipelineDroppedNew = 0;
+  const shouldRunPipelineRow = (guid: string) => newIds.has(guid);
 
   const hasEnrich =
     source.enrichItem != null || items.some((i) => getMatchedEnrichPlugin(i, { sourceUrl: listUrl }));
   if (!includeContent || items.length === 0 || !hasEnrich) {
     for (let i = 0; i < items.length; i++) {
-      if (!newIds.has(items[i].guid)) continue;
+      if (!shouldRunPipelineRow(items[i].guid)) continue;
       const processed = await runPipelineOnItem(items[i], { sourceUrl: listUrl, isEnriched: false });
       items[i] = processed;
-      if (config.writeDb) {
-        if (isPipelineDroppedItem(processed)) {
-          await deleteItem(processed.guid).catch((err) =>
-            logger.warn("db", "质量过滤后删除条目失败", { source_url: listUrl, err: err instanceof Error ? err.message : String(err) })
-          );
-          pipelineDroppedNew++;
-        } else {
-          updateItemContent(processed).catch((err) =>
-            logger.warn("db", "updateItemContent 失败", { source_url: listUrl, err: err instanceof Error ? err.message : String(err) })
-          );
-        }
+      if (isPipelineDroppedItem(processed)) {
+        await deleteItem(processed.guid).catch((err) =>
+          logger.warn("db", "质量过滤后删除条目失败", { source_url: listUrl, err: err instanceof Error ? err.message : String(err) })
+        );
+        pipelineDroppedNew++;
+      } else {
+        updateItemContent(processed).catch((err) =>
+          logger.warn("db", "updateItemContent 失败", { source_url: listUrl, err: err instanceof Error ? err.message : String(err) })
+        );
       }
     }
-    if (config.writeDb && newCount > 0) {
+    if (newCount > 0) {
       emitFeedUpdated({ sourceUrl: listUrl, newCount: newCount - pipelineDroppedNew });
     }
-    return { items: items.filter((i) => !isPipelineDroppedItem(i)) };
+    const out = items.filter((i) => !isPipelineDroppedItem(i));
+    if (deliverUrl && out.length > 0) {
+      await postDeliverItemsSafe(deliverUrl, listUrl, out);
+    }
+    return { items: out };
   }
   const enrichFn = (item: FeedItem, _ctx: SourceContext) => buildEnrichFn(source, listUrl, ctx)(item);
   await enrichQueue.submit(
@@ -158,29 +162,30 @@ async function generateAndCache(listUrl: string, key: string, config: FeederConf
       sourceUrl: listUrl,
       onItemDone: async (enrichedItem, index) => {
         enrichedItem.sourceRef = listUrl;
-        const processed = newIds.has(enrichedItem.guid)
+        const processed = shouldRunPipelineRow(enrichedItem.guid)
           ? await runPipelineOnItem(enrichedItem, { sourceUrl: listUrl, isEnriched: true })
           : enrichedItem;
         items[index] = processed;
-        if (config.writeDb) {
-          if (isPipelineDroppedItem(processed)) {
-            await deleteItem(processed.guid).catch((err) =>
-              logger.warn("db", "质量过滤后删除条目失败", { source_url: listUrl, err: err instanceof Error ? err.message : String(err) })
-            );
-            pipelineDroppedNew++;
-          } else {
-            updateItemContent(processed).catch((err) =>
-              logger.warn("db", "updateItemContent 失败", { source_url: listUrl, err: err instanceof Error ? err.message : String(err) })
-            );
-          }
+        if (isPipelineDroppedItem(processed)) {
+          await deleteItem(processed.guid).catch((err) =>
+            logger.warn("db", "质量过滤后删除条目失败", { source_url: listUrl, err: err instanceof Error ? err.message : String(err) })
+          );
+          pipelineDroppedNew++;
+        } else {
+          updateItemContent(processed).catch((err) =>
+            logger.warn("db", "updateItemContent 失败", { source_url: listUrl, err: err instanceof Error ? err.message : String(err) })
+          );
         }
       },
       onAllDone: async () => {
         for (let i = items.length - 1; i >= 0; i--) {
           if (isPipelineDroppedItem(items[i])) items.splice(i, 1);
         }
-        if (config.writeDb && newCount > 0) {
+        if (newCount > 0) {
           emitFeedUpdated({ sourceUrl: listUrl, newCount: newCount - pipelineDroppedNew });
+        }
+        if (deliverUrl && items.length > 0) {
+          await postDeliverItemsSafe(deliverUrl, listUrl, items);
         }
       },
     },
@@ -224,109 +229,4 @@ export function feedItemsToRssXml(
   if (opts?.channelTitle) channel.title = opts.channelTitle;
   if (opts?.channelDesc) channel.description = opts.channelDesc;
   return buildRssXml(channel, items.map((it) => toRssEntry(it, lng)));
-}
-
-
-/** Gateway 入库配置 */
-export interface GatewayIngestConfig {
-  /** 信源标识，每条 item 的 sourceRef 会设为此值（若 item 已有则保留） */
-  sourceRef: string;
-  /** 是否写入数据库，默认 true */
-  writeDb?: boolean;
-}
-
-
-/** 从 JSON 解析为 FeedItem（兼容 pubDate 为 ISO 字符串） */
-function parseGatewayItem(raw: Record<string, unknown>): FeedItem | null {
-  const link = typeof raw.link === "string" ? raw.link : null;
-  if (!link) return null;
-  const guid = typeof raw.guid === "string" ? raw.guid : createHash("sha256").update(link).digest("hex");
-  const title = typeof raw.title === "string" ? raw.title : "";
-  const pubDateRaw = raw.pubDate ?? raw.published;
-  const pubDate =
-    pubDateRaw instanceof Date
-      ? pubDateRaw
-      : typeof pubDateRaw === "string"
-        ? new Date(pubDateRaw)
-        : new Date();
-  return {
-    guid,
-    title,
-    link,
-    pubDate: Number.isNaN(pubDate.getTime()) ? new Date() : pubDate,
-    author: normalizeAuthor((raw.author as string | string[] | undefined) ?? undefined),
-    summary: typeof raw.summary === "string" ? raw.summary : typeof raw.description === "string" ? raw.description : undefined,
-    content: typeof raw.content === "string" ? raw.content : undefined,
-    categories: Array.isArray(raw.categories) ? (raw.categories as string[]) : undefined,
-    tags: Array.isArray(raw.tags) ? (raw.tags as unknown[]).filter((t): t is string => typeof t === "string" && t.trim() !== "").map((t) => t.trim()) : undefined,
-    sourceRef: typeof raw.sourceRef === "string" ? raw.sourceRef : undefined,
-    translations: raw.translations && typeof raw.translations === "object" ? (raw.translations as FeedItem["translations"]) : undefined,
-    extra: raw.extra && typeof raw.extra === "object" ? (raw.extra as Record<string, unknown>) : undefined,
-  };
-}
-
-
-/** 从外部 Gateway 接收 FeedItem 并入库：upsertItems → pipeline（打标签、翻译等）→ updateItemContent */
-export async function ingestFromGateway(
-  rawItems: unknown[],
-  config: GatewayIngestConfig,
-): Promise<{ ok: boolean; count: number; newCount: number; errors?: string[] }> {
-  const { sourceRef, writeDb = true } = config;
-  const items: FeedItem[] = [];
-  const errors: string[] = [];
-  for (let i = 0; i < rawItems.length; i++) {
-    const raw = rawItems[i];
-    if (!raw || typeof raw !== "object") {
-      errors.push(`[${i}] 非对象，已跳过`);
-      continue;
-    }
-    const item = parseGatewayItem(raw as Record<string, unknown>);
-    if (!item) {
-      errors.push(`[${i}] 缺少 link，已跳过`);
-      continue;
-    }
-    item.sourceRef = item.sourceRef ?? sourceRef;
-    item.author = normalizeAuthor(item.author);
-    items.push(item);
-  }
-  if (items.length === 0) {
-    return { ok: true, count: 0, newCount: 0, errors: errors.length > 0 ? errors : undefined };
-  }
-  const existingIds = await getExistingIds(items.map((i) => i.guid));
-  const newItems = items.filter((i) => !existingIds.has(i.guid));
-  if (newItems.length === 0) {
-    return { ok: true, count: 0, newCount: 0, errors: errors.length > 0 ? errors : undefined };
-  }
-  let newCount = 0;
-  let pipelineDroppedNew = 0;
-  if (writeDb) {
-    const result = await upsertItems(newItems, sourceRef);
-    newCount = result.newCount;
-    for (const item of newItems) {
-      const processed = await runPipelineOnItem(item, {
-        sourceUrl: sourceRef,
-        isEnriched: !!item.content,
-      });
-      if (isPipelineDroppedItem(processed)) {
-        await deleteItem(processed.guid).catch((err) =>
-          logger.warn("db", "Gateway 质量过滤后删除条目失败", { url: item.link, err: err instanceof Error ? err.message : String(err) })
-        );
-        pipelineDroppedNew++;
-      } else {
-        await updateItemContent(processed).catch((err) =>
-          logger.warn("db", "Gateway updateItemContent 失败", { url: item.link, err: err instanceof Error ? err.message : String(err) })
-        );
-      }
-    }
-    const effectiveNew = newCount - pipelineDroppedNew;
-    if (effectiveNew > 0) {
-      emitFeedUpdated({ sourceUrl: sourceRef, newCount: effectiveNew });
-    }
-  }
-  return {
-    ok: true,
-    count: newItems.length,
-    newCount: writeDb ? newCount - pipelineDroppedNew : newCount,
-    errors: errors.length > 0 ? errors : undefined,
-  };
 }

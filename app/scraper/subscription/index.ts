@@ -39,6 +39,21 @@ export async function getAllSources(): Promise<SubscriptionSource[]> {
   return loadSourcesFile();
 }
 
+/** 去重后的 ref 列表（与 sources.json 一致），供 Feed / 聚合查询使用 */
+export async function getAllSubscriptionRefs(): Promise<string[]> {
+  const list = await loadSourcesFile();
+  const seen = new Set<string>();
+  const out: string[] = [];
+  for (const s of list) {
+    const r = resolveRef(s);
+    if (r && !seen.has(r)) {
+      seen.add(r);
+      out.push(r);
+    }
+  }
+  return out;
+}
+
 
 /** 将扁平列表写回 sources.json（新格式）；供 raw API 写入 */
 export async function saveSourcesFile(sources: SubscriptionSource[]): Promise<void> {

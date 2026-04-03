@@ -1,185 +1,129 @@
-# research-any
+# RssAny
 
-> A research agent grounded in your feeds — any website, API, or email.
+> 以**爬虫调度**为主：按信源抓取网页 / RSS / 邮件等，解析、补全文、打标签与翻译后**入库**，再按需生成 **RSS / Atom / JSON Feed** 与 JSON API。
 
-**research-any** is a universal content aggregation and research platform. It turns any webpage, RSS feed, or email inbox into a structured, searchable knowledge base — powering an on-site AI agent that can reason over your feeds, answer questions, and surface insights from your curated sources.
+**RssAny** 是一套自托管的订阅管线：列表 URL → **抓取与解析**（规则 / LLM）→ **正文提取**（自定义 / Readability / LLM）→ **upsert 去重** → 固定 **pipeline**（打标签、翻译等）→ 对外提供 `**/rss`** 等输出。产品重心在**本机定时爬取与转 RSS**，而不是接收外部 HTTP 推送条目。
 
-## Features
+---
 
-- **Feed to RSS**: Scrape any webpage by URL and serve it as a standard RSS feed
-- **Multi-source aggregation**: Unify websites, RSS/Atom/JSON feeds, and IMAP email into a single timeline
-- **Email inbox**: Pull newsletters via IMAP into the same feed
-- **Smart parsing**: Custom parser functions or LLM-based parsing
-- **Content extraction**: Custom extractors, Readability, or LLM extraction
-- **Auto tagging & translation**: Built-in LLM pipeline — new items are tagged and translated automatically
-- **Real-time push**: New content delivered to the UI via SSE, no polling needed
-- **Auth management**: Puppeteer-based cookie management for login-required sites
-- **Three-stage plugin system**: Source (scrape) → Enrich (full content) → Pipeline (post-processing)
-- **Persistent storage**: Supabase (PostgreSQL) with full-text search; incremental upserts with deduplication
-- **MCP server**: Expose your feeds as MCP tools for use in Claude, Cursor, and other AI clients
+## 功能概览
 
-## Quick Start
+- **统一订阅**：在 `.rssany/sources.json` 中配置网站列表、标准 RSS、IMAP 邮件等，由调度器按 `refresh` 策略拉取。
+- **可插拔信源**：`plugins/sources/` 与 `.rssany/plugins/sources/` 中的 **Site** 插件（`.rssany.js` / `.rssany.ts`），自定义列表解析与详情规则。
+- **正文补全**：可选 **enrich** 插件拉全文；无 enrich 时入库后仍会跑 pipeline。
+- **固定 pipeline**：`app/pipeline/` 中打标签、翻译等，由 `.rssany/config.json` 的 `pipeline.steps` 开关（**不是**用户目录下的 pipeline 插件）。
+- **LLM 辅助**：解析、提取、标签、翻译等可按配置走 OpenAI 兼容接口。
+- **站点登录**：需登录的站点通过 Puppeteer 管理 Cookie（与产品用户账号无关）。
+- **可选远端投递**：若 `config.json` 中 `**deliver.url`** 非空，在写库与 pipeline 完成后将条目以 `**{ sourceRef, items }**` JSON **POST** 到该 URL（由 `app/deliver/post.ts` 发送）；留空则仅本地消费。
+- **MCP**：条目检索等能力以 MCP 暴露，供 Cursor、Claude 等使用。
+- **Web 界面**：SvelteKit 构建产物由后端托管；**Feeds** 等需 **邮箱校验**；`**/admin`** 需 `**users.role === 'admin'**`（可从 `**/me**` 进入）。
 
-### Requirements
+---
 
-- Node.js >= 20
-- pnpm
+## 技术栈（摘要）
 
-### Install
+
+| 层级  | 说明                                                           |
+| --- | ------------------------------------------------------------ |
+| 运行时 | Node.js **20–23**（见 `package.json` `engines`）                |
+| 后端  | Hono、`tsx` 开发入口                                              |
+| 数据  | **SQLite**（`better-sqlite3`），默认 `**.rssany/data/rssany.db`** |
+| 前端  | `webui/`（SvelteKit + Vite，构建输出由根服务托管）                        |
+
+
+原生模块 `**better-sqlite3**` 安装时会编译；若遇绑定缺失，请确认未禁用构建（仓库 `pnpm-workspace.yaml` 中已允许其 `allowBuilds`）。
+
+---
+
+## 快速开始
+
+### 环境要求
+
+- Node.js **20.x–23.x**（与 `package.json` 的 `engines` 字段一致）
+- **pnpm**
+
+### 安装依赖
 
 ```bash
 pnpm install
-cd webui && pnpm install && cd ..
+pnpm run webui:install
 ```
 
-### Configure
+### 配置
 
-Copy the example configs:
+1. 复制环境变量示例并按需填写（JWT、OAuth、SMTP、LLM 等）：
+  ```bash
+   cp .env.example .env
+  ```
+2. 复制信源与全局配置示例：
+  ```bash
+   cp sources.example.json .rssany/sources.json
+   cp config.examples.json .rssany/config.json
+  ```
+3. （可选）LLM：在 `.env` 中设置 `OPENAI_API_KEY`、`OPENAI_BASE_URL`、`OPENAI_MODEL` 等。
 
-```bash
-cp sources.example.json .rssany/sources.json
-cp channels.example.json .rssany/channels.json
-```
+### 运行
 
-Set up LLM (optional — for smart parsing, extraction, tagging, and translation):
-
-```bash
-export OPENAI_API_KEY=your_key
-export OPENAI_BASE_URL=https://api.openai.com/v1
-export OPENAI_MODEL=gpt-4o-mini
-```
-
-### Run
-
-**Development** (HMR + hot reload):
+**开发**（后端根路径托管 `webui` 构建产物，改前端需重新构建或 watch）：
 
 ```bash
-# Terminal 1 — backend
+# 推荐：API + 前端 watch（修改 Svelte 后自动写入构建目录，刷新浏览器即可）
+pnpm run dev:all
+
+# 或分步：先打一次前端再起后端
+pnpm run webui:build
 pnpm dev
-
-# Terminal 2 — frontend (http://localhost:5173)
-cd webui && pnpm dev
 ```
 
-**Production**:
+默认监听 `**http://127.0.0.1:3751/**`（端口见 `.env.example` 中 `PORT`）。
+
+**仅调试 WebUI 热更新**（可选）：`cd webui && pnpm dev`（Vite 代理到本机后端，见 `webui/vite.config.ts`）。
+
+**生产**：
 
 ```bash
-cd webui && pnpm build && cd ..
-pnpm start  # API at http://localhost:3751
+pnpm run webui:build && pnpm start
 ```
 
-## Architecture
+---
 
-Two ingestion paths converge into a shared cache and Supabase (PostgreSQL):
-
-```
-Websites / RSS / Email  ──►  Source plugin  ──►  Enrich plugin  ──►  Pipeline  ──►  DB
-External scrapers       ──►  POST /api/gateway/items             ──►  Pipeline  ──►  DB
-```
-
-Consumption:
+## 数据流（简图）
 
 ```
-Web UI / RSS readers  ◄──  Backend API  ◄──  Supabase
-                                │
-                           Agent ◄──► Tools ◄──► MCP server
+sources.json / Site 插件
+  → 调度器触发 fetchItems
+  → upsertItems
+  → [可选] enrich 队列
+  → pipeline（每条一次）
+  → [可选] deliver.url POST（出站，非入站 API）
 ```
 
-**Three-stage plugins**: Source (what to scrape) → Enrich (fetch full content) → Pipeline (tag, translate) — each item processed exactly once.
+消费侧：**RSS/XML**、`**/api/*`**、**MCP**、Web UI。
 
-## Usage
+---
 
-### Generate RSS
+## 常用 HTTP 能力
 
-**Query-based** (filter from DB):
+### RSS 输出
 
-```
-GET /rss?search=AI&tags=tech&sourceUrl=https://...&lng=en&limit=50
-```
+- **按条件从库中生成**：支持 `search`、`tags`、`lng`、`limit` 等查询参数；可用 `subscribed=1` 限定为 `sources.json` 中出现的 ref。
+- **按 URL 即时抓取**：`GET /rss/https://example.com/...`（具体行为以路由实现为准）。
 
-**Scrape-based** (fetch live from source):
+---
 
-```
-GET /rss/https://example.com/blog
-```
+## 插件与配置
 
-### Subscribe to Sources
+### 信源插件（Site）
 
-Define sources in `.rssany/sources.json`:
+放置于 `**plugins/sources/`** 或 `**.rssany/plugins/sources/**`，用户插件可与内置插件同 `id` 覆盖。最小约定包括 `id`、`listUrlPattern` 等（详见 `app/scraper/sources/web/site.ts`）。
 
-```json
-{
-  "sources": [
-    { "ref": "https://sspai.com/feed", "label": "SSPAI" },
-    { "ref": "https://example.com/blog", "label": "Example Blog", "refresh": "1h" },
-    { "ref": "imaps://me%40gmail.com:token@imap.gmail.com:993/INBOX", "label": "Newsletter" }
-  ]
-}
-```
+### Enrich 插件
 
-Define channels in `.rssany/channels.json`:
+`**plugins/enrich/**`、`**.rssany/plugins/enrich/**`，按 enrich 管线加载。
 
-```json
-{
-  "tech": {
-    "title": "Tech",
-    "sourceRefs": ["https://sspai.com/feed", "https://example.com/blog"]
-  }
-}
-```
+### Pipeline（固定代码）
 
-### Push from External Scrapers
-
-```bash
-curl -X POST http://localhost:3751/api/gateway/items \
-  -H "Content-Type: application/json" \
-  -d '{
-    "sourceRef": "my-scraper",
-    "items": [
-      {
-        "title": "Article Title",
-        "link": "https://example.com/article/1",
-        "pubDate": "2025-03-03T12:00:00Z",
-        "summary": "Summary text",
-        "content": "Full content (optional)"
-      }
-    ]
-  }'
-```
-
-## Plugin Development
-
-| Stage | Built-in dir | User dir | Responsibility |
-|---|---|---|---|
-| **sources** | `plugins/sources/` | `.rssany/plugins/sources/` | Define sources, scrape & parse item lists |
-| **enrich** | `plugins/enrich/` | `.rssany/plugins/enrich/` | Fetch full content per item |
-| **pipeline** | `plugins/pipeline/` | `.rssany/plugins/pipeline/` | Post-process (tag, translate, deliver) |
-
-User plugins override built-in plugins with the same `id`.
-
-### Source Plugin Example
-
-```javascript
-// .rssany/plugins/sources/example.rssany.js
-import { parse } from "node-html-parser";
-
-export default {
-  id: "example",
-  listUrlPattern: "https://example.com/user/{userId}",
-  parser(html, url) {
-    const root = parse(html);
-    return root.querySelectorAll(".item").map(item => ({
-      title: item.querySelector(".title")?.textContent || "",
-      link: new URL(item.querySelector("a")?.getAttribute("href"), url).href,
-      description: item.querySelector(".summary")?.textContent || "",
-    }));
-  },
-};
-```
-
-### Pipeline Config
-
-Control steps via `.rssany/config.json`:
+`**app/pipeline/**`，通过 `**.rssany/config.json**` 配置步骤，例如：
 
 ```json
 {
@@ -188,35 +132,48 @@ Control steps via `.rssany/config.json`:
       { "id": "tagger", "enabled": true },
       { "id": "translator", "enabled": false }
     ]
+  },
+  "deliver": {
+    "url": ""
   }
 }
 ```
 
-## Directory Structure
+`deliver.url` 非空时会对处理完成的条目向该 URL 发起出站 POST；留空则不投递。
+
+### `sources.json` 片段示例
+
+```json
+{
+  "sources": [
+    { "ref": "https://example.com/feed.xml", "label": "Example", "refresh": "1h" }
+  ]
+}
+```
+
+合法 `refresh` 取值包括：`10min`、`30min`、`1h`、`6h`、`12h`、`1day`（默认）、`3day`、`7day`。
+
+---
+
+## 仓库目录（摘要）
 
 ```
-├── app/              Source code
-│   ├── agent/        AI agent & tool definitions
-│   ├── config/       Paths & global config
-│   ├── core/         Infrastructure (cache, logger, events, LLM)
-│   ├── db/           Supabase / PostgreSQL (FeedItem CRUD, search RPCs)
-│   ├── feeder/       RSS generation core
-│   ├── mcp/          MCP server (list_channels / get_feeds / feeds_search / web_search / ...)
-│   ├── router/       HTTP routes (Hono)
-│   └── scraper/      Scrapers (web / api / email / enrich)
-├── plugins/          Built-in plugins
-│   ├── sources/
-│   ├── enrich/
-│   └── pipeline/     tagger, translator
-├── webui/            Frontend (SvelteKit)
-└── .rssany/          User data (auto-created, gitignored)
+├── app/                 # 后端：路由、feeder、scraper、pipeline、mcp、db、auth…
+├── plugins/             # 内置信源 / enrich 等插件
+├── webui/               # SvelteKit 前端
+└── .rssany/             # 运行时用户目录（首次启动创建，一般不提交）
     ├── sources.json
-    ├── channels.json
+    ├── config.json
     ├── tags.json
-    ├── plugins/
-    └── cache/
+    ├── data/rssany.db   # SQLite 主库
+    ├── cache/
+    └── plugins/         # 用户插件覆盖内置
 ```
 
-## License
+更细的模块说明见 **[AGENTS.md](./AGENTS.md)**（与代码迭代同步，若有出入以代码为准）。
+
+---
+
+## 许可证
 
 MIT

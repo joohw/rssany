@@ -1,10 +1,9 @@
 <script lang="ts">
   import { PRODUCT_NAME } from '$lib/brand';
   import { onMount } from 'svelte';
-  import { fetchJson } from '$lib/fetchJson.js';
+  import { adminFetchJson } from '$lib/adminAuth';
   import { showToast } from '$lib/toastStore.js';
 
-  let enabled = false;
   let url = '';
   let loading = true;
   let saving = false;
@@ -13,11 +12,9 @@
   async function load() {
     loading = true;
     try {
-      const data = await fetchJson<{ enabled?: boolean; url?: string }>('/api/deliver');
-      enabled = data?.enabled ?? false;
+      const data = await adminFetchJson<{ url?: string }>('/api/deliver');
       url = data?.url ?? '';
     } catch {
-      enabled = false;
       url = '';
     } finally {
       loading = false;
@@ -27,16 +24,12 @@
   async function save() {
     saving = true;
     try {
-      const data = await fetchJson<{ ok?: boolean; message?: string; enabled?: boolean; url?: string }>(
-        '/api/deliver',
-        {
-          method: 'PUT',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ enabled, url: url.trim() }),
-        }
-      );
+      const data = await adminFetchJson<{ ok?: boolean; message?: string; url?: string }>('/api/deliver', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ url: url.trim() }),
+      });
       if (!data?.ok) throw new Error(data?.message ?? '保存失败');
-      enabled = data?.enabled ?? enabled;
       url = data?.url ?? url;
       showToast('已保存', 'success');
     } catch (e) {
@@ -54,14 +47,11 @@
     }
     testing = true;
     try {
-      const data = await fetchJson<{ ok?: boolean; message?: string }>(
-        '/api/deliver/test',
-        {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ url: target }),
-        }
-      );
+      const data = await adminFetchJson<{ ok?: boolean; message?: string }>('/api/deliver/test', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ url: target }),
+      });
       if (data?.ok) {
         showToast('投递测试成功', 'success');
       } else {
@@ -85,21 +75,9 @@
   <div class="feed-col">
     <div class="body">
       <p class="intro">
-        启用投递后，本机将作为纯粹的爬虫节点，新的数据将不会记录到本地数据库。
+        填写下游接收地址后，定时抓取<strong>不再写入本地条目表</strong>，仅将条目以 JSON POST（字段含
+        <code>sourceRef</code>、<code>items</code>）到该 URL。留空则抓取结果正常入库。运行日志仍落库。
       </p>
-
-      <section class="form-section">
-        <h3 class="section-title">投递开关</h3>
-        {#if loading}
-          <p class="hint">加载中…</p>
-        {:else}
-          <label class="toggle-wrap">
-            <input type="checkbox" bind:checked={enabled} />
-            <span class="toggle-slider"></span>
-            <span class="toggle-label">启用投递</span>
-          </label>
-        {/if}
-      </section>
 
       <section class="form-section">
         <h3 class="section-title">投递目标 URL</h3>
@@ -109,10 +87,10 @@
           <input
             type="url"
             class="url-input"
-            placeholder="https://other-server/api/gateway/items"
+            placeholder="https://downstream.example.com/ingest"
             bind:value={url}
           />
-          <p class="hint">需同时开启开关并填写 URL 才生效。测试端点不写数据库，仅发送示例条目。</p>
+          <p class="hint">保存后生效；测试会发送一条示例条目，不写本地库。</p>
         {/if}
       </section>
 
@@ -121,7 +99,7 @@
           <button type="button" class="btn btn-primary" on:click={save} disabled={saving || loading}>
             {saving ? '保存中…' : '保存'}
           </button>
-          <button type="button" class="btn btn-secondary" on:click={test} disabled={testing || loading || !enabled || !url.trim()}>
+          <button type="button" class="btn btn-secondary" on:click={test} disabled={testing || loading || !url.trim()}>
             {testing ? '测试中…' : '测试投递'}
           </button>
         </div>
@@ -132,40 +110,34 @@
 
 <style>
   .feed-wrap {
-    max-width: var(--feeds-column-max, 720px);
     width: 100%;
-    margin: 0 auto;
-    flex: 1;
-    min-height: 0;
+    max-width: 100%;
+    margin: 0;
     display: flex;
     flex-direction: column;
-    overflow: hidden;
+    overflow: visible;
+    min-height: auto;
   }
   .feed-col {
-    flex: 1;
     display: flex;
     flex-direction: column;
-    overflow: hidden;
-    min-height: 0;
+    overflow: visible;
+    min-height: auto;
     background: transparent;
   }
   .body {
     flex: 1;
-    overflow-y: auto;
-    padding: 1rem 1.25rem;
-  }
-  .body::-webkit-scrollbar {
-    width: 4px;
-  }
-  .body::-webkit-scrollbar-thumb {
-    background: var(--color-scrollbar-thumb);
-    border-radius: 2px;
+    overflow: visible;
+    padding: 1rem 0;
   }
   .intro {
     color: var(--color-muted-foreground-strong);
     margin: 0 0 1.25rem;
     line-height: 1.5;
     font-size: 0.875rem;
+  }
+  .intro code {
+    font-size: 0.8125rem;
   }
   .section-title {
     font-size: 0.8125rem;
@@ -187,45 +159,6 @@
   }
   .url-input::placeholder {
     color: var(--color-muted-foreground-soft);
-  }
-  .toggle-wrap {
-    display: flex;
-    align-items: center;
-    gap: 0.5rem;
-    cursor: pointer;
-  }
-  .toggle-wrap input {
-    position: absolute;
-    opacity: 0;
-    width: 0;
-    height: 0;
-  }
-  .toggle-slider {
-    width: 36px;
-    height: 20px;
-    background: rgba(255, 255, 255, 0.14);
-    border-radius: 10px;
-    transition: background 0.2s;
-  }
-  .toggle-slider::after {
-    content: '';
-    display: block;
-    width: 16px;
-    height: 16px;
-    background: var(--color-card-elevated);
-    border-radius: 50%;
-    margin: 2px 0 0 2px;
-    transition: transform 0.2s;
-    box-shadow: 0 1px 2px rgba(0, 0, 0, 0.35);
-  }
-  .toggle-wrap input:checked + .toggle-slider {
-    background: var(--color-primary);
-  }
-  .toggle-wrap input:checked + .toggle-slider::after {
-    transform: translateX(16px);
-  }
-  .toggle-label {
-    font-size: 0.875rem;
   }
   .hint {
     font-size: 0.75rem;

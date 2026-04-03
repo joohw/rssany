@@ -1,1 +1,1 @@
-export { PRODUCT_NAME } from "../../../app/config/brand";
+export { PRODUCT_NAME, GITHUB_REPO_URL } from "../../../app/config/brand";
