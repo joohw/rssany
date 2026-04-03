@@ -143,22 +143,22 @@
 <div class="feed-wrap">
   <div class="feed-col">
     <div class="feed-toolbar-block">
-      <div class="feed-header">
-        <div class="header-left">
+      <div class="admin-feed-header">
+        <div class="admin-feed-header__left">
           <h2>系统标签</h2>
-          <p class="page-desc">
+          <p class="admin-feed-header__desc">
             系统标签库，新入库条目会由 LLM 自动匹配打标签。
           </p>
         </div>
-        <div class="header-right">
+        <div class="admin-feed-header__actions">
           <input
             type="text"
-            class="tag-input"
+            class="admin-toolbar-input"
             placeholder="输入新标签，回车添加"
             bind:value={newTag}
             on:keydown={(e) => e.key === 'Enter' && addTag()}
           />
-          <button type="button" class="btn-add" on:click={addTag} disabled={!newTag.trim() || saving}>
+          <button type="button" class="admin-toolbar-btn admin-toolbar-btn--primary" on:click={addTag} disabled={!newTag.trim() || saving}>
             添加
           </button>
         </div>
@@ -283,40 +283,6 @@
     background: var(--color-background);
   }
 
-  .feed-header {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    gap: 1rem;
-    padding: 0.75rem 0;
-    flex-shrink: 0;
-    border-bottom: 1px solid var(--color-border-muted);
-  }
-  .header-left {
-    flex: 1;
-    min-width: 0;
-  }
-  .header-right {
-    display: flex;
-    flex-direction: row;
-    align-items: center;
-    gap: 0.5rem;
-    flex-shrink: 0;
-    min-width: 0;
-  }
-  .feed-header h2 {
-    font-size: 0.9375rem;
-    font-weight: 600;
-    margin: 0 0 0.15rem;
-    color: var(--color-foreground);
-  }
-
-  .page-desc {
-    font-size: 0.75rem;
-    color: var(--color-muted-foreground-soft);
-    margin: 0;
-  }
-
   .feed-body-scroll {
     flex: 1;
     min-height: 0;
@@ -339,49 +305,6 @@
     font-weight: 600;
     color: var(--color-muted-foreground);
     margin: 0 0 0.5rem;
-  }
-
-  .tag-input {
-    width: min(100%, 18rem);
-    min-width: 10rem;
-    padding: 0.4rem 0.6rem;
-    font-size: 0.875rem;
-    border: 1px solid var(--color-input);
-    border-radius: var(--radius-sm);
-    background: var(--color-card-elevated);
-    color: var(--color-foreground);
-  }
-  .tag-input:focus {
-    outline: none;
-    border-color: var(--color-primary);
-  }
-
-  /** 与首页信源列表「添加信源」按钮一致 */
-  .btn-add {
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    flex-shrink: 0;
-    gap: 0.35rem;
-    padding: 0.35rem 0.65rem;
-    font-size: 0.8125rem;
-    font-weight: 500;
-    font-family: inherit;
-    white-space: nowrap;
-    color: var(--color-primary-foreground);
-    background: var(--color-primary);
-    border: none;
-    border-radius: 6px;
-    cursor: pointer;
-    transition: opacity 0.15s, background 0.15s;
-  }
-  .btn-add:hover:not(:disabled) {
-    opacity: 0.9;
-    background: var(--color-primary-hover, var(--color-primary));
-  }
-  .btn-add:disabled {
-    opacity: 0.5;
-    cursor: not-allowed;
   }
 
   .tags-section,
@@ -489,19 +412,6 @@
   @media (max-width: 600px) {
     .feed-wrap {
       max-width: 100%;
-    }
-    .feed-header {
-      flex-direction: column;
-      align-items: stretch;
-    }
-    .header-right {
-      flex-direction: row;
-      align-items: center;
-    }
-    .tag-input {
-      flex: 1;
-      width: auto;
-      min-width: 0;
     }
   }
 </style>

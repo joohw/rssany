@@ -192,3 +192,126 @@ body {
 .page-header .options-menu-trigger {
   margin-top: 0.1rem;
 }
+
+/**
+ * Admin 列表页（插件 / 标签 / 日志）：标题 + 描述 | 操作区，底部对齐
+ */
+.admin-feed-header {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 1rem;
+  padding: 0.75rem 0;
+  flex-shrink: 0;
+  border-bottom: 1px solid var(--color-border-muted);
+}
+.admin-feed-header__left {
+  flex: 1;
+  min-width: 0;
+}
+.admin-feed-header__left > h2 {
+  font-size: 0.9375rem;
+  font-weight: 600;
+  margin: 0 0 0.15rem;
+  color: var(--color-foreground);
+}
+.admin-feed-header__desc {
+  font-size: 0.75rem;
+  color: var(--color-muted-foreground-soft);
+  margin: 0;
+  line-height: 1.45;
+}
+.admin-feed-header__actions {
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  gap: 0.5rem;
+  flex-shrink: 0;
+  min-width: 0;
+}
+
+/** 工具条内按钮：统一高度，与 `.admin-toolbar-input` 对齐 */
+.admin-toolbar-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  gap: 0.35rem;
+  padding: 0.35rem 0.65rem;
+  min-height: 2rem;
+  box-sizing: border-box;
+  font-size: 0.8125rem;
+  font-weight: 500;
+  font-family: inherit;
+  white-space: nowrap;
+  line-height: 1.25;
+  border-radius: 6px;
+  cursor: pointer;
+  transition: opacity 0.15s, background 0.15s;
+}
+.admin-toolbar-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+.admin-toolbar-btn--primary {
+  color: var(--color-primary-foreground);
+  background: var(--color-primary);
+  border: none;
+}
+.admin-toolbar-btn--primary:hover:not(:disabled) {
+  opacity: 0.9;
+  background: var(--color-primary-hover, var(--color-primary));
+}
+.admin-toolbar-btn--secondary {
+  color: var(--color-foreground);
+  background: var(--color-muted);
+  border: 1px solid var(--color-border);
+}
+.admin-toolbar-btn--secondary:hover:not(:disabled) {
+  background: var(--color-accent);
+}
+.admin-toolbar-btn--danger {
+  color: var(--color-destructive);
+  background: color-mix(in srgb, var(--color-destructive) 12%, var(--color-muted));
+  border: 1px solid color-mix(in srgb, var(--color-destructive) 35%, transparent);
+}
+.admin-toolbar-btn--danger:hover:not(:disabled) {
+  background: color-mix(in srgb, var(--color-destructive) 18%, var(--color-muted));
+}
+
+.admin-toolbar-input {
+  width: min(100%, 18rem);
+  min-width: 10rem;
+  height: 2rem;
+  min-height: 2rem;
+  box-sizing: border-box;
+  padding: 0.35rem 0.6rem;
+  font-size: 0.8125rem;
+  font-family: inherit;
+  border: 1px solid var(--color-input);
+  border-radius: var(--radius-sm);
+  background: var(--color-card-elevated);
+  color: var(--color-foreground);
+}
+.admin-toolbar-input:focus {
+  outline: none;
+  border-color: var(--color-primary);
+}
+.admin-toolbar-input::placeholder {
+  color: var(--color-muted-foreground-soft);
+}
+
+@media (max-width: 600px) {
+  .admin-feed-header {
+    flex-direction: column;
+    align-items: stretch;
+  }
+  .admin-feed-header__actions {
+    justify-content: flex-end;
+  }
+  .admin-feed-header__actions .admin-toolbar-input {
+    flex: 1;
+    width: auto;
+    min-width: 0;
+  }
+}

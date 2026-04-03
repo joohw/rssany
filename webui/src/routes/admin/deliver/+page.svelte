@@ -75,8 +75,8 @@
   <div class="feed-col">
     <div class="body">
       <p class="intro">
-        填写下游接收地址后，定时抓取<strong>不再写入本地条目表</strong>，仅将条目以 JSON POST（字段含
-        <code>sourceRef</code>、<code>items</code>）到该 URL。留空则抓取结果正常入库。运行日志仍落库。
+        非空时，在<strong>正常入库与 Pipeline 完成之后</strong>，会<strong>额外</strong>将本批条目以 JSON POST 到该 URL（请求体含
+        <code>sourceRef</code>、<code>items</code>）。留空则不投递。投递地址<strong>不改变</strong>本地是否写库；运行日志仍落库。
       </p>
 
       <section class="form-section">

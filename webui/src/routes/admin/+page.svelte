@@ -46,7 +46,7 @@
     {
       title: '集成',
       links: [
-        { href: '/admin/deliver', label: '投递', desc: '配置下游 URL；有 URL 时抓取结果仅 POST，不入本地条目库' },
+        { href: '/admin/deliver', label: '投递', desc: '配置下游 URL；非空时在写库与 Pipeline 后额外 POST 条目' },
       ],
     },
     {

@@ -139,13 +139,13 @@
 <div class="feed-wrap">
   <div class="feed-col">
     <div class="plugins-toolbar-block">
-      <div class="feed-header">
-        <div class="feed-header-row">
-          <div class="feed-header-text">
-            <h2>插件</h2>
-            <p class="sub">编写插件以适配特定页面的解析规则，比 LLM 兜底更快、更稳定。</p>
-          </div>
-          <button type="button" class="btn-add" onclick={openAddDialog}>添加插件</button>
+      <div class="admin-feed-header">
+        <div class="admin-feed-header__left">
+          <h2>插件</h2>
+          <p class="admin-feed-header__desc">编写插件以适配特定页面的解析规则，比 LLM 兜底更快、更稳定。</p>
+        </div>
+        <div class="admin-feed-header__actions">
+          <button type="button" class="admin-toolbar-btn admin-toolbar-btn--primary" onclick={openAddDialog}>添加插件</button>
         </div>
       </div>
     </div>
@@ -253,7 +253,6 @@
     padding-top: var(--main-padding-top);
     padding-bottom: var(--feed-sticky-gap-after);
     background: var(--color-background);
-    border-bottom: 1px solid var(--color-border-muted);
   }
 
   .plugins-body-scroll {
@@ -274,37 +273,6 @@
     border-radius: 2px;
   }
 
-  .feed-header {
-    padding: 0;
-    flex-shrink: 0;
-  }
-  .feed-header-row {
-    display: flex;
-    align-items: flex-start;
-    justify-content: space-between;
-    gap: 1rem;
-    flex-wrap: wrap;
-  }
-  .feed-header-text {
-    min-width: 0;
-    flex: 1;
-  }
-  .btn-add {
-    flex-shrink: 0;
-    padding: 0.4rem 0.85rem;
-    font-size: 0.8125rem;
-    border-radius: var(--radius-sm, 6px);
-    font-family: inherit;
-    background: var(--color-primary);
-    color: var(--color-primary-foreground);
-    border: none;
-    cursor: pointer;
-    display: inline-flex;
-    align-items: center;
-  }
-  .btn-add:hover {
-    background: var(--color-primary-hover);
-  }
   .link-btn {
     background: none;
     border: none;
@@ -319,18 +287,6 @@
   .link-btn:hover {
     color: var(--color-primary-hover);
   }
-  .feed-header h2 {
-    font-size: 0.9375rem;
-    font-weight: 600;
-    margin: 0 0 0.25rem;
-    color: var(--color-foreground);
-  }
-  .sub {
-    font-size: 0.75rem;
-    color: var(--color-muted-foreground-soft);
-    margin: 0;
-  }
-
   .state {
     flex: 1;
     display: flex;

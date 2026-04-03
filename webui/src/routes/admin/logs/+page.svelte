@@ -2,8 +2,20 @@
   import { onDestroy } from 'svelte';
   import { PRODUCT_NAME } from '$lib/brand';
   import { adminFetch } from '$lib/adminAuth';
+  import { showToast } from '$lib/toastStore.js';
+  import { Select } from 'bits-ui';
+  import ChevronDown from 'lucide-svelte/icons/chevron-down';
   const LEVELS = ['error', 'warn', 'info', 'debug'] as const;
   const CATEGORY_DEBOUNCE_MS = 350;
+
+  const levelItems: { value: string; label: string }[] = [
+    { value: '', label: '全部' },
+    ...LEVELS.map((l) => ({ value: l, label: l })),
+  ];
+
+  function levelLabel(v: string): string {
+    return levelItems.find((x) => x.value === v)?.label ?? '全部';
+  }
 
   interface LogItem {
     id: number;
@@ -24,6 +36,7 @@
   let categoryDebounce: ReturnType<typeof setTimeout> | null = null;
   let offset = 0;
   let expandedId: number | null = null;
+  let clearing = false;
 
   const PAGE_SIZE = 100;
 
@@ -84,6 +97,35 @@
     load();
   }
 
+  async function clearLogs() {
+    if (!confirm('确定清空全部日志？此操作不可恢复。')) return;
+    clearing = true;
+    try {
+      const res = await adminFetch('/api/logs', { method: 'DELETE' });
+      const txt = await res.text();
+      let j: { ok?: boolean; deleted?: number; error?: string } = {};
+      try {
+        j = txt ? (JSON.parse(txt) as typeof j) : {};
+      } catch {
+        j = {};
+      }
+      if (!res.ok) {
+        showToast(j.error || txt || `HTTP ${res.status}`, 'error');
+        return;
+      }
+      if (j.ok) {
+        showToast(j.deleted != null ? `已清空 ${j.deleted} 条` : '已清空日志', 'success');
+        offset = 0;
+        expandedId = null;
+        await load();
+      }
+    } catch (e) {
+      showToast(e instanceof Error ? e.message : String(e), 'error');
+    } finally {
+      clearing = false;
+    }
+  }
+
   function prevPage() {
     if (offset <= 0) return;
     offset = Math.max(0, offset - PAGE_SIZE);
@@ -137,33 +179,66 @@
 <div class="page">
   <div class="logs-col">
     <div class="logs-toolbar-block">
-      <div class="logs-header">
-        <h2>日志</h2>
+      <div class="admin-feed-header">
+        <div class="admin-feed-header__left">
+          <h2>日志</h2>
+          <p class="admin-feed-header__desc">
+            运行与抓取、pipeline 等产生的日志写入本地 logs.db；可按级别与类型筛选，支持刷新与清空。
+          </p>
+        </div>
+        <div class="admin-feed-header__actions">
+          <button
+            class="admin-toolbar-btn admin-toolbar-btn--secondary"
+            type="button"
+            on:click={refresh}
+            disabled={loading || clearing}
+            title="刷新"
+          >刷新</button>
+          <button
+            class="admin-toolbar-btn admin-toolbar-btn--danger"
+            type="button"
+            on:click={clearLogs}
+            disabled={loading || clearing}
+            title="清空全部日志"
+          >清空</button>
+        </div>
       </div>
       <div class="filters">
         <div class="filter-row">
-          <label>
-            <span>级别</span>
-            <select bind:value={filterLevel}>
-              <option value="">全部</option>
-              {#each LEVELS as l}
-                <option value={l}>{l}</option>
-              {/each}
-            </select>
-          </label>
-          <label class="label-category">
-            <span>类型</span>
-            <input
-              type="text"
-              class="filter-category-input"
-              placeholder="留空为全部；支持子串匹配"
-              bind:value={filterCategoryInput}
-              on:input={onCategoryInput}
-              autocomplete="off"
-              spellcheck="false"
-            />
-          </label>
-          <button class="btn btn-secondary" on:click={refresh} disabled={loading} title="刷新">刷新</button>
+          <div class="filter-left">
+            <div class="filter-level-field">
+              <span class="filter-level-label">级别</span>
+              <Select.Root type="single" bind:value={filterLevel} items={levelItems}>
+                <Select.Trigger class="level-select-trigger">
+                  <span class="level-select-value">{levelLabel(filterLevel)}</span>
+                  <ChevronDown size={14} class="level-select-chevron" aria-hidden="true" />
+                </Select.Trigger>
+                <Select.Portal>
+                  <Select.Content class="level-select-content" sideOffset={6} align="start">
+                    <Select.Viewport class="level-select-viewport">
+                      {#each levelItems as opt (opt.value)}
+                        <Select.Item value={opt.value} label={opt.label} class="level-select-item">
+                          {opt.label}
+                        </Select.Item>
+                      {/each}
+                    </Select.Viewport>
+                  </Select.Content>
+                </Select.Portal>
+              </Select.Root>
+            </div>
+            <label class="label-category">
+              <span>类型</span>
+              <input
+                type="text"
+                class="filter-category-input"
+                placeholder="留空为全部；支持子串匹配"
+                bind:value={filterCategoryInput}
+                on:input={onCategoryInput}
+                autocomplete="off"
+                spellcheck="false"
+              />
+            </label>
+          </div>
         </div>
       </div>
     </div>
@@ -264,17 +339,6 @@
     background: var(--color-background);
   }
 
-  .logs-header {
-    padding: 0 0 0.5rem;
-    flex-shrink: 0;
-  }
-  .logs-header h2 {
-    font-size: 0.9375rem;
-    font-weight: 600;
-    margin: 0;
-    color: var(--color-foreground);
-  }
-
   .log-body-scroll {
     flex: 1;
     min-height: 0;
@@ -308,14 +372,24 @@
   }
 
   .filters {
-    padding: 0.75rem 0 0;
+    padding: 0;
     flex-shrink: 0;
+    padding-top: 0.75rem;
   }
   .filter-row {
     display: flex;
     flex-wrap: wrap;
     align-items: center;
+    justify-content: space-between;
     gap: 0.75rem;
+  }
+  .filter-left {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 0.75rem;
+    flex: 1;
+    min-width: 0;
   }
   .filter-row label {
     display: inline-flex;
@@ -327,14 +401,81 @@
   .filter-row label span {
     white-space: nowrap;
   }
-  .filter-row select {
-    padding: 0.35rem 0.6rem;
-    border: 1px solid var(--color-input);
-    border-radius: 5px;
+  .filter-level-field {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.35rem;
+    font-size: 0.8125rem;
+    color: var(--color-muted-foreground-strong);
+  }
+  .filter-level-label {
+    white-space: nowrap;
+  }
+  :global(.level-select-trigger) {
+    display: inline-flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.4rem;
+    min-width: 7rem;
+    height: 2rem;
+    padding: 0 0.6rem;
+    box-sizing: border-box;
     font-size: 0.8125rem;
     font-family: inherit;
-    min-width: 6rem;
+    color: var(--color-foreground);
     background: var(--color-card-elevated);
+    border: 1px solid var(--color-input);
+    border-radius: var(--radius-sm);
+    cursor: pointer;
+    transition: border-color 0.15s, background 0.15s;
+  }
+  :global(.level-select-trigger:hover) {
+    border-color: var(--color-border);
+    background: var(--color-card);
+  }
+  :global(.level-select-trigger[data-state='open']) {
+    border-color: var(--color-primary);
+    box-shadow: 0 0 0 1px color-mix(in srgb, var(--color-primary) 35%, transparent);
+  }
+  .level-select-value {
+    flex: 1;
+    min-width: 0;
+    text-align: left;
+    font-variant-numeric: tabular-nums;
+  }
+  :global(.level-select-chevron) {
+    flex-shrink: 0;
+    opacity: 0.65;
+  }
+  :global(.level-select-content) {
+    z-index: 120;
+    min-width: 7rem;
+    max-height: min(16rem, 70vh);
+    overflow: hidden;
+    border-radius: var(--radius-sm);
+    border: 1px solid var(--color-border);
+    background: var(--color-card-elevated);
+    box-shadow: var(--shadow-panel);
+    padding: 0.2rem;
+  }
+  :global(.level-select-viewport) {
+    padding: 0.1rem 0;
+  }
+  :global(.level-select-item) {
+    display: flex;
+    align-items: center;
+    padding: 0.4rem 0.55rem;
+    font-size: 0.8125rem;
+    border-radius: 4px;
+    cursor: pointer;
+    color: var(--color-foreground);
+    outline: none;
+  }
+  :global(.level-select-item[data-highlighted]) {
+    background: var(--color-muted);
+  }
+  :global(.level-select-item[data-selected]) {
+    background: color-mix(in srgb, var(--color-primary) 16%, transparent);
     color: var(--color-foreground);
   }
   .label-category {
@@ -404,7 +545,11 @@
     border-collapse: collapse;
   }
   thead th {
-    background: var(--color-muted);
+    position: sticky;
+    top: 0;
+    z-index: 3;
+    /** 与 --color-muted（约 6% 白叠在背景上）等效的不透明色，避免 sticky 时与正文叠色发糊 */
+    background: color-mix(in srgb, var(--color-background) 94%, rgb(255 255 255) 6%);
     font-size: 0.72rem;
     font-weight: 600;
     color: var(--color-muted-foreground);
@@ -413,6 +558,7 @@
     padding: 0.5rem 0.75rem;
     text-align: left;
     border-bottom: 1px solid var(--color-border);
+    box-shadow: 0 1px 0 var(--color-border);
   }
   tbody tr {
     border-bottom: 1px solid var(--color-border-muted);

@@ -814,6 +814,13 @@ export async function queryLogs(opts: {
   return { items: rows, total: count };
 }
 
+/** 清空 logs 表（运行日志库） */
+export async function clearAllLogs(): Promise<number> {
+  const db = await getLogsDb();
+  const r = db.prepare("DELETE FROM logs").run();
+  return r.changes;
+}
+
 
 /** ????????????????????????????? .rssany/tags.json?????? pipeline tagger ????? */
 export async function getSystemTags(): Promise<string[]> {

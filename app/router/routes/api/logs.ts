@@ -1,10 +1,15 @@
 // /api/logs
 
 import type { Hono } from "hono";
-import { queryLogs } from "../../../db/index.js";
+import { clearAllLogs, queryLogs } from "../../../db/index.js";
 import { requireAdmin } from "../../../auth/middleware.js";
 
 export function registerLogsRoutes(app: Hono): void {
+  app.delete("/api/logs", requireAdmin(), async (c) => {
+    const deleted = await clearAllLogs();
+    return c.json({ ok: true, deleted });
+  });
+
   app.get("/api/logs", requireAdmin(), async (c) => {
     const levelParam = c.req.query("level");
     const level = levelParam === "error" || levelParam === "warn" || levelParam === "info" || levelParam === "debug" ? levelParam : undefined;
