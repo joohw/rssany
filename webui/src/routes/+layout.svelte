@@ -4,6 +4,7 @@
   import { siGithub } from 'simple-icons';
   import { page } from '$app/stores';
   import { PRODUCT_NAME, GITHUB_REPO_URL } from '$lib/brand';
+  import Toast from '$lib/components/ui/Toast.svelte';
   import '../app.css';
 
   /** 首页与若干后台列表页：主区域占满顶栏下剩余高度，仅内部滚动 */
@@ -82,6 +83,7 @@
     </main>
   </div>
 </div>
+<Toast />
 
 <style>
   :global(*, *::before, *::after) {

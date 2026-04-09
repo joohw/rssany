@@ -16,6 +16,7 @@
   import Mail from 'lucide-svelte/icons/mail';
   import Globe from 'lucide-svelte/icons/globe';
   import { Dialog, Popover } from 'bits-ui';
+  import { showToast } from '$lib/toastStore.js';
   import { refToTaskId, setPulling, clearPulling } from '$lib/sourcePullStore.js';
   import { adminFetch } from '$lib/adminAuth';
   import SourceFeedsSheet from './SourceFeedsSheet.svelte';
@@ -97,6 +98,13 @@
   let openMoreRef: string | null = null;
   let clearingRef: string | null = null;
   let removingRef: string | null = null;
+  /** 确认从订阅列表移除「信源」：自定义 Dialog，避免浏览器 confirm */
+  let removeDialogOpen = false;
+  let removeDialogRef: string | null = null;
+  $: removeDialogLabel =
+    removeDialogRef != null
+      ? cards.find((c) => c.ref === removeDialogRef)?.displayLabel ?? removeDialogRef
+      : '';
 
   /** 右侧条目 Sheet */
   let sheetOpen = false;
@@ -483,22 +491,30 @@
     window.open('/admin/parse/' + encodeURIComponent(fullUrl), '_blank');
   }
 
-  /** 从订阅列表移除该信源（不删除已入库条目） */
-  async function removeSourceByRef(ref: string) {
+  function onRemoveDialogOpenChange(open: boolean) {
+    removeDialogOpen = open;
+    if (!open) removeDialogRef = null;
+  }
+
+  function openRemoveSourceDialog(ref: string) {
     if (removingRef) return;
-    if (
-      !confirm(
-        '确定从订阅列表中移除该信源吗？已入库的条目不会自动删除；若需一并删除条目，可先使用「清空该源条目」。'
-      )
-    )
-      return;
-    removingRef = ref;
+    removeDialogRef = ref;
+    removeDialogOpen = true;
     openMoreRef = null;
+  }
+
+  /** 从订阅列表移除该信源（不删除已入库条目） */
+  async function executeRemoveSource() {
+    const ref = removeDialogRef;
+    if (!ref || removingRef) return;
+    removeDialogOpen = false;
+    removeDialogRef = null;
+    removingRef = ref;
     try {
       const updated = rawSources.filter((s) => s.ref !== ref);
       const ok = await persistSources(updated);
       if (!ok) {
-        alert('移除失败，请重试');
+        showToast('移除失败，请重试', 'error');
         return;
       }
       if (sheetCard?.ref === ref) {
@@ -507,7 +523,7 @@
       }
       await load();
     } catch (e) {
-      alert(e instanceof Error ? e.message : '移除失败');
+      showToast(e instanceof Error ? e.message : '移除失败', 'error');
     } finally {
       removingRef = null;
     }
@@ -720,6 +736,37 @@
   </Dialog.Portal>
 </Dialog.Root>
 
+<Dialog.Root open={removeDialogOpen} onOpenChange={onRemoveDialogOpenChange}>
+  <Dialog.Portal>
+    <Dialog.Overlay class="modal-overlay" />
+    <Dialog.Content class="modal" aria-describedby="remove-source-desc">
+      <div class="modal-header">
+        <Dialog.Title class="modal-title">移除信源</Dialog.Title>
+        <Dialog.Close class="modal-close" aria-label="关闭">✕</Dialog.Close>
+      </div>
+      <div class="modal-body">
+        <p id="remove-source-desc" class="remove-dialog-text">
+          确定从订阅列表中移除该信源吗？已入库的条目不会自动删除；若需一并删除条目，可先使用「清空该源条目」。
+        </p>
+        {#if removeDialogLabel}
+          <p class="remove-dialog-target">{removeDialogLabel}</p>
+        {/if}
+      </div>
+      <div class="modal-footer remove-dialog-footer">
+        <Dialog.Close class="btn-cancel" disabled={!!removingRef}>取消</Dialog.Close>
+        <button
+          type="button"
+          class="btn-confirm-yes"
+          onclick={executeRemoveSource}
+          disabled={!!removingRef}
+        >
+          移除
+        </button>
+      </div>
+    </Dialog.Content>
+  </Dialog.Portal>
+</Dialog.Root>
+
 <SourceFeedsSheet
   open={sheetOpen}
   sourceRef={sheetCard?.ref ?? ''}
@@ -898,7 +945,7 @@
                         class="more-menu-item more-menu-item-remove"
                         title="从订阅列表中移除此信源"
                         disabled={removingRef === card.ref}
-                        onclick={() => removeSourceByRef(card.ref)}
+                        onclick={() => openRemoveSourceDialog(card.ref)}
                       >
                         <Trash2 size={14} />
                         <span>{removingRef === card.ref ? '移除中…' : '移除信源'}</span>
@@ -1451,6 +1498,22 @@
     gap: 0.5rem;
     padding: 0.75rem 1.25rem;
     border-top: 1px solid var(--color-border-muted);
+  }
+  .remove-dialog-footer {
+    justify-content: flex-end;
+  }
+  .remove-dialog-text {
+    margin: 0;
+    font-size: 0.875rem;
+    line-height: 1.5;
+    color: var(--color-foreground);
+  }
+  .remove-dialog-target {
+    margin: 0;
+    margin-top: 0.5rem;
+    font-size: 0.8125rem;
+    color: var(--color-muted-foreground-strong);
+    word-break: break-all;
   }
   .modal-footer-left { display: flex; align-items: center; }
   .modal-footer-right { display: flex; align-items: center; gap: 0.5rem; }
