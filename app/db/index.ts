@@ -6,6 +6,7 @@ import { join } from "node:path";
 import { existsSync, openSync, closeSync, writeSync, unlinkSync, readFileSync } from "node:fs";
 import type { FeedItem } from "../types/feedItem.js";
 import { normalizeAuthor } from "../types/feedItem.js";
+import { canonicalHttpSourceRef } from "../utils/httpSourceRef.js";
 import type { LogEntry } from "../core/logger/types.js";
 import { DATA_DIR, TAGS_CONFIG_PATH } from "../config/paths.js";
 
@@ -371,18 +372,39 @@ function initSchema(db: Database.Database): void {
   } catch {
     /* ignore */
   }
+
+  migrateItemsSourceUrlIfNeeded(db);
+}
+
+/** 将 items.source_url 一次性规范化为 canonicalHttpSourceRef（user_version 2：大小写 + 去尾 slash 等） */
+function migrateItemsSourceUrlIfNeeded(db: Database.Database): void {
+  const v = db.pragma("user_version", { simple: true }) as number;
+  if (v >= 2) return;
+  const rows = db.prepare("SELECT rowid, source_url FROM items").all() as { rowid: number; source_url: string }[];
+  const upd = db.prepare("UPDATE items SET source_url = @next WHERE rowid = @rowid");
+  const run = db.transaction(() => {
+    for (const r of rows) {
+      const next = canonicalHttpSourceRef(r.source_url);
+      if (next !== r.source_url) {
+        upd.run({ next, rowid: r.rowid });
+      }
+    }
+    db.pragma("user_version = 2");
+  });
+  run();
 }
 
 /**
  * 批量插入或忽略重复（按 id）；新行计入 newIds。
- * source_url 取自首条 item.sourceRef 或 sourceUrlOverride；须至少其一有值。
+ * source_url 取自首条 item.sourceRef 或 sourceUrlOverride，写入前经 canonicalHttpSourceRef 规范化。
  */
 export async function upsertItems(items: FeedItem[], sourceUrlOverride?: string): Promise<{ newCount: number; newIds: Set<string> }> {
   if (items.length === 0) return { newCount: 0, newIds: new Set() };
-  const sourceUrl = sourceUrlOverride ?? items[0].sourceRef;
-  if (!sourceUrl) {
+  const raw = (sourceUrlOverride ?? items[0].sourceRef)?.trim();
+  if (!raw) {
     throw new Error("upsertItems: 每条 item 须有 sourceRef，或传入 sourceUrlOverride");
   }
+  const sourceUrl = canonicalHttpSourceRef(raw);
   return withWriteLock(async () => {
     const db = await getDb();
     const stmt = db.prepare(`
@@ -535,11 +557,13 @@ export async function queryFeedItems(
   opts?: { since?: string; until?: string },
 ): Promise<{ items: DbItem[]; hasMore: boolean }> {
   if (sourceUrls.length === 0) return { items: [], hasMore: false };
+  const expanded = [...new Set(sourceUrls.map((u) => canonicalHttpSourceRef(u)).filter(Boolean))];
+  if (expanded.length === 0) return { items: [], hasMore: false };
   const db = await getDb();
-  const placeholders = sourceUrls.map((_, i) => `@u${i}`).join(", ");
+  const placeholders = expanded.map((_, i) => `@u${i}`).join(", ");
   const conditions: string[] = [`source_url IN (${placeholders})`];
   const params: Record<string, unknown> = { lim: limit + 1, off: offset };
-  sourceUrls.forEach((url, i) => {
+  expanded.forEach((url, i) => {
     params[`u${i}`] = url;
   });
   if (opts?.since) {
@@ -579,6 +603,8 @@ export async function getItemById(id: string): Promise<DbItem | null> {
 
 /** 单信源最近条目；可选 since（增量同步 /api/feed 等） */
 export async function queryItemsBySource(sourceUrl: string, limit = 50, since?: Date): Promise<DbItem[]> {
+  const key = canonicalHttpSourceRef(sourceUrl);
+  if (!key) return [];
   const db = await getDb();
   const sinceClause = since ? "AND COALESCE(pub_date, fetched_at) >= @since" : "";
   const rows = db
@@ -588,7 +614,7 @@ export async function queryItemsBySource(sourceUrl: string, limit = 50, since?: 
     ORDER BY COALESCE(pub_date, fetched_at) DESC
     LIMIT @limit
   `)
-    .all({ sourceUrl, limit, since: since?.toISOString() ?? null }) as Record<string, unknown>[];
+    .all({ sourceUrl: key, limit, since: since?.toISOString() ?? null }) as Record<string, unknown>[];
   return mapRowsToDbItems(rows);
 }
 
@@ -609,12 +635,20 @@ export async function queryItems(opts: {
   const conditions: string[] = [];
   const params: Record<string, unknown> = { limit, offset };
   if (sourceUrl) {
+    const key = canonicalHttpSourceRef(sourceUrl);
+    if (!key) {
+      return { items: [], total: 0 };
+    }
     conditions.push("i.source_url = @sourceUrl");
-    params.sourceUrl = sourceUrl;
+    params.sourceUrl = key;
   } else if (sourceUrls && sourceUrls.length > 0) {
-    const placeholders = sourceUrls.map((_, i) => `@src${i}`).join(", ");
+    const expanded = [...new Set(sourceUrls.map((s) => canonicalHttpSourceRef(s)).filter(Boolean))];
+    if (expanded.length === 0) {
+      return { items: [], total: 0 };
+    }
+    const placeholders = expanded.map((_, i) => `@src${i}`).join(", ");
     conditions.push(`i.source_url IN (${placeholders})`);
-    sourceUrls.forEach((s, i) => ((params as Record<string, unknown>)[`src${i}`] = s));
+    expanded.forEach((s, i) => ((params as Record<string, unknown>)[`src${i}`] = s));
   }
   if (author && author.trim().length >= 2) {
     conditions.push("instr(i.author, @author) > 0");
@@ -717,11 +751,11 @@ export async function deleteItem(id: string): Promise<boolean> {
   });
 }
 
-/** 按 source_url 删除该信源下全部条目（与 feeder 写入的 canonical 一致） */
+/** 按 source_url 删除该信源下全部条目（ref 经 canonicalHttpSourceRef 与入库键一致） */
 export async function deleteItemsBySourceUrl(sourceUrl: string): Promise<number> {
   if (!sourceUrl?.trim()) return 0;
-  const { canonicalHttpSourceRef } = await import("../utils/httpSourceRef.js");
   const key = canonicalHttpSourceRef(sourceUrl.trim());
+  if (!key) return 0;
   return withWriteLock(async () => {
     const db = await getDb();
     const info = db.prepare("DELETE FROM items WHERE source_url = @sourceUrl").run({ sourceUrl: key });

@@ -140,6 +140,17 @@
     }
   }
 
+  function goToPlugin(plugin: Plugin) {
+    goto("/plugins/" + encodeURIComponent(plugin.id));
+  }
+
+  function onPluginRowKeydown(plugin: Plugin, e: KeyboardEvent) {
+    if (e.key === "Enter" || e.key === " ") {
+      e.preventDefault();
+      goToPlugin(plugin);
+    }
+  }
+
   async function openLogin(plugin: Plugin, e: Event) {
     e.preventDefault();
     e.stopPropagation();
@@ -236,14 +247,16 @@
             </thead>
             <tbody>
               {#each filteredPlugins as plugin (plugin.id)}
-                <tr class="plugin-row">
+                <tr
+                  class="plugin-row"
+                  tabindex="0"
+                  onclick={() => goToPlugin(plugin)}
+                  onkeydown={(e) => onPluginRowKeydown(plugin, e)}
+                  aria-label="打开插件 {plugin.id}"
+                >
                   <td class="td-name">
                     <div class="name-cell">
-                      <a
-                        class="plugin-id-link"
-                        href="/plugins/{encodeURIComponent(plugin.id)}"
-                        >{plugin.id}</a
-                      >
+                      <span class="plugin-id-text">{plugin.id}</span>
                       {#if plugin.kind === "source"}
                         <span class="kind-badge">Source</span>
                       {/if}
@@ -522,8 +535,15 @@
     vertical-align: middle;
     border-bottom: 1px solid var(--color-border-muted);
   }
+  .plugin-row {
+    cursor: pointer;
+  }
   .plugin-row:hover {
     background: var(--color-muted);
+  }
+  .plugin-row:focus-visible {
+    outline: 2px solid var(--color-primary);
+    outline-offset: -2px;
   }
   .plugin-row:last-child td {
     border-bottom: none;
@@ -546,15 +566,13 @@
     border-radius: 4px;
     padding: 0.1rem 0.35rem;
   }
-  .plugin-id-link {
+  .plugin-id-text {
     font-size: 0.875rem;
     font-weight: 500;
     color: var(--color-foreground);
-    text-decoration: none;
   }
-  .plugin-id-link:hover {
+  .plugin-row:hover .plugin-id-text {
     color: var(--color-primary);
-    text-decoration: underline;
   }
   .pattern-text {
     display: block;

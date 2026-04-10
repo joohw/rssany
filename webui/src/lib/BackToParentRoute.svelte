@@ -1,6 +1,5 @@
 <script lang="ts">
   import { page } from '$app/stores';
-  import ChevronLeft from 'lucide-svelte/icons/chevron-left';
 
   /**
    * 上一层路径：/admin/tags → /admin；/plugins/foo → /plugins；
@@ -28,8 +27,7 @@
     data-sveltekit-preload-data="hover"
     aria-label="返回上一层"
   >
-    <ChevronLeft size={16} strokeWidth={2} aria-hidden="true" />
-    <span>返回</span>
+    返回
   </a>
 {/if}
 
@@ -39,9 +37,5 @@
     margin: 0 0 1.125rem;
     text-decoration: none;
     width: fit-content;
-  }
-  .back-to-parent :global(svg) {
-    flex-shrink: 0;
-    opacity: 0.9;
   }
 </style>

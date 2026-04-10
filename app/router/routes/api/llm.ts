@@ -59,16 +59,12 @@ export function registerLlmRoutes(app: Hono): void {
     try {
       const cfg = getLLMConfig();
       if (!cfg.apiKey) {
-        console.log("[llm/test] skip: no API key");
         return c.json({ ok: false, message: "未配置 API Key（请在界面或 OPENAI_API_KEY 中设置）" }, 400);
       }
-      console.log("[llm/test] start", { baseUrl: cfg.baseUrl, model: cfg.model });
       const reply = await chatText("Reply with exactly the single word: ok", undefined, {
         maxTokens: 32768,
         debugLabel: "llmSettingsTest",
       });
-      const ms = Date.now() - t0;
-      console.log("[llm/test] ok", { ms, replyLen: reply.length, reply });
       return c.json({ ok: true, reply });
     } catch (err) {
       const ms = Date.now() - t0;

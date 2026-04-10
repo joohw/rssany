@@ -6,6 +6,8 @@ export type HomeFeedPanelSource = {
   displayLabel: string;
   /** 展示在标题下方，替代 ref 行 */
   description?: string;
+  /** 配置了单源代理时，详情标题旁显示地球图标 */
+  proxy?: string;
 };
 
 export const homeFeedPanelSource = writable<HomeFeedPanelSource | null>(null);

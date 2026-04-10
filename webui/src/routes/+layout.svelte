@@ -122,6 +122,7 @@
             sourceRef={$homeFeedPanelSource?.ref ?? ''}
             sourceLabel={$homeFeedPanelSource?.displayLabel ?? ''}
             sourceDescription={$homeFeedPanelSource?.description ?? ''}
+            sourceProxy={$homeFeedPanelSource?.proxy?.trim() ?? ''}
             onOpenChange={(v) => {
               if (!v) homeFeedPanelSource.set(null);
             }}

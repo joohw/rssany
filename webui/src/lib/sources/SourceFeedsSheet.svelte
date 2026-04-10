@@ -1,8 +1,10 @@
 <script lang="ts">
+  import { untrack } from 'svelte';
   import { Dialog } from 'bits-ui';
   import X from 'lucide-svelte/icons/x';
   import ExternalLink from 'lucide-svelte/icons/external-link';
   import RefreshCw from 'lucide-svelte/icons/refresh-cw';
+  import Globe from 'lucide-svelte/icons/globe';
   import { adminFetch } from '$lib/adminAuth';
   import { refToTaskId } from '$lib/sourcePullStore.js';
 
@@ -15,20 +17,43 @@
     summary: string | null;
   }
 
-  export let open = false;
-  export let sourceRef = '';
-  export let sourceLabel = '';
-  /** 标题下方展示（无则显示 —） */
-  export let sourceDescription = '';
-  /** `overlay`：右侧抽屉 + 遮罩；`inline`：与信源列表并排占满主区域右侧列 */
-  export let variant: 'overlay' | 'inline' = 'overlay';
-  /** @param v */
-  export let onOpenChange: (v: boolean) => void = () => {};
+  interface Props {
+    open?: boolean;
+    sourceRef?: string;
+    sourceLabel?: string;
+    /** 标题下方展示（无则显示 —） */
+    sourceDescription?: string;
+    /** 单源代理：非空时在标题旁显示图标 */
+    sourceProxy?: string;
+    /** `overlay`：右侧抽屉 + 遮罩；`inline`：与信源列表并排占满主区域右侧列 */
+    variant?: 'overlay' | 'inline';
+    /** @param v */
+    onOpenChange?: (v: boolean) => void;
+  }
 
-  let items: FeedRow[] = [];
-  let loading = false;
-  let loadError = '';
-  let loadSeq = 0;
+  let {
+    open = false,
+    sourceRef = '',
+    sourceLabel = '',
+    sourceDescription = '',
+    sourceProxy = '',
+    variant = 'overlay',
+    onOpenChange = () => {},
+  }: Props = $props();
+
+  let items = $state<FeedRow[]>([]);
+  let loading = $state(false);
+  let loadError = $state('');
+  let loadSeq = $state(0);
+
+  /** 拉取任务 id 映射（runes 下需订阅 store 才能随 refToTaskId 更新） */
+  let taskPullMap = $state<Record<string, string>>({});
+  $effect(() => {
+    const unsub = refToTaskId.subscribe((v) => {
+      taskPullMap = v;
+    });
+    return () => unsub();
+  });
 
   async function loadItems() {
     const ref = sourceRef.trim();
@@ -36,7 +61,8 @@
       items = [];
       return;
     }
-    const seq = ++loadSeq;
+    loadSeq += 1;
+    const seq = loadSeq;
     loading = true;
     loadError = '';
     try {
@@ -58,16 +84,19 @@
     }
   }
 
-  $: {
+  $effect(() => {
     if (open && sourceRef.trim()) {
-      loadItems();
+      // loadItems 会同步读写 loadSeq/loading；若在 effect 追踪内执行，会把它们当成依赖并无限重跑（effect_update_depth_exceeded）。
+      untrack(() => void loadItems());
     } else if (!open) {
-      loadSeq++;
-      items = [];
-      loadError = '';
-      loading = false;
+      untrack(() => {
+        loadSeq += 1;
+        items = [];
+        loadError = '';
+        loading = false;
+      });
     }
-  }
+  });
 
   function formatWhen(iso: string | null): string {
     if (!iso) return '—';
@@ -89,19 +118,23 @@
     return formatWhen(row.pub_date || row.fetched_at);
   }
 
-  $: sublineText = sourceDescription.trim() ? sourceDescription.trim() : '—';
-  $: headerTitleAttr = [sourceLabel, sourceRef].filter(Boolean).join(' · ') || undefined;
+  const sublineText = $derived(sourceDescription.trim() ? sourceDescription.trim() : '—');
+  const headerTitleAttr = $derived(
+    [sourceLabel, sourceRef].filter(Boolean).join(' · ') || undefined,
+  );
 
-  $: inlinePulling =
-    variant === 'inline' && open && sourceRef.trim() !== '' && sourceRef in $refToTaskId;
+  const inlinePulling = $derived(
+    variant === 'inline' && open && sourceRef.trim() !== '' && sourceRef in taskPullMap,
+  );
 
   let prevInlinePulling = false;
-  $: {
-    if (prevInlinePulling && !inlinePulling && open && variant === 'inline' && sourceRef.trim()) {
-      loadItems();
+  $effect(() => {
+    const pulling = inlinePulling;
+    if (prevInlinePulling && !pulling && open && variant === 'inline' && sourceRef.trim()) {
+      untrack(() => void loadItems());
     }
-    prevInlinePulling = inlinePulling;
-  }
+    prevInlinePulling = pulling;
+  });
 </script>
 
 {#if variant === 'overlay'}
@@ -114,10 +147,19 @@
       <Dialog.Content class="source-sheet-panel" aria-describedby={undefined}>
         <header class="source-sheet-header">
           <div class="source-sheet-title-wrap">
-            <Dialog.Title
-              class="source-sheet-title"
-              title={headerTitleAttr}
-            >{sourceLabel || sourceRef || '信源条目'}</Dialog.Title>
+            <div class="source-sheet-title-row">
+              <div class="source-sheet-title-cluster">
+                <Dialog.Title
+                  class="source-sheet-title"
+                  title={headerTitleAttr}
+                >{sourceLabel || sourceRef || '信源条目'}</Dialog.Title>
+                {#if sourceProxy.trim()}
+                  <span class="source-sheet-proxy" title="代理：{sourceProxy.trim()}" aria-label="已配置代理">
+                    <Globe size={16} class="source-sheet-proxy-globe" aria-hidden="true" />
+                  </span>
+                {/if}
+              </div>
+            </div>
             <p class="source-sheet-sub source-sheet-sub-desc" title={sourceRef}>{sublineText}</p>
           </div>
           <Dialog.Close class="source-sheet-close" aria-label="关闭">
@@ -163,9 +205,18 @@
     {#if open && sourceRef.trim()}
       <header class="source-sheet-header source-sheet-header-inline">
         <div class="source-sheet-title-wrap">
-          <h2 class="source-sheet-title" title={headerTitleAttr}>
-            {sourceLabel || sourceRef || '信源条目'}
-          </h2>
+          <div class="source-sheet-title-row">
+            <div class="source-sheet-title-cluster">
+              <h2 class="source-sheet-title" title={headerTitleAttr}>
+                {sourceLabel || sourceRef || '信源条目'}
+              </h2>
+              {#if sourceProxy.trim()}
+                <span class="source-sheet-proxy" title="代理：{sourceProxy.trim()}" aria-label="已配置代理">
+                  <Globe size={16} class="source-sheet-proxy-globe" aria-hidden="true" />
+                </span>
+              {/if}
+            </div>
+          </div>
           <p class="source-sheet-sub source-sheet-sub-desc" title={sourceRef}>{sublineText}</p>
         </div>
         {#if inlinePulling}
@@ -397,7 +448,34 @@
     border-bottom: 1px solid var(--color-border-muted);
   }
   .source-sheet-title-wrap {
+    flex: 1 1 auto;
     min-width: 0;
+  }
+  .source-sheet-title-row {
+    min-width: 0;
+  }
+  /** 标题与代理图标同一组：图标紧贴标题末尾，而非整行两端对齐 */
+  .source-sheet-title-cluster {
+    display: flex;
+    align-items: center;
+    gap: 0.35rem;
+    min-width: 0;
+    max-width: 100%;
+  }
+  .source-sheet-title-cluster :global(.source-sheet-title),
+  .source-sheet-title-cluster h2.source-sheet-title {
+    flex: 1 1 0%;
+    min-width: 0;
+  }
+  .source-sheet-proxy {
+    flex-shrink: 0;
+    display: inline-flex;
+    align-items: center;
+    line-height: 0;
+    color: var(--color-muted-foreground-soft);
+  }
+  :global(.source-sheet-proxy-globe) {
+    opacity: 0.9;
   }
   :global(.source-sheet-title) {
     font-size: 0.9375rem;

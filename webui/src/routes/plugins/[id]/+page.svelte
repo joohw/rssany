@@ -4,6 +4,7 @@
   import { page } from '$app/stores';
   import { showToast } from '$lib/toastStore.js';
   import PluginCodeEditor from '$lib/components/PluginCodeEditor.svelte';
+  import BackToParentRoute from '$lib/BackToParentRoute.svelte';
 
   $: pluginId = $page.params.id ? decodeURIComponent($page.params.id) : '';
 
@@ -86,7 +87,7 @@
 
 <div class="feed-wrap">
   <div class="feed-col">
-    <div class="feed-toolbar-block">
+    <div class="feed-toolbar-block plugin-detail-toolbar">
       <div class="admin-feed-header">
         <div class="admin-feed-header__left">
           <h2>{pluginId || '插件'}</h2>
@@ -105,6 +106,9 @@
           </p>
         </div>
         <div class="admin-feed-header__actions">
+          {#if pluginId}
+            <BackToParentRoute />
+          {/if}
           {#if pluginId && !loading && !loadError}
             <button
               type="button"
@@ -171,6 +175,11 @@
     flex-shrink: 0;
     padding-top: var(--main-padding-top);
     padding-bottom: var(--feed-sticky-gap-after);
+  }
+
+  /** BackToParentRoute 默认带下边距，顶栏横向排列时去掉 */
+  .plugin-detail-toolbar :global(.back-to-parent) {
+    margin: 0;
   }
 
   .feed-body-scroll {

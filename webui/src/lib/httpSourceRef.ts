@@ -1,15 +1,19 @@
-/** 与 `app/utils/httpSourceRef.ts` 中 `canonicalHttpSourceRef` 一致（供首页统计键对齐） */
+/** 与 `app/utils/httpSourceRef.ts` 中 `canonicalHttpSourceRef` 一致（供首页统计键与订阅 ref 对齐） */
 export function canonicalHttpSourceRef(ref: string): string {
   const t = ref.trim();
-  if (!/^https?:\/\//i.test(t)) return t;
+  if (!t) return t;
+  if (!/^https?:\/\//i.test(t)) return t.toLowerCase();
   try {
     const u = new URL(t);
+    const protocol = u.protocol.toLowerCase();
+    const host = u.host.toLowerCase();
     let path = u.pathname;
     if (path.length > 1 && path.endsWith('/')) {
       path = path.slice(0, -1);
     }
-    return `${u.origin}${path}${u.search}${u.hash}`;
+    path = path.toLowerCase();
+    return `${protocol}//${host}${path}${u.search}${u.hash}`;
   } catch {
-    return t;
+    return t.toLowerCase();
   }
 }

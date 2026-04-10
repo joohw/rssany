@@ -1,19 +1,24 @@
 /**
- * HTTP(S) 信源 ref 入库与查询统一：去掉 path 末尾多余 `/`，避免与订阅里写法不一致。
- * 非 http(s) 协议原样返回。
+ * 信源 ref 入库与查询统一键（规范化存储）：
+ * - http(s)：scheme、host（含端口）小写；pathname 小写并去掉非根路径末尾 `/`；query、hash 保持原样（避免破坏带大小写的查询参数）。
+ * - 非 http(s)：trim 后全串小写。
  */
 export function canonicalHttpSourceRef(ref: string): string {
   const t = ref.trim();
-  if (!/^https?:\/\//i.test(t)) return t;
+  if (!t) return t;
+  if (!/^https?:\/\//i.test(t)) return t.toLowerCase();
   try {
     const u = new URL(t);
+    const protocol = u.protocol.toLowerCase();
+    const host = u.host.toLowerCase();
     let path = u.pathname;
     if (path.length > 1 && path.endsWith("/")) {
       path = path.slice(0, -1);
     }
-    return `${u.origin}${path}${u.search}${u.hash}`;
+    path = path.toLowerCase();
+    return `${protocol}//${host}${path}${u.search}${u.hash}`;
   } catch {
-    return t;
+    return t.toLowerCase();
   }
 }
 
@@ -24,7 +29,7 @@ function maxIso(a: string | null, b: string | null): string | null {
 }
 
 /**
- * 将 GROUP BY source_url 的统计按 canonical 合并（库中可能同时存在 /feed 与 /feed/ 等写法）。
+ * 将 GROUP BY source_url 的统计按规范化键合并（兼容迁移前旧数据或异常重复写法）。
  */
 export function mergeSourceStatsRows(
   rows: { source_url: string; count: number; latest_at: string | null }[],

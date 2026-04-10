@@ -55,13 +55,11 @@
 <style>
   .cm-root {
     width: 100%;
-    border-radius: var(--radius-md);
     overflow: hidden;
     background: var(--color-card);
   }
   .cm-root :global(.cm-editor) {
     height: 100%;
-    border-radius: inherit;
   }
   .cm-root :global(.cm-editor.cm-focused) {
     outline: none;

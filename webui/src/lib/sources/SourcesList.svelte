@@ -15,7 +15,6 @@
   import Trash from 'lucide-svelte/icons/trash';
   import Copy from 'lucide-svelte/icons/copy';
   import Mail from 'lucide-svelte/icons/mail';
-  import Globe from 'lucide-svelte/icons/globe';
   import { page } from '$app/stores';
   import { Dialog, Popover } from 'bits-ui';
   import { showToast } from '$lib/toastStore.js';
@@ -313,8 +312,10 @@
   );
 
   // ── 数据加载 ──────────────────────────────────────────
-  async function load() {
-    loading = true;
+  /** `silent`: 已有列表时后台刷新，不整页换成「加载中」（保存/删除/拉取后体验更好） */
+  async function load(opts?: { silent?: boolean }) {
+    const silent = opts?.silent === true;
+    if (!silent) loading = true;
     loadError = '';
     try {
       const [sourcesRes, statsRes] = await Promise.all([
@@ -379,9 +380,9 @@
         });
     } catch (e) {
       loadError = e instanceof Error ? e.message : String(e);
-      cards = [];
+      if (!silent) cards = [];
     } finally {
-      loading = false;
+      if (!silent) loading = false;
     }
   }
 
@@ -466,7 +467,7 @@
       const ok = await persistSources(updated);
       if (!ok) { saveError = '保存失败，请重试'; return; }
       closeModal();
-      await load();
+      await load({ silent: true });
     } catch (e) {
       saveError = e instanceof Error ? e.message : String(e);
     } finally {
@@ -509,7 +510,7 @@
         return;
       }
       closeModal();
-      await load();
+      await load({ silent: true });
     } catch (e) {
       saveError = e instanceof Error ? e.message : String(e);
     } finally {
@@ -544,7 +545,7 @@
       if (!res.ok || !data.taskId) return;
       setPulling(ref, data.taskId);
       const result = await pollTask(data.taskId);
-      if (result.ok) await load();
+      if (result.ok) await load({ silent: true });
     } catch {
       /* 错误已由后端 logger 记录 */
     } finally {
@@ -622,7 +623,7 @@
         sheetOpen = false;
         sheetCard = null;
       }
-      await load();
+      await load({ silent: true });
     } catch (e) {
       showToast(e instanceof Error ? e.message : '移除失败', 'error');
     } finally {
@@ -639,7 +640,7 @@
     try {
       const res = await adminFetch('/api/items/by-source?source_url=' + encodeURIComponent(ref), { method: 'DELETE' });
       const data = (await res.json()) as { ok?: boolean; deleted?: number; message?: string };
-      if (res.ok && data.ok) await load();
+      if (res.ok && data.ok) await load({ silent: true });
       else if (!res.ok) alert(data.message ?? '清空失败');
     } catch (e) {
       alert(e instanceof Error ? e.message : '清空失败');
@@ -654,6 +655,7 @@
         ref: card.ref,
         displayLabel: card.displayLabel,
         ...(card.description?.trim() ? { description: card.description.trim() } : {}),
+        ...(card.proxy?.trim() ? { proxy: card.proxy.trim() } : {}),
       });
       return;
     }
@@ -868,6 +870,7 @@
     sourceRef={sheetCard?.ref ?? ''}
     sourceLabel={sheetCard?.displayLabel ?? ''}
     sourceDescription={sheetCard?.description?.trim() ?? ''}
+    sourceProxy={sheetCard?.proxy?.trim() ?? ''}
     onOpenChange={(v) => {
       sheetOpen = v;
       if (!v) sheetCard = null;
@@ -967,13 +970,10 @@
                       {/if}
                     </span>
                   {/if}
-                  <span class="title-text">{card.displayLabel}</span>
-                  <span class="title-item-count" title="已收录条目">{card.count}</span>
-                  {#if card.proxy}
-                    <span class="card-proxy" title="代理：{card.proxy}">
-                      <Globe size={14} class="card-proxy-globe" aria-hidden="true" />
-                    </span>
-                  {/if}
+                  <div class="title-line">
+                    <span class="title-text">{card.displayLabel}</span>
+                    <span class="title-item-count" title="已收录条目">{card.count}</span>
+                  </div>
                 </div>
               </div>
               <div class="cell-actions">
@@ -1364,16 +1364,24 @@
     min-width: 0;
   }
   .title-block {
-    display: inline-flex;
+    display: flex;
     align-items: center;
     gap: 0.35rem;
     min-width: 0;
     max-width: 100%;
+    width: 100%;
+    box-sizing: border-box;
     color: inherit;
+  }
+  .title-line {
+    display: flex;
+    align-items: baseline;
+    gap: 0.35rem;
+    min-width: 0;
+    flex: 1 1 0%;
   }
   .title-item-count {
     flex-shrink: 0;
-    margin-left: 0.15rem;
     font-size: 0.72rem;
     font-weight: 500;
     font-variant-numeric: tabular-nums;
@@ -1398,21 +1406,12 @@
   .title-text {
     font-size: 0.875rem;
     font-weight: 500;
+    line-height: 1.2;
     color: var(--color-foreground);
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
     min-width: 0;
-  }
-  .card-proxy {
-    display: inline-flex;
-    align-items: center;
-    flex-shrink: 0;
-    line-height: 0;
-  }
-  :global(.card-proxy-globe) {
-    color: var(--color-muted-foreground-soft);
-    opacity: 0.9;
   }
   .cell-actions {
     display: inline-flex;
