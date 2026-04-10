@@ -5,6 +5,10 @@
 
 **RSSAny** 是一套自托管的订阅管线：列表 URL → **抓取与解析**（规则 / LLM）→ **正文提取**（自定义 / Readability / LLM）→ **upsert 去重** → 固定 **pipeline**（打标签、翻译等）→ 对外提供 `**/rss`** 等输出。
 
+## 界面预览
+
+![RSSAny Web 界面截图](images/ScreenShot_2026-04-10_153307_558.png)
+
 ---
 
 ## 功能概览
