@@ -175,8 +175,7 @@
   .settings-toolbar-block {
     flex-shrink: 0;
     padding-top: var(--main-padding-top);
-    padding-bottom: var(--feed-sticky-gap-after);
-    background: var(--color-background);
+    padding-bottom: calc(var(--feed-sticky-gap-after) * 0.95);
     border-bottom: 1px solid var(--color-border-muted);
   }
   .feed-header {
@@ -194,7 +193,7 @@
   .feed-header h2 {
     font-size: 0.9375rem;
     font-weight: 600;
-    margin: 0 0 0.25rem;
+    margin: 0 0 0.2375rem;
     color: var(--color-foreground);
   }
   .sub {
@@ -204,7 +203,7 @@
   }
 
   .body {
-    padding: 1rem 0 1.5rem;
+    padding: 0.95rem 0 1.425rem;
     box-sizing: border-box;
   }
 
@@ -212,10 +211,10 @@
     font-size: 0.8125rem;
     font-weight: 600;
     color: var(--color-muted-foreground);
-    margin: 0 0 0.5rem;
+    margin: 0 0 0.475rem;
   }
   .scheduler-section {
-    margin-bottom: 1.25rem;
+    margin-bottom: 1.1875rem;
   }
   .scheduler-card {
     padding: 0;
@@ -229,7 +228,7 @@
     justify-content: space-between;
     align-items: center;
     gap: 1rem;
-    padding: 0.75rem 1rem;
+    padding: 0.7125rem 1rem;
     border-bottom: 1px solid var(--color-border);
   }
   .scheduler-row:last-child {
@@ -240,7 +239,7 @@
     min-width: 0;
     display: flex;
     flex-direction: column;
-    gap: 0.2rem;
+    gap: 0.19rem;
   }
   .scheduler-name {
     font-weight: 600;
@@ -269,10 +268,10 @@
   }
 
   .links-section {
-    margin-bottom: 1.25rem;
+    margin-bottom: 1.1875rem;
   }
   .links-section:last-child {
-    margin-bottom: 0.5rem;
+    margin-bottom: 0.475rem;
   }
   .links {
     display: flex;
@@ -287,7 +286,7 @@
     align-items: center;
     justify-content: space-between;
     gap: 0.75rem;
-    padding: 0.875rem 1rem;
+    padding: 0.83125rem 1rem;
     background: var(--color-card);
     border-bottom: 1px solid var(--color-border);
     text-decoration: none;
@@ -304,13 +303,13 @@
     min-width: 0;
     display: flex;
     flex-direction: column;
-    gap: 0.15rem;
+    gap: 0.1425rem;
   }
   .card-label {
     font-size: 0.9rem;
     font-weight: 500;
     color: var(--color-foreground);
-    line-height: 1.4;
+    line-height: 1.33;
   }
   .card:hover .card-label {
     color: var(--color-primary);
@@ -318,7 +317,7 @@
   .card-desc {
     font-size: 0.75rem;
     color: var(--color-muted-foreground-soft);
-    line-height: 1.3;
+    line-height: 1.235;
   }
   .card-arrow {
     font-size: 1rem;

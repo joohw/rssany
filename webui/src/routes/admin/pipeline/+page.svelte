@@ -256,7 +256,7 @@
   .toggle-slider {
     width: 36px;
     height: 20px;
-    background: rgba(255, 255, 255, 0.14);
+    background: var(--color-input);
     border-radius: 10px;
     transition: background 0.2s;
   }

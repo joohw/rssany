@@ -759,14 +759,16 @@ export async function getItemsForDate(date: string): Promise<DbItem[]> {
   return mapRowsToDbItems(rows);
 }
 
-/** 各信源条目数与最新一条时间，用于管理页统计 */
+/** 各信源条目数与最新一条时间，用于管理页统计（按 canonical 合并，与订阅 ref 对齐） */
 export async function getSourceStats(): Promise<{ source_url: string; count: number; latest_at: string | null }[]> {
+  const { mergeSourceStatsRows } = await import("../utils/httpSourceRef.js");
   const db = await getDb();
-  return db
+  const rows = db
     .prepare(
       "SELECT source_url, COUNT(*) as count, MAX(COALESCE(pub_date, fetched_at)) as latest_at FROM items GROUP BY source_url ORDER BY count DESC",
     )
     .all() as { source_url: string; count: number; latest_at: string | null }[];
+  return mergeSourceStatsRows(rows);
 }
 
 /** 写入一条运行日志到 logs.db（payload 为 JSON 字符串） */

@@ -1,6 +1,5 @@
 <script lang="ts">
   import { PRODUCT_NAME } from '$lib/brand';
-  import BackToParentRoute from '$lib/BackToParentRoute.svelte';
   import { adminFetch } from '$lib/adminAuth';
   import { page } from '$app/stores';
   import { showToast } from '$lib/toastStore.js';
@@ -90,7 +89,6 @@
     <div class="feed-toolbar-block">
       <div class="admin-feed-header">
         <div class="admin-feed-header__left">
-          <BackToParentRoute />
           <h2>{pluginId || '插件'}</h2>
           <p class="admin-feed-header__desc plugin-path">
             {#if !pluginId}
@@ -173,7 +171,6 @@
     flex-shrink: 0;
     padding-top: var(--main-padding-top);
     padding-bottom: var(--feed-sticky-gap-after);
-    background: var(--color-background);
   }
 
   .feed-body-scroll {

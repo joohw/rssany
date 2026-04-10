@@ -7,7 +7,7 @@
 
 export default {
   id: "__PLUGIN_ID__",
-  listUrlPattern: "https://example.com/{segment}",
+  listUrlPattern: __LIST_URL_PATTERN__,
   refreshInterval: "1day",
 
   /** sourceId 与订阅里 ref 一致；ctx 含 fetchHtml、extractItem、deps（parseHtml 等） */

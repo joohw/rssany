@@ -16,7 +16,7 @@ const SITE_TEMPLATE_FALLBACK = `/**
  */
 export default {
   id: "__PLUGIN_ID__",
-  listUrlPattern: "https://example.com/{segment}",
+  listUrlPattern: __LIST_URL_PATTERN__,
   refreshInterval: "1day",
 
   async fetchItems(sourceId, ctx) {
@@ -33,6 +33,13 @@ export default {
 
 function isValidNewPluginId(id: string): boolean {
   return /^[a-zA-Z][a-zA-Z0-9_-]{0,63}$/.test(id) && id !== "generic" && id !== "new";
+}
+
+/** 与模板中 `listUrlPattern: __LIST_URL_PATTERN__` 注入一致：非空、无换行、长度上限 */
+function isValidNewListUrlPattern(pattern: string): boolean {
+  if (pattern.length === 0 || pattern.length > 2048) return false;
+  if (/[\r\n]/.test(pattern)) return false;
+  return true;
 }
 
 async function fileExists(p: string): Promise<boolean> {
@@ -56,7 +63,7 @@ function isAllowedPluginPath(absPath: string): boolean {
 export function registerPluginsRoutes(app: Hono): void {
   /** 从模板在 .rssany/plugins/{id}.rssany.js 新建 Site 插件 */
   app.post("/api/plugins", requireAdmin(), async (c) => {
-    let body: { id?: string };
+    let body: { id?: string; listUrlPattern?: string };
     try {
       body = await c.req.json();
     } catch {
@@ -67,6 +74,13 @@ export function registerPluginsRoutes(app: Hono): void {
     if (!isValidNewPluginId(id)) {
       return c.json({ error: "id 须为字母开头，仅含字母数字、下划线、连字符；不能为 generic 或 new" }, 400);
     }
+    const listUrlPatternRaw = typeof body.listUrlPattern === "string" ? body.listUrlPattern.trim() : "";
+    if (!listUrlPatternRaw) {
+      return c.json({ error: "缺少支持的站点（listUrlPattern），例如 https://example.com/*" }, 400);
+    }
+    if (!isValidNewListUrlPattern(listUrlPatternRaw)) {
+      return c.json({ error: "支持的站点须为非空字符串，不超过 2048 字符，且不能含换行" }, 400);
+    }
     await mkdir(USER_PLUGINS_DIR, { recursive: true });
     const outPath = join(USER_PLUGINS_DIR, `${id}.rssany.js`);
     if (await fileExists(outPath)) return c.json({ error: "该 id 已存在同名文件" }, 409);
@@ -76,7 +90,8 @@ export function registerPluginsRoutes(app: Hono): void {
     } catch {
       // 使用内置模板
     }
-    const content = tpl.replace(/__PLUGIN_ID__/g, id);
+    const patternLiteral = JSON.stringify(listUrlPatternRaw);
+    const content = tpl.replace(/__PLUGIN_ID__/g, id).replace(/__LIST_URL_PATTERN__/g, patternLiteral);
     if (!isAllowedPluginPath(outPath)) return c.json({ error: "路径不允许" }, 403);
     try {
       await writeFile(outPath, content, "utf-8");

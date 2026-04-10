@@ -1,7 +1,6 @@
 <script lang="ts">
   import { onDestroy } from 'svelte';
   import { PRODUCT_NAME } from '$lib/brand';
-  import BackToParentRoute from '$lib/BackToParentRoute.svelte';
   import { adminFetch } from '$lib/adminAuth';
   import { showToast } from '$lib/toastStore.js';
   import { Select } from 'bits-ui';
@@ -182,7 +181,6 @@
     <div class="logs-toolbar-block">
       <div class="admin-feed-header">
         <div class="admin-feed-header__left">
-          <BackToParentRoute />
           <h2>日志</h2>
           <p class="admin-feed-header__desc">
             运行与抓取、pipeline 等产生的日志写入本地 logs.db；可按级别与类型筛选，支持刷新与清空。
@@ -338,7 +336,6 @@
     flex-shrink: 0;
     padding-top: var(--main-padding-top);
     padding-bottom: var(--feed-sticky-gap-after);
-    background: var(--color-background);
   }
 
   .log-body-scroll {
@@ -550,8 +547,8 @@
     position: sticky;
     top: 0;
     z-index: 3;
-    /** 与 --color-muted（约 6% 白叠在背景上）等效的不透明色，避免 sticky 时与正文叠色发糊 */
-    background: color-mix(in srgb, var(--color-background) 94%, rgb(255 255 255) 6%);
+    /** 浅色壳：略抬升的实底，避免 sticky 时与正文叠半透明发糊 */
+    background: var(--color-card-elevated);
     font-size: 0.72rem;
     font-weight: 600;
     color: var(--color-muted-foreground);
@@ -679,7 +676,6 @@
     justify-content: space-between;
     padding: 0.65rem 0 0;
     flex-shrink: 0;
-    background: var(--color-background);
   }
 
   .pagination-info {

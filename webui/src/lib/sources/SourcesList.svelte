@@ -50,14 +50,6 @@
   type SortMode = 'alpha' | 'parse' | 'latest' | 'count' | 'weight';
   type SortDir = 'asc' | 'desc';
 
-  const SORT_OPTIONS: { value: SortMode; label: string }[] = [
-    { value: 'weight', label: '重要性' },
-    { value: 'count', label: '数量' },
-    { value: 'alpha', label: '标题首字母' },
-    { value: 'parse', label: '解析方式' },
-    { value: 'latest', label: '最近拉取' },
-  ];
-
   function defaultDirForMode(mode: SortMode): SortDir {
     if (mode === 'alpha' || mode === 'parse') return 'asc';
     return 'desc';
@@ -101,7 +93,6 @@
   let filterQuery = '';
   let sortBy: SortMode = 'weight';
   let sortDir: SortDir = 'desc';
-  let showSortPopover = false;
   let confirmDelete = false;
   let editingOriginalRef = '';
   /** 当前打开「更多」菜单的 card.ref，用于每行一个 Popover */
@@ -279,13 +270,10 @@
       sortBy = column;
       sortDir = defaultDirForMode(column);
     }
-    showSortPopover = false;
   }
 
-  function selectSortFromMenu(mode: SortMode) {
-    sortBy = mode;
-    sortDir = defaultDirForMode(mode);
-    showSortPopover = false;
+  function formatWeight01(w: number): string {
+    return clampWeight01(w).toFixed(2);
   }
 
   $: filteredCards = sortCards(
@@ -324,7 +312,22 @@
       const statsArr = statsRes.ok
         ? (await statsRes.json() as { source_url: string; count: number; latest_at?: string | null }[])
         : [];
-      const statsMap = new Map(statsArr.map((s) => [s.source_url, { count: s.count, latestAt: s.latest_at ?? null }]));
+      /** 与后端 mergeSourceStatsRows 一致：键统一为 canonical */
+      const statsMap = new Map<string, { count: number; latestAt: string | null }>();
+      for (const s of statsArr) {
+        const k = canonicalHttpSourceRef(s.source_url);
+        const prev = statsMap.get(k);
+        const lat = s.latest_at ?? null;
+        if (!prev) {
+          statsMap.set(k, { count: s.count, latestAt: lat });
+        } else {
+          statsMap.set(k, {
+            count: prev.count + s.count,
+            latestAt:
+              !prev.latestAt ? lat : !lat ? prev.latestAt : prev.latestAt >= lat ? prev.latestAt : lat,
+          });
+        }
+      }
 
       const refs = rawSources.filter((s) => s?.ref?.trim()).map((s) => s.ref.trim());
       let pluginMap: Record<string, string | null> = {};
@@ -869,80 +872,13 @@
           placeholder="过滤…"
           bind:value={filterQuery}
         />
-        <Popover.Root bind:open={showSortPopover} onOpenChange={(v) => (showSortPopover = v)}>
-          <Popover.Trigger class="sort-btn" title="排序">
-            <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="3" y1="6" x2="21" y2="6"/><line x1="7" y1="12" x2="17" y2="12"/><line x1="11" y1="18" x2="13" y2="18"/></svg>
-            <span>排序</span>
-          </Popover.Trigger>
-          <Popover.Portal>
-            <Popover.Content class="dropdown-panel" sideOffset={4} align="end">
-              <div class="sort-options">
-                {#each SORT_OPTIONS as opt}
-                  <button
-                    type="button"
-                    class="sort-option"
-                    class:active={sortBy === opt.value}
-                    onclick={() => selectSortFromMenu(opt.value)}
-                  >{opt.label}</button>
-                {/each}
-              </div>
-            </Popover.Content>
-          </Popover.Portal>
-        </Popover.Root>
       </div>
       <div class="header-right">
-        <button type="button" class="btn-add" title="添加信源" onclick={openAdd}>
-          <Plus size={14} aria-hidden="true" />
-          <span>添加信源</span>
+        <button type="button" class="btn-add" title="添加信源" aria-label="添加信源" onclick={openAdd}>
+          <Plus size={16} aria-hidden="true" />
         </button>
       </div>
     </div>
-    {#if showListHead}
-      <div class="list-head row-grid" role="row">
-        <button
-          type="button"
-          class="col-h-btn col-title"
-          class:active={sortBy === 'alpha'}
-          onclick={() => onHeaderSort('alpha')}
-          title="按标题首字母排序，再次点击切换升序/降序"
-        >
-          标题
-          {#if sortBy === 'alpha'}<span class="sort-ind" aria-hidden="true">{sortDir === 'asc' ? '↑' : '↓'}</span>{/if}
-        </button>
-        <span class="col-h col-desc">描述</span>
-        <button
-          type="button"
-          class="col-h-btn col-parse"
-          class:active={sortBy === 'parse'}
-          onclick={() => onHeaderSort('parse')}
-          title="按解析方式排序，再次点击切换升序/降序"
-        >
-          解析
-          {#if sortBy === 'parse'}<span class="sort-ind" aria-hidden="true">{sortDir === 'asc' ? '↑' : '↓'}</span>{/if}
-        </button>
-        <button
-          type="button"
-          class="col-h-btn col-latest"
-          class:active={sortBy === 'latest'}
-          onclick={() => onHeaderSort('latest')}
-          title="按最近拉取时间排序，再次点击切换升序/降序"
-        >
-          最近拉取
-          {#if sortBy === 'latest'}<span class="sort-ind" aria-hidden="true">{sortDir === 'asc' ? '↑' : '↓'}</span>{/if}
-        </button>
-        <button
-          type="button"
-          class="col-h-btn col-count"
-          class:active={sortBy === 'count'}
-          onclick={() => onHeaderSort('count')}
-          title="按条目数量排序，再次点击切换升序/降序"
-        >
-          数量
-          {#if sortBy === 'count'}<span class="sort-ind" aria-hidden="true">{sortDir === 'asc' ? '↑' : '↓'}</span>{/if}
-        </button>
-        <span class="col-h col-actions" aria-hidden="true"></span>
-      </div>
-    {/if}
     </div>
 
     <div class="feed-body-scroll">
@@ -957,6 +893,62 @@
     {:else if filteredCards.length === 0}
       <div class="state">无匹配结果</div>
     {:else}
+      {#if showListHead}
+        <div class="list-head row-grid" role="row" aria-label="列标题">
+          <button
+            type="button"
+            class="col-h-btn col-title"
+            class:active={sortBy === 'alpha'}
+            onclick={() => onHeaderSort('alpha')}
+            title="按标题首字母排序，再次点击切换升序/降序"
+          >
+            标题
+            {#if sortBy === 'alpha'}<span class="sort-ind" aria-hidden="true">{sortDir === 'asc' ? '↑' : '↓'}</span>{/if}
+          </button>
+          <button
+            type="button"
+            class="col-h-btn col-weight"
+            class:active={sortBy === 'weight'}
+            onclick={() => onHeaderSort('weight')}
+            title="按权重（重要性）排序，再次点击切换升序/降序"
+          >
+            权重
+            {#if sortBy === 'weight'}<span class="sort-ind" aria-hidden="true">{sortDir === 'asc' ? '↑' : '↓'}</span>{/if}
+          </button>
+          <span class="col-h col-desc">描述</span>
+          <button
+            type="button"
+            class="col-h-btn col-parse"
+            class:active={sortBy === 'parse'}
+            onclick={() => onHeaderSort('parse')}
+            title="按解析方式排序，再次点击切换升序/降序"
+          >
+            解析
+            {#if sortBy === 'parse'}<span class="sort-ind" aria-hidden="true">{sortDir === 'asc' ? '↑' : '↓'}</span>{/if}
+          </button>
+          <button
+            type="button"
+            class="col-h-btn col-latest"
+            class:active={sortBy === 'latest'}
+            onclick={() => onHeaderSort('latest')}
+            title="按最近拉取时间排序，再次点击切换升序/降序"
+          >
+            最近拉取
+            {#if sortBy === 'latest'}<span class="sort-ind" aria-hidden="true">{sortDir === 'asc' ? '↑' : '↓'}</span>{/if}
+          </button>
+          <button
+            type="button"
+            class="col-h-btn col-count"
+            class:active={sortBy === 'count'}
+            onclick={() => onHeaderSort('count')}
+            title="按条目数量排序，再次点击切换升序/降序"
+          >
+            数量
+            {#if sortBy === 'count'}<span class="sort-ind" aria-hidden="true">{sortDir === 'asc' ? '↑' : '↓'}</span>{/if}
+          </button>
+          <span class="col-h col-actions" aria-hidden="true"></span>
+        </div>
+      {/if}
       <div class="list">
           {#each filteredCards as card (card.ref)}
             <div
@@ -976,6 +968,7 @@
                   {/if}
                 </div>
               </div>
+              <div class="cell-weight tabular" title="权重（0–1）">{formatWeight01(card.weight)}</div>
               <div class="cell-desc" title={card.description ?? ''}>{card.description?.trim() ? card.description : '—'}</div>
               <div class="cell-parse">
                 <span class="parse-mode" title={parseModeTitle(card.parseHint)}>{parseModeLabel(card.parseHint)}</span>
@@ -1072,9 +1065,8 @@
 
 <style>
   /**
-   * 与 `main` 的 padding-top 对消，把那段间距放进 `.feed-toolbar-block`，
-   * 否则工具条上方会有一段随外层滚动条移走。
-   * 外层 `main.main-fill` 不滚动，仅 `.feed-body-scroll` 内滚动，工具条/表头始终固定（无 sticky 跟手）。
+   * 与 `main` 的 padding-top 对消，把那段间距放进 `.feed-toolbar-block`。
+   * 仅 `.feed-body-scroll` 内滚动；表头在滚动区内 `position: sticky`，与日志/插件列表一致。
    */
   .feed-wrap {
     /* 表头与下方列表紧贴，不保留全局 --feed-sticky-gap-after */
@@ -1102,7 +1094,6 @@
     flex-shrink: 0;
     padding-top: var(--main-padding-top);
     padding-bottom: var(--feed-sticky-gap-after);
-    background: var(--color-background);
   }
 
   .feed-body-scroll {
@@ -1111,7 +1102,7 @@
     display: flex;
     flex-direction: column;
     overflow-y: auto;
-    overflow-x: hidden;
+    overflow-x: auto;
     overscroll-behavior-y: contain;
     -webkit-overflow-scrolling: touch;
   }
@@ -1159,38 +1150,18 @@
     color: var(--color-muted-foreground-soft);
   }
 
-  :global(.sort-btn) {
-    display: inline-flex;
-    align-items: center;
-    gap: 0.35rem;
-    padding: 0.35rem 0.6rem;
-    font-size: 0.8125rem;
-    color: var(--color-muted-foreground);
-    background: var(--color-card);
-    border: 1px solid var(--color-border);
-    border-radius: var(--radius-sm);
-    cursor: pointer;
-    white-space: nowrap;
-    transition: color 0.15s, border-color 0.15s, background 0.15s;
-  }
-  :global(.sort-btn:hover) {
-    color: var(--color-primary);
-    border-color: var(--color-border);
-    background: var(--color-muted);
-  }
   .btn-add {
     display: inline-flex;
     align-items: center;
     justify-content: center;
-    gap: 0.35rem;
-    padding: 0.35rem 0.65rem;
-    font-size: 0.8125rem;
-    font-weight: 500;
-    white-space: nowrap;
+    width: 2rem;
+    height: 2rem;
+    padding: 0;
+    flex-shrink: 0;
     color: var(--color-primary-foreground);
     background: var(--color-primary);
     border: none;
-    border-radius: 6px;
+    border-radius: var(--radius-sm);
     cursor: pointer;
     transition: opacity 0.15s, background 0.15s;
   }
@@ -1255,26 +1226,6 @@
   .more-menu-item.pulling :global(svg) {
     animation: spin 0.8s linear infinite;
   }
-  .sort-options {
-    display: flex;
-    flex-direction: column;
-    gap: 0.1rem;
-    padding: 0.4rem;
-    min-width: 7rem;
-  }
-  .sort-option {
-    padding: 0.4rem 0.65rem;
-    font-size: 0.8125rem;
-    text-align: left;
-    border: none;
-    border-radius: 6px;
-    cursor: pointer;
-    background: transparent;
-    color: var(--color-muted-foreground-strong);
-    transition: color 0.15s;
-  }
-  .sort-option:hover { color: var(--color-accent-foreground); background: var(--color-muted); }
-  .sort-option.active { color: var(--color-primary); font-weight: 500; }
 
   /* ── state ───────────────────────────────────────── */
   .state {
@@ -1302,7 +1253,11 @@
   }
   .link-btn:hover { text-decoration: underline; }
 
-  /* ── list：表头 + 单行六列；纵向滚动由外层 layout-inner 承担，避免列表内出现第二条滚动条 ── */
+  /* ── list：表头（sticky）+ 行网格；与插件/日志页同属 `.feed-body-scroll` 滚动区 ── */
+  .feed-body-scroll > .list-head,
+  .feed-body-scroll > .list {
+    flex-shrink: 0;
+  }
   .list {
     min-width: min(100%, 580px);
     width: 100%;
@@ -1313,8 +1268,9 @@
   .row-grid {
     display: grid;
     grid-template-columns:
+      minmax(0, 1.05fr)
+      minmax(3rem, 0.32fr)
       minmax(0, 1.1fr)
-      minmax(0, 1.2fr)
       minmax(4.5rem, 0.55fr)
       minmax(5.5rem, 0.5fr)
       minmax(2.75rem, 0.35fr)
@@ -1325,11 +1281,21 @@
     box-sizing: border-box;
   }
 
+  .list-head.row-grid {
+    /* 不与数据行共用 `.row-grid` 的较大 padding，避免表头过高 */
+    padding-top: 0.3rem;
+    padding-bottom: 0.35rem;
+    min-height: 0;
+  }
   .list-head {
+    position: sticky;
+    top: 0;
+    z-index: 3;
+    width: 100%;
+    min-width: min(100%, 580px);
+    box-sizing: border-box;
+    background: var(--color-card-elevated);
     border-bottom: 1px solid var(--color-border);
-    padding-top: 0.55rem;
-    padding-bottom: 0.6rem;
-    min-height: 2.5rem;
     align-items: center;
   }
   .col-h {
@@ -1344,10 +1310,11 @@
     display: inline-flex;
     align-items: center;
     justify-content: flex-start;
-    gap: 0.2rem;
+    gap: 0.15rem;
     margin: 0;
-    padding: 0.2rem 0;
-    min-height: 1.75rem;
+    padding: 0;
+    min-height: 0;
+    line-height: 1.25;
     font: inherit;
     font-size: 0.65rem;
     font-weight: 600;
@@ -1355,16 +1322,15 @@
     text-transform: uppercase;
     color: var(--color-muted-foreground-soft);
     white-space: nowrap;
-    background: none;
+    background: transparent;
     border: none;
     border-radius: 4px;
     cursor: pointer;
     text-align: left;
-    transition: color 0.15s, background 0.15s;
+    transition: color 0.15s;
   }
   .col-h-btn:hover {
     color: var(--color-primary);
-    background: color-mix(in srgb, var(--color-muted) 65%, transparent);
   }
   .col-h-btn.active {
     color: var(--color-primary);
@@ -1378,6 +1344,10 @@
   .col-h.col-actions {
     width: auto;
     min-width: 2.75rem;
+  }
+  .col-h-btn.col-weight {
+    justify-content: flex-end;
+    text-align: right;
   }
 
   .card {
@@ -1446,6 +1416,12 @@
     white-space: nowrap;
   }
 
+  .cell-weight {
+    font-size: 0.78rem;
+    color: var(--color-muted-foreground-strong);
+    min-width: 0;
+    text-align: right;
+  }
   .cell-latest,
   .cell-count {
     font-size: 0.78rem;

@@ -1,6 +1,4 @@
 <script lang="ts">
-  /// <reference path="../lucide-svelte.d.ts" />
-  import Settings from 'lucide-svelte/icons/settings';
   import { siGithub } from 'simple-icons';
   import { page } from '$app/stores';
   import { PRODUCT_NAME, GITHUB_REPO_URL } from '$lib/brand';
@@ -26,14 +24,16 @@
   $: mainFillHeight = isMainFillRoute(pathname);
 
   $: navActive = {
+    /** 与顶栏品牌名（首页）相同：订阅信源列表 */
+    sources: pathname === '/' || pathname === '/admin/sources',
     logs: pathname === '/logs' || pathname.startsWith('/logs/'),
     plugins: pathname.startsWith('/plugins'),
-    tags: pathname === '/admin/tags' || pathname.startsWith('/admin/tags/'),
   } as const;
 </script>
 
 <div class="layout-outer">
   <div id="layout-inner-scroll" class="layout-inner">
+    <div class="shell-frame">
     <header class="topbar">
       <div class="shell topbar-row">
         <div class="topbar-left">
@@ -54,6 +54,12 @@
         <div class="topbar-end">
           <nav class="topbar-quick" aria-label="后台快捷入口">
             <a
+              href="/"
+              class="topbar-quick-link"
+              class:active={navActive.sources}
+              title="订阅信源列表（与首页相同）"
+            >信源</a>
+            <a
               href="/logs"
               class="topbar-quick-link"
               class:active={navActive.logs}
@@ -65,22 +71,15 @@
               class:active={navActive.plugins}
               title="信源与扩展插件"
             >插件</a>
-            <a
-              href="/admin/tags"
-              class="topbar-quick-link"
-              class:active={navActive.tags}
-              title="标签与分类"
-            >标签</a>
           </nav>
-          <a href="/admin" class="topbar-right" title="管理后台" aria-label="管理后台">
-            <span class="topbar-icon"><Settings size={20} /></span>
-          </a>
+          <a href="/admin" class="topbar-quick-link" title="管理后台" aria-label="管理后台">设置</a>
         </div>
       </div>
     </header>
     <main class="main shell" class:main-fill={mainFillHeight}>
       <slot />
     </main>
+    </div>
   </div>
 </div>
 <Toast />
@@ -136,14 +135,31 @@
     padding-inline: var(--shell-gutter);
   }
 
+  /**
+   * 与 `.shell` 同宽：左右竖线贯穿顶栏+正文，中间区略抬升背景，整体更紧凑。
+   */
+  .shell-frame {
+    box-sizing: border-box;
+    display: flex;
+    flex-direction: column;
+    flex: 1 1 auto;
+    min-height: 0;
+    width: 100%;
+    max-width: var(--content-max);
+    margin-inline: auto;
+    border-left: 1px solid var(--color-border-muted);
+    border-right: 1px solid var(--color-border-muted);
+    background: var(--color-card);
+  }
+
   .topbar {
     position: sticky;
     top: 0;
     z-index: 20;
     flex-shrink: 0;
     width: 100%;
-    border-bottom: 1px solid var(--color-border);
-    background: var(--color-background);
+    /* 与 shell-frame 同色，sticky 时遮住下方滚动内容 */
+    background: var(--color-card);
   }
   .topbar-row {
     display: flex;
@@ -235,32 +251,6 @@
     overflow-x: hidden;
     overscroll-behavior-y: contain;
     scrollbar-gutter: stable;
-  }
-  .topbar-right {
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    color: var(--color-muted-foreground);
-    padding: 0.5rem;
-    border-radius: 8px;
-    text-decoration: none;
-    flex-shrink: 0;
-  }
-  .topbar-right:hover {
-    color: var(--color-primary);
-    background: var(--color-muted);
-  }
-  .topbar-icon {
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    flex-shrink: 0;
-    width: 20px;
-    height: 20px;
-  }
-  .topbar-icon :global(svg) {
-    width: 20px;
-    height: 20px;
   }
   .main {
     flex: 0 1 auto;
