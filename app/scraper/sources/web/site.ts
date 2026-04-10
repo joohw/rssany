@@ -22,7 +22,14 @@ export interface SiteContext {
    */
   fetchHtml(
     url: string,
-    opts?: { waitMs?: number; purify?: boolean; waitForSelector?: string; waitForSelectorTimeoutMs?: number }
+    opts?: {
+      waitMs?: number;
+      purify?: boolean;
+      waitForSelector?: string;
+      waitForSelectorTimeoutMs?: number;
+      /** 使用导航 HTTP 响应原文（适合 RSS/XML），见 RequestConfig.useHttpResponseBody */
+      useHttpResponseBody?: boolean;
+    }
   ): Promise<{ html: string; finalUrl: string; status: number }>;
   /**
    * 默认正文提取：拉取 item.link 的 HTML 后用 Readability 提取正文，合并回条目并返回。

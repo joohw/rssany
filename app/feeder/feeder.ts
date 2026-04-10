@@ -15,9 +15,10 @@ import { emitFeedUpdated } from "../core/events/index.js";
 import { chatJson, chatText } from "../core/llm.js";
 import type { PipelineContext } from "../pipeline/index.js";
 import { logger } from "../core/logger/index.js";
-import { getDeliverUrl } from "../config/deliver.js";
+import { getDeliverConfig } from "../config/deliver.js";
 import { postDeliverItemsSafe } from "../deliver/post.js";
 import { getEffectiveProxyForListUrl } from "../scraper/subscription/index.js";
+import { canonicalHttpSourceRef } from "../utils/httpSourceRef.js";
 
 /** 主动拉取默认有头；仅显式 headless:true 时用无头；其余场景沿用 config.headless */
 function resolveHeadlessForFeeder(config: FeederConfig): boolean | undefined {
@@ -91,14 +92,15 @@ async function generateAndCache(
     logger.error("scraper", "抓取失败", { source_url: listUrl, err: message });
     throw err;
   }
+  const sourceRefStored = canonicalHttpSourceRef(listUrl);
   items.forEach((i) => {
-    i.sourceRef = listUrl;
+    i.sourceRef = sourceRefStored;
     i.author = normalizeAuthor(i.author);
   });
   generatingKeys.delete(key);
   logger.info("scraper", "抓取成功", { source_url: listUrl, count: items.length });
 
-  const deliverUrl = await getDeliverUrl();
+  const { url: deliverUrl, token: deliverToken } = await getDeliverConfig();
 
   let newCount = 0;
   let newIds = new Set<string>();
@@ -114,7 +116,7 @@ async function generateAndCache(
 
   for (let i = 0; i < items.length; i++) {
     if (!shouldRunPipelineRow(items[i].guid)) continue;
-    const processed = await runPipelineOnItem(items[i], { sourceUrl: listUrl });
+    const processed = await runPipelineOnItem(items[i], { sourceUrl: sourceRefStored });
     items[i] = processed;
     if (isPipelineDroppedItem(processed)) {
       await deleteItem(processed.guid).catch((err) =>
@@ -128,11 +130,13 @@ async function generateAndCache(
     }
   }
   if (newCount > 0) {
-    emitFeedUpdated({ sourceUrl: listUrl, newCount: newCount - pipelineDroppedNew });
+    emitFeedUpdated({ sourceUrl: sourceRefStored, newCount: newCount - pipelineDroppedNew });
   }
   const out = items.filter((i) => !isPipelineDroppedItem(i));
   if (deliverUrl && out.length > 0) {
-    await postDeliverItemsSafe(deliverUrl, listUrl, out);
+    await postDeliverItemsSafe(deliverUrl, sourceRefStored, out, {
+      bearerToken: deliverToken || undefined,
+    });
   }
   return { items: out };
 }

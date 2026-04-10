@@ -47,7 +47,11 @@
       links: [
         { href: '/admin/llm', label: 'LLM', desc: 'OpenAI 兼容 API（解析、Pipeline、标签与翻译）；可替代 .env 中的 OPENAI_*' },
         { href: '/admin/proxy', label: '代理', desc: '全局 HTTP(S) 代理；单源在 sources.json 或插件中配置的代理优先' },
-        { href: '/admin/deliver', label: '投递', desc: '配置下游 URL；非空时在写库与 Pipeline 后额外 POST 条目' },
+        {
+          href: '/admin/deliver',
+          label: '投递',
+          desc: '配置下游 URL 与可选 Bearer 令牌；非空 URL 时在写库与 Pipeline 后额外 POST 条目',
+        },
       ],
     },
     {

@@ -717,12 +717,14 @@ export async function deleteItem(id: string): Promise<boolean> {
   });
 }
 
-/** 按 source_url 删除该信源下全部条目（DELETE 触发器会同步 FTS） */
+/** 按 source_url 删除该信源下全部条目（与 feeder 写入的 canonical 一致） */
 export async function deleteItemsBySourceUrl(sourceUrl: string): Promise<number> {
   if (!sourceUrl?.trim()) return 0;
+  const { canonicalHttpSourceRef } = await import("../utils/httpSourceRef.js");
+  const key = canonicalHttpSourceRef(sourceUrl.trim());
   return withWriteLock(async () => {
     const db = await getDb();
-    const info = db.prepare("DELETE FROM items WHERE source_url = @sourceUrl").run({ sourceUrl: sourceUrl.trim() });
+    const info = db.prepare("DELETE FROM items WHERE source_url = @sourceUrl").run({ sourceUrl: key });
     return info.changes;
   });
 }

@@ -18,6 +18,20 @@ export interface SourceContext {
    * 用户目录下插件勿从 npm 直接 import，应使用 ctx.deps。
    */
   deps: PluginHostDeps;
+  /**
+   * 与 Site 插件一致：用浏览器（Puppeteer）拉取 URL；内置 RSS 等 Source 插件使用。
+   * 未注入时（极少见）插件需自行处理抓取。
+   */
+  fetchHtml?: (
+    url: string,
+    opts?: {
+      waitMs?: number;
+      purify?: boolean;
+      waitForSelector?: string;
+      waitForSelectorTimeoutMs?: number;
+      useHttpResponseBody?: boolean;
+    }
+  ) => Promise<{ html: string; finalUrl: string; status: number }>;
 }
 
 

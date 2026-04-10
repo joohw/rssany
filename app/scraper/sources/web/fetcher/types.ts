@@ -46,6 +46,11 @@ export interface RequestConfig {
   waitForSelector?: string;
   /** waitForSelector 的超时毫秒，默认 20000 */
   waitForSelectorTimeoutMs?: number;
+  /**
+   * 为 true 时优先用导航响应的原文（`HTTPResponse.text()`），适用于 RSS/Atom/XML/JSON Feed 等非 HTML，
+   * 避免 `page.content()` 得到浏览器渲染后的 DOM。与 Site/Source 插件 `fetchHtml` 的选项一致。
+   */
+  useHttpResponseBody?: boolean;
 }
 
 

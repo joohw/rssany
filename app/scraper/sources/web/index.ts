@@ -31,6 +31,7 @@ export function buildSiteContext(site: Site, ctx: SourceContext): SiteContext {
         purify: opts?.purify,
         waitForSelector: opts?.waitForSelector,
         waitForSelectorTimeoutMs: opts?.waitForSelectorTimeoutMs,
+        useHttpResponseBody: opts?.useHttpResponseBody,
       });
       return { html: res.body, finalUrl: res.finalUrl ?? url, status: res.status };
     },

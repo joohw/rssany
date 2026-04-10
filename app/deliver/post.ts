@@ -18,13 +18,26 @@ function feedItemsToPayload(items: FeedItem[]): unknown[] {
   }));
 }
 
+export interface PostDeliverOptions {
+  /** 非空时设置 `Authorization: Bearer <token>`（与 agidaily `POST /api/gateway/items` 一致） */
+  bearerToken?: string;
+}
+
 /** POST { sourceRef, items } 到投递 URL；失败时打日志并抛出 */
-export async function postDeliverItems(url: string, sourceRef: string, items: FeedItem[]): Promise<void> {
+export async function postDeliverItems(
+  url: string,
+  sourceRef: string,
+  items: FeedItem[],
+  options?: PostDeliverOptions,
+): Promise<void> {
   if (!url.trim() || items.length === 0) return;
   const body = JSON.stringify({ sourceRef, items: feedItemsToPayload(items) });
+  const headers: Record<string, string> = { "Content-Type": "application/json" };
+  const t = options?.bearerToken?.trim();
+  if (t) headers.Authorization = `Bearer ${t}`;
   const res = await fetch(url.trim(), {
     method: "POST",
-    headers: { "Content-Type": "application/json" },
+    headers,
     body,
     signal: AbortSignal.timeout(120_000),
   });
@@ -34,9 +47,14 @@ export async function postDeliverItems(url: string, sourceRef: string, items: Fe
   }
 }
 
-export async function postDeliverItemsSafe(url: string, sourceRef: string, items: FeedItem[]): Promise<void> {
+export async function postDeliverItemsSafe(
+  url: string,
+  sourceRef: string,
+  items: FeedItem[],
+  options?: PostDeliverOptions,
+): Promise<void> {
   try {
-    await postDeliverItems(url, sourceRef, items);
+    await postDeliverItems(url, sourceRef, items, options);
   } catch (err) {
     logger.warn("deliver", "投递失败", {
       sourceRef,

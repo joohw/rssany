@@ -1,30 +1,19 @@
-// 内置 RSS/Atom/JSON Feed 插件：匹配 *rss*、*atom*、*.xml 等标准 Feed URL
+// 内置 RSS/Atom/JSON Feed：通过浏览器（Puppeteer）拉取 Feed URL，再用 rss-parser 解析；
+// 与站点插件一致走 Chrome，便于应对需浏览器环境或代理的场景；XML 使用 HTTP 响应原文（useHttpResponseBody）。
 
 const UA = "RssAny/1.0 (+https://github.com/joohw/rssany)";
 
-async function fetchFeed(url, ctx) {
-  const { deps } = ctx;
-  const proxyToUse = ctx.proxy ?? process.env.HTTP_PROXY ?? process.env.HTTPS_PROXY;
-  if (proxyToUse) {
-    const agent = new deps.HttpsProxyAgent(proxyToUse);
-    const parserWithProxy = new deps.RssParser({
-      timeout: 15_000,
-      headers: {
-        "User-Agent": UA,
-        Accept: "application/rss+xml,application/atom+xml,application/json,application/xml,text/xml,*/*",
-      },
-      requestOptions: { agent },
-    });
-    return parserWithProxy.parseURL(url);
+async function fetchFeedXml(url, ctx) {
+  const fetchHtml = ctx.fetchHtml;
+  if (typeof fetchHtml !== "function") {
+    throw new Error("RSS 插件需要 ctx.fetchHtml（请通过 feeder / buildSourceContext 调用）");
   }
-  const parser = new deps.RssParser({
-    timeout: 15_000,
-    headers: {
-      "User-Agent": UA,
-      Accept: "application/rss+xml,application/atom+xml,application/json,application/xml,text/xml,*/*",
-    },
+  const { html } = await fetchHtml(url, {
+    waitMs: 800,
+    purify: false,
+    useHttpResponseBody: true,
   });
-  return parser.parseURL(url);
+  return html;
 }
 
 export default {
@@ -35,7 +24,15 @@ export default {
   refreshInterval: "1h",
   async fetchItems(sourceId, ctx) {
     const { deps } = ctx;
-    const feed = await fetchFeed(sourceId, ctx);
+    const xml = await fetchFeedXml(sourceId, ctx);
+    const parser = new deps.RssParser({
+      timeout: 30_000,
+      headers: {
+        "User-Agent": UA,
+        Accept: "application/rss+xml,application/atom+xml,application/json,application/xml,text/xml,*/*",
+      },
+    });
+    const feed = await parser.parseString(xml);
     return (feed.items ?? []).map((item) => {
       const link = item.link ?? item.guid ?? sourceId;
       const guid = item.guid ?? deps.createHash("sha256").update(link).digest("hex");

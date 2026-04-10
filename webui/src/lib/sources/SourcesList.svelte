@@ -7,7 +7,6 @@
   import RefreshCw from 'lucide-svelte/icons/refresh-cw';
   import ExternalLink from 'lucide-svelte/icons/external-link';
   import Pencil from 'lucide-svelte/icons/pencil';
-  import Code2 from 'lucide-svelte/icons/code-2';
   import Trash2 from 'lucide-svelte/icons/trash-2';
   import Plus from 'lucide-svelte/icons/plus';
   import MoreHorizontal from 'lucide-svelte/icons/more-horizontal';
@@ -20,6 +19,7 @@
   import { refToTaskId, setPulling, clearPulling } from '$lib/sourcePullStore.js';
   import { adminFetch } from '$lib/adminAuth';
   import SourceFeedsSheet from './SourceFeedsSheet.svelte';
+  import { canonicalHttpSourceRef } from '$lib/httpSourceRef.js';
 
   type ParseHint = 'rss' | 'plugin' | 'llm' | 'email';
 
@@ -47,12 +47,21 @@
     parseHint: ParseHint | null;
   }
 
-  type SortMode = 'alpha' | 'count' | 'weight';
+  type SortMode = 'alpha' | 'parse' | 'latest' | 'count' | 'weight';
+  type SortDir = 'asc' | 'desc';
+
   const SORT_OPTIONS: { value: SortMode; label: string }[] = [
     { value: 'weight', label: '重要性' },
-    { value: 'count',  label: '文章数量' },
-    { value: 'alpha',  label: '首字母' },
+    { value: 'count', label: '数量' },
+    { value: 'alpha', label: '标题首字母' },
+    { value: 'parse', label: '解析方式' },
+    { value: 'latest', label: '最近拉取' },
   ];
+
+  function defaultDirForMode(mode: SortMode): SortDir {
+    if (mode === 'alpha' || mode === 'parse') return 'asc';
+    return 'desc';
+  }
   /** 信源级拉取间隔；插件仅负责解析，不决定刷新节奏 */
   const DEFAULT_SOURCE_REFRESH = '1day';
   const REFRESH_OPTIONS = [
@@ -91,6 +100,7 @@
   let loadError = '';
   let filterQuery = '';
   let sortBy: SortMode = 'weight';
+  let sortDir: SortDir = 'desc';
   let showSortPopover = false;
   let confirmDelete = false;
   let editingOriginalRef = '';
@@ -227,18 +237,55 @@
   }
 
   // ── 排序 ─────────────────────────────────────────────
-  function sortCards(list: SourceCard[], mode: SortMode): SourceCard[] {
+  function sortCards(list: SourceCard[], mode: SortMode, dir: SortDir): SourceCard[] {
+    const flip = dir === 'desc' ? -1 : 1;
     return [...list].sort((a, b) => {
-      if (mode === 'weight') {
-        const diff = b.weight - a.weight;
-        return diff !== 0 ? diff : a.displayLabel.localeCompare(b.displayLabel);
+      let cmp = 0;
+      switch (mode) {
+        case 'weight':
+          cmp = a.weight - b.weight;
+          break;
+        case 'alpha':
+          cmp = a.displayLabel.localeCompare(b.displayLabel, 'zh-CN');
+          break;
+        case 'parse':
+          cmp = parseModeLabel(a.parseHint).localeCompare(parseModeLabel(b.parseHint), 'zh-CN');
+          break;
+        case 'latest': {
+          const ta = a.latestAt ? new Date(a.latestAt).getTime() : NaN;
+          const tb = b.latestAt ? new Date(b.latestAt).getTime() : NaN;
+          const aOk = Number.isFinite(ta);
+          const bOk = Number.isFinite(tb);
+          if (!aOk && !bOk) cmp = 0;
+          else if (!aOk) return 1;
+          else if (!bOk) return -1;
+          else cmp = ta - tb;
+          break;
+        }
+        case 'count':
+          cmp = a.count - b.count;
+          break;
       }
-      if (mode === 'count') {
-        const diff = b.count - a.count;
-        return diff !== 0 ? diff : a.displayLabel.localeCompare(b.displayLabel);
-      }
-      return a.displayLabel.localeCompare(b.displayLabel);
+      if (cmp !== 0) return flip * cmp;
+      return a.displayLabel.localeCompare(b.displayLabel, 'zh-CN');
     });
+  }
+
+  /** 表头：点同一列则反转升降序，点另一列则用该列默认方向 */
+  function onHeaderSort(column: SortMode) {
+    if (sortBy === column) {
+      sortDir = sortDir === 'asc' ? 'desc' : 'asc';
+    } else {
+      sortBy = column;
+      sortDir = defaultDirForMode(column);
+    }
+    showSortPopover = false;
+  }
+
+  function selectSortFromMenu(mode: SortMode) {
+    sortBy = mode;
+    sortDir = defaultDirForMode(mode);
+    showSortPopover = false;
   }
 
   $: filteredCards = sortCards(
@@ -253,7 +300,8 @@
           );
         })
       : cards,
-    sortBy
+    sortBy,
+    sortDir
   );
 
   /** 与下方列表同时出现：表头与工具条同一吸顶块，避免表头单独随滚动 */
@@ -295,7 +343,7 @@
         .filter((s) => s?.ref?.trim())
         .map((s) => {
           const ref = s.ref.trim();
-          const stat = statsMap.get(ref);
+          const stat = statsMap.get(canonicalHttpSourceRef(ref)) ?? { count: 0, latestAt: null };
           const pid = pluginMap[ref] ?? null;
           const proxy = s.proxy?.trim();
           return {
@@ -407,12 +455,47 @@
     }
   }
 
+  async function deleteItemsBySourceRef(ref: string): Promise<{ ok: true; deleted: number } | { ok: false; message: string }> {
+    try {
+      const res = await adminFetch('/api/items/by-source?source_url=' + encodeURIComponent(ref), { method: 'DELETE' });
+      const data = (await res.json()) as { ok?: boolean; deleted?: number; message?: string };
+      if (!res.ok || !data.ok) {
+        return { ok: false, message: data.message ?? '删除信源条目失败' };
+      }
+      return { ok: true, deleted: Number(data.deleted ?? 0) };
+    } catch (e) {
+      return { ok: false, message: e instanceof Error ? e.message : '删除信源条目失败' };
+    }
+  }
+
   // ── 删除 ──────────────────────────────────────────────
   async function deleteSource() {
-    const updated = rawSources.filter((s) => s.ref !== editingOriginalRef);
-    await persistSources(updated);
-    closeModal();
-    await load();
+    const ref = editingOriginalRef.trim();
+    if (!ref) {
+      saveError = '缺少信源 ref';
+      return;
+    }
+    saving = true;
+    saveError = '';
+    try {
+      const clearResult = await deleteItemsBySourceRef(ref);
+      if (!clearResult.ok) {
+        saveError = clearResult.message;
+        return;
+      }
+      const updated = rawSources.filter((s) => s.ref !== ref);
+      const ok = await persistSources(updated);
+      if (!ok) {
+        saveError = '删除信源失败，请重试';
+        return;
+      }
+      closeModal();
+      await load();
+    } catch (e) {
+      saveError = e instanceof Error ? e.message : String(e);
+    } finally {
+      saving = false;
+    }
   }
 
   // ── 拉取 ──────────────────────────────────────────────
@@ -483,14 +566,6 @@
     openMoreRef = null;
   }
 
-  /** 在新标签页打开 Admin Parse 页，用当前 ref 作为列表页 URL */
-  function openParse(ref: string, e: MouseEvent) {
-    e.preventDefault();
-    e.stopPropagation();
-    const fullUrl = ref.startsWith('http') ? ref : 'https://' + ref;
-    window.open('/admin/parse/' + encodeURIComponent(fullUrl), '_blank');
-  }
-
   function onRemoveDialogOpenChange(open: boolean) {
     removeDialogOpen = open;
     if (!open) removeDialogRef = null;
@@ -503,7 +578,7 @@
     openMoreRef = null;
   }
 
-  /** 从订阅列表移除该信源（不删除已入库条目） */
+  /** 从订阅列表移除该信源，并自动删除该信源下已入库条目 */
   async function executeRemoveSource() {
     const ref = removeDialogRef;
     if (!ref || removingRef) return;
@@ -511,6 +586,11 @@
     removeDialogRef = null;
     removingRef = ref;
     try {
+      const clearResult = await deleteItemsBySourceRef(ref);
+      if (!clearResult.ok) {
+        showToast(clearResult.message, 'error');
+        return;
+      }
       const updated = rawSources.filter((s) => s.ref !== ref);
       const ok = await persistSources(updated);
       if (!ok) {
@@ -746,7 +826,7 @@
       </div>
       <div class="modal-body">
         <p id="remove-source-desc" class="remove-dialog-text">
-          确定从订阅列表中移除该信源吗？已入库的条目不会自动删除；若需一并删除条目，可先使用「清空该源条目」。
+          确定删除该信源吗？操作会同时删除该信源下已入库的所有条目，且不可恢复。
         </p>
         {#if removeDialogLabel}
           <p class="remove-dialog-target">{removeDialogLabel}</p>
@@ -802,7 +882,7 @@
                     type="button"
                     class="sort-option"
                     class:active={sortBy === opt.value}
-                    onclick={() => { sortBy = opt.value; showSortPopover = false; }}
+                    onclick={() => selectSortFromMenu(opt.value)}
                   >{opt.label}</button>
                 {/each}
               </div>
@@ -818,13 +898,49 @@
       </div>
     </div>
     {#if showListHead}
-      <div class="list-head row-grid" aria-hidden="true">
-        <span class="col-h col-title">标题</span>
+      <div class="list-head row-grid" role="row">
+        <button
+          type="button"
+          class="col-h-btn col-title"
+          class:active={sortBy === 'alpha'}
+          onclick={() => onHeaderSort('alpha')}
+          title="按标题首字母排序，再次点击切换升序/降序"
+        >
+          标题
+          {#if sortBy === 'alpha'}<span class="sort-ind" aria-hidden="true">{sortDir === 'asc' ? '↑' : '↓'}</span>{/if}
+        </button>
         <span class="col-h col-desc">描述</span>
-        <span class="col-h col-parse">解析</span>
-        <span class="col-h col-latest">最近拉取</span>
-        <span class="col-h col-count">数量</span>
-        <span class="col-h col-actions"></span>
+        <button
+          type="button"
+          class="col-h-btn col-parse"
+          class:active={sortBy === 'parse'}
+          onclick={() => onHeaderSort('parse')}
+          title="按解析方式排序，再次点击切换升序/降序"
+        >
+          解析
+          {#if sortBy === 'parse'}<span class="sort-ind" aria-hidden="true">{sortDir === 'asc' ? '↑' : '↓'}</span>{/if}
+        </button>
+        <button
+          type="button"
+          class="col-h-btn col-latest"
+          class:active={sortBy === 'latest'}
+          onclick={() => onHeaderSort('latest')}
+          title="按最近拉取时间排序，再次点击切换升序/降序"
+        >
+          最近拉取
+          {#if sortBy === 'latest'}<span class="sort-ind" aria-hidden="true">{sortDir === 'asc' ? '↑' : '↓'}</span>{/if}
+        </button>
+        <button
+          type="button"
+          class="col-h-btn col-count"
+          class:active={sortBy === 'count'}
+          onclick={() => onHeaderSort('count')}
+          title="按条目数量排序，再次点击切换升序/降序"
+        >
+          数量
+          {#if sortBy === 'count'}<span class="sort-ind" aria-hidden="true">{sortDir === 'asc' ? '↑' : '↓'}</span>{/if}
+        </button>
+        <span class="col-h col-actions" aria-hidden="true"></span>
       </div>
     {/if}
     </div>
@@ -921,14 +1037,6 @@
                           <ExternalLink size={14} />
                           <span>打开链接</span>
                         </a>
-                        <button
-                          type="button"
-                          class="more-menu-item"
-                          onclick={(e) => { openParse(card.ref, e); openMoreRef = null; }}
-                        >
-                          <Code2 size={14} />
-                          <span>解析信源</span>
-                        </button>
                       {/if}
                       <button
                         type="button"
@@ -1219,8 +1327,10 @@
 
   .list-head {
     border-bottom: 1px solid var(--color-border);
-    padding-top: 0.15rem;
-    padding-bottom: 0.45rem;
+    padding-top: 0.55rem;
+    padding-bottom: 0.6rem;
+    min-height: 2.5rem;
+    align-items: center;
   }
   .col-h {
     font-size: 0.65rem;
@@ -1229,6 +1339,41 @@
     text-transform: uppercase;
     color: var(--color-muted-foreground-soft);
     white-space: nowrap;
+  }
+  .col-h-btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: flex-start;
+    gap: 0.2rem;
+    margin: 0;
+    padding: 0.2rem 0;
+    min-height: 1.75rem;
+    font: inherit;
+    font-size: 0.65rem;
+    font-weight: 600;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    color: var(--color-muted-foreground-soft);
+    white-space: nowrap;
+    background: none;
+    border: none;
+    border-radius: 4px;
+    cursor: pointer;
+    text-align: left;
+    transition: color 0.15s, background 0.15s;
+  }
+  .col-h-btn:hover {
+    color: var(--color-primary);
+    background: color-mix(in srgb, var(--color-muted) 65%, transparent);
+  }
+  .col-h-btn.active {
+    color: var(--color-primary);
+  }
+  .sort-ind {
+    font-size: 0.7rem;
+    font-weight: 700;
+    line-height: 1;
+    opacity: 0.95;
   }
   .col-h.col-actions {
     width: auto;

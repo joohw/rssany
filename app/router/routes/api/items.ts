@@ -1,4 +1,4 @@
-// /api/items、/api/items/pending-push、/api/items/mark-pushed、/api/items/:id
+// /api/items、/api/items/pending-push、/api/items/mark-pushed、/api/items/by-source（须在 :id 之前注册）、/api/items/:id
 
 // /api/user/items（JWT 认证用户）
 
@@ -60,6 +60,22 @@ export function registerItemsRoutes(app: Hono): void {
 
 
 
+  /** 清空指定信源（source_url）下所有已入库条目 — 必须早于 /api/items/:id，否则 "by-source" 会被当成 id */
+
+  app.delete("/api/items/by-source", requireAdmin(), async (c) => {
+
+    const sourceUrl = (c.req.query("source_url") ?? "").trim();
+
+    if (!sourceUrl) return c.json({ ok: false, message: "source_url 不能为空" }, 400);
+
+    const deleted = await deleteItemsBySourceUrl(sourceUrl);
+
+    return c.json({ ok: true, deleted });
+
+  });
+
+
+
   app.delete("/api/items/:id", async (c) => {
 
     const id = decodeURIComponent(c.req.param("id") ?? "").trim();
@@ -71,22 +87,6 @@ export function registerItemsRoutes(app: Hono): void {
     if (!deleted) return c.json({ ok: false, message: "条目不存在或已删除" }, 404);
 
     return c.json({ ok: true });
-
-  });
-
-
-
-  /** 清空指定信源（source_url）下所有已入库条目 */
-
-  app.delete("/api/items/by-source", requireAdmin(), async (c) => {
-
-    const sourceUrl = (c.req.query("source_url") ?? "").trim();
-
-    if (!sourceUrl) return c.json({ ok: false, message: "source_url 不能为空" }, 400);
-
-    const deleted = await deleteItemsBySourceUrl(sourceUrl);
-
-    return c.json({ ok: true, deleted });
 
   });
 

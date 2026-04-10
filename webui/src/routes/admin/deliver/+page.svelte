@@ -6,6 +6,8 @@
   import { showToast } from '$lib/toastStore.js';
 
   let url = '';
+  /** 与下游 Gateway（如 agidaily `data/token.txt`）一致：非空时带 `Authorization: Bearer` */
+  let token = '';
   let loading = true;
   let saving = false;
   let testing = false;
@@ -13,10 +15,12 @@
   async function load() {
     loading = true;
     try {
-      const data = await adminFetchJson<{ url?: string }>('/api/deliver');
+      const data = await adminFetchJson<{ url?: string; token?: string }>('/api/deliver');
       url = data?.url ?? '';
+      token = data?.token ?? '';
     } catch {
       url = '';
+      token = '';
     } finally {
       loading = false;
     }
@@ -25,13 +29,17 @@
   async function save() {
     saving = true;
     try {
-      const data = await adminFetchJson<{ ok?: boolean; message?: string; url?: string }>('/api/deliver', {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ url: url.trim() }),
-      });
+      const data = await adminFetchJson<{ ok?: boolean; message?: string; url?: string; token?: string }>(
+        '/api/deliver',
+        {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ url: url.trim(), token: token.trim() }),
+        },
+      );
       if (!data?.ok) throw new Error(data?.message ?? '保存失败');
       url = data?.url ?? url;
+      token = data?.token ?? token;
       showToast('已保存', 'success');
     } catch (e) {
       showToast('保存失败: ' + (e instanceof Error ? e.message : String(e)), 'error');
@@ -51,7 +59,7 @@
       const data = await adminFetchJson<{ ok?: boolean; message?: string }>('/api/deliver/test', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ url: target }),
+        body: JSON.stringify({ url: target, token: token.trim() }),
       });
       if (data?.ok) {
         showToast('投递测试成功', 'success');
@@ -78,7 +86,8 @@
       <BackToParentRoute />
       <p class="intro">
         非空时，在<strong>正常入库与 Pipeline 完成之后</strong>，会<strong>额外</strong>将本批条目以 JSON POST 到该 URL（请求体含
-        <code>sourceRef</code>、<code>items</code>）。留空则不投递。投递地址<strong>不改变</strong>本地是否写库；运行日志仍落库。
+        <code>sourceRef</code>、<code>items</code>）。下游若为 AGI Daily 等 Gateway（<code>POST /api/gateway/items</code>），可在下方填写与对端
+        <code>data/token.txt</code> 一致的令牌，请求将带 <code>Authorization: Bearer …</code>。留空 URL 则不投递；投递<strong>不改变</strong>本地是否写库。
       </p>
 
       <section class="form-section">
@@ -93,6 +102,22 @@
             bind:value={url}
           />
           <p class="hint">保存后生效；测试会发送一条示例条目，不写本地库。</p>
+        {/if}
+      </section>
+
+      <section class="form-section">
+        <h3 class="section-title">Gateway 令牌（可选）</h3>
+        {#if loading}
+          <p class="hint">加载中…</p>
+        {:else}
+          <input
+            type="password"
+            class="url-input"
+            placeholder="与下游 token.txt 内容一致，留空则不发送 Authorization"
+            autocomplete="off"
+            bind:value={token}
+          />
+          <p class="hint">非空时出站请求携带 Bearer；清空并保存可从配置中移除 token 字段。</p>
         {/if}
       </section>
 

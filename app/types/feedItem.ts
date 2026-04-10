@@ -67,6 +67,11 @@ export interface FeedItem {
     content?: string;
     /** 条目配图 URL，输出为 RSS 2.0 <enclosure type="image/..."> */
     imageUrl?: string;
+    /**
+     * 封面图：支持 http(s) URL、data URL，或裸 base64（可规范为 data:image/jpeg;base64,...）。
+     * Gateway JSON 字段名 `cover_img`。
+     */
+    cover_img?: string;
     /** RSS 来源分类（直接来自 feed 的 <category> 字段） */
     categories?: string[];
     /** 系统 / pipeline 生成的标签（从用户管理的标签库中匹配） */

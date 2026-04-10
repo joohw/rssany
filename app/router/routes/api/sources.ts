@@ -9,6 +9,7 @@ import type { SourceType } from "../../../scraper/subscription/types.js";
 import type { RefreshInterval } from "../../../utils/refreshInterval.js";
 import { VALID_INTERVALS } from "../../../utils/refreshInterval.js";
 import { requireAdmin } from "../../../auth/middleware.js";
+import { canonicalHttpSourceRef } from "../../../utils/httpSourceRef.js";
 
 export function registerSourcesRoutes(app: Hono): void {
   app.get("/api/sources/stats", requireAdmin(), async (c) => {
@@ -57,7 +58,7 @@ export function registerSourcesRoutes(app: Hono): void {
           const w = (s as { weight?: unknown }).weight;
           const weight: number | undefined = typeof w === "number" ? w : undefined;
           return {
-            ref: String((s as { ref: string }).ref),
+            ref: canonicalHttpSourceRef(String((s as { ref: string }).ref)),
             type,
             label: (s as { label?: string }).label,
             description: (s as { description?: string }).description,

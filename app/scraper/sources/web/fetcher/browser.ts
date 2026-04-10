@@ -323,8 +323,20 @@ export async function ensureAuth(
 // 单发浏览器：本次任务内最多开两个 Tab（frame 分离时重试一次），结束后关闭 Chrome
 // 若发生「Navigating frame was detached」等 frame 分离错误（常见于 SPA 客户端跳转），会换新 Tab 重试一次，并用 domcontentloaded 尽快取 HTML
 export async function fetchHtml(url: string, config: RequestConfig = {}): Promise<StructuredHtmlResult> {
-  const { timeoutMs, headers, cookies, cacheDir, checkAuth, authFlow, purify, headless, waitAfterLoadMs, waitForSelector, waitForSelectorTimeoutMs } =
-    config;
+  const {
+    timeoutMs,
+    headers,
+    cookies,
+    cacheDir,
+    checkAuth,
+    authFlow,
+    purify,
+    headless,
+    waitAfterLoadMs,
+    waitForSelector,
+    waitForSelectorTimeoutMs,
+    useHttpResponseBody,
+  } = config;
   const isHeadless = headless !== false;
   const browser = await launchBrowser({
     headless: isHeadless,
@@ -380,7 +392,16 @@ export async function fetchHtml(url: string, config: RequestConfig = {}): Promis
             }
           }
         }
-        const rawBody = await page.content();
+        let rawBody: string;
+        if (useHttpResponseBody === true && response != null) {
+          try {
+            rawBody = await response.text();
+          } catch {
+            rawBody = await page.content();
+          }
+        } else {
+          rawBody = await page.content();
+        }
         const finalUrl = response?.url() ?? page.url() ?? String(url);
         const status = response?.status() ?? 0;
         const statusText = response?.statusText() ?? "";
