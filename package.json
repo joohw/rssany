@@ -20,8 +20,7 @@
     "webui/build",
     ".env.example",
     "README.md",
-    "sources.example.json",
-    "config.examples.json",
+    "init",
     "scripts/reset.mjs"
   ],
   "engines": {
@@ -29,7 +28,7 @@
   },
   "scripts": {
     "build": "vite build",
-    "dev": "cd webui && pnpm run build && cd ..  && tsx app/index.ts",
+    "dev": "tsx app/index.ts",
     "start": "node dist/index.js",
     "serve:route": "node scripts/serve-route.mjs",
     "serve:app": "npx tsx app/index.ts",

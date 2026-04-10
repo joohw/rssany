@@ -56,7 +56,7 @@ pnpm run webui:install
   ```bash
    cp .env.example .env
   ```
-2. 信源与全局配置：首次启动会在 **`~/.rssany/`**（Windows：`%USERPROFILE%\.rssany\`）下自动从包内示例生成 `sources.json`、`config.json`（若已存在则不会覆盖）。也可手动复制仓库里的 `sources.example.json`、`config.examples.json`。
+2. 信源与全局配置：首次启动会在 **`~/.rssany/`**（Windows：`%USERPROFILE%\.rssany\`）下自动从包内 **`init/`** 目录中的默认数据复制生成 `sources.json`、`config.json`（若已存在则不会覆盖）。也可手动复制仓库里的 `init/sources.json`、`init/config.json`。
 3. （可选）LLM：在 `.env` 中设置 `OPENAI_API_KEY`、`OPENAI_BASE_URL`、`OPENAI_MODEL` 等。
 
 ### 运行
