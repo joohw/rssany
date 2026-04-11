@@ -48,6 +48,8 @@
 
   /** 与顶栏对齐：主内容区最大宽度与左右留白（略收紧，配合竖向分割线更紧凑） */
   --shell-gutter: clamp(0.5rem, 1.8vw, 1rem);
+  /** 整页外壳（合并三列）与视口之间的基础边距 */
+  --layout-page-inset: clamp(0.4rem, 1.25vw, 0.85rem);
   /** 与 Tailwind `max-w-5xl` 一致：整页三列合并区总宽度上限 */
   --layout-max-width: 64rem;
   /** 主内容区内 `.shell` 可读宽度上限（约原 720px）；实际用 min(...,100%) 避免溢出中间列 */

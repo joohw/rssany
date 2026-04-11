@@ -7,7 +7,7 @@ import { AuthRequiredError } from "../scraper/auth/index.js";
 import { buildRssXml } from "./rss.js";
 import type { RssChannel, RssEntry } from "./types.js";
 import type { FeedItem } from "../types/feedItem.js";
-import { normalizeAuthor, getEffectiveItemFields, isPipelineDroppedItem } from "../types/feedItem.js";
+import { normalizeAuthor, getEffectiveItemFields, isPipelineDroppedItem, pubDateToIsoOrNull } from "../types/feedItem.js";
 import type { FeederConfig } from "./types.js";
 import { buildSourceContext } from "../scraper/sources/context.js";
 import { upsertItems, updateItemContent, getSystemTags, deleteItem } from "../db/index.js";
@@ -50,7 +50,7 @@ function toRssEntry(item: FeedItem, lng?: string | null): RssEntry {
     link: item.link,
     description: desc,
     guid: item.guid,
-    published: item.pubDate?.toISOString?.() ?? undefined,
+    published: pubDateToIsoOrNull(item.pubDate) ?? undefined,
     imageUrl: item.imageUrl,
   };
 }

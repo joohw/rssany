@@ -7,7 +7,7 @@ import { SOURCES_GROUP } from "../../../scraper/scheduler/index.js";
 import * as scheduler from "../../../scheduler/index.js";
 import { CACHE_DIR } from "../../../config/paths.js";
 import { AuthRequiredError, NotFoundError } from "../../../scraper/auth/index.js";
-import { getEffectiveItemFields } from "../../../types/feedItem.js";
+import { getEffectiveItemFields, pubDateToIsoOrNull } from "../../../types/feedItem.js";
 
 export function registerRssApiRoutes(app: Hono): void {
   app.get("/api/rss", async (c) => {
@@ -39,7 +39,7 @@ export function registerRssApiRoutes(app: Hono): void {
             link: item.link,
             summary,
             author: item.author,
-            pubDate: item.pubDate instanceof Date ? item.pubDate.toISOString() : item.pubDate,
+            pubDate: pubDateToIsoOrNull(item.pubDate),
           };
         }),
       });

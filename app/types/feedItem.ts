@@ -36,6 +36,20 @@ export function getEffectiveItemFields(
     };
 }
 
+/** 将发布时间转为 ISO 字符串供入库/序列化；Invalid Date 返回 null（避免 toISOString 抛 RangeError） */
+export function pubDateToIsoOrNull(pubDate: unknown): string | null {
+    if (pubDate == null) return null;
+    if (pubDate instanceof Date) {
+        const ms = pubDate.getTime();
+        return Number.isNaN(ms) ? null : pubDate.toISOString();
+    }
+    if (typeof pubDate === "string") {
+        const s = pubDate.trim();
+        return s || null;
+    }
+    return null;
+}
+
 /** 将 author 规范为 string[]，兼容 string 输入（插件等） */
 export function normalizeAuthor(author: string | string[] | null | undefined): string[] | undefined {
     if (author == null) return undefined;

@@ -5,7 +5,7 @@ import { mkdir, readFile, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { existsSync, openSync, closeSync, writeSync, unlinkSync, readFileSync } from "node:fs";
 import type { FeedItem } from "../types/feedItem.js";
-import { normalizeAuthor } from "../types/feedItem.js";
+import { normalizeAuthor, pubDateToIsoOrNull } from "../types/feedItem.js";
 import { canonicalHttpSourceRef } from "../utils/httpSourceRef.js";
 import type { LogEntry } from "../core/logger/types.js";
 import { DATA_DIR, TAGS_CONFIG_PATH } from "../config/paths.js";
@@ -435,8 +435,7 @@ export async function upsertItems(items: FeedItem[], sourceUrlOverride?: string)
         const nextSummary = normalizeText(item.summary) || null;
         const nextAuthorArr = normalizeAuthor(item.author);
         const nextAuthor = nextAuthorArr?.length ? JSON.stringify(nextAuthorArr) : null;
-        const nextPubDate =
-          item.pubDate instanceof Date ? item.pubDate.toISOString() : (item.pubDate ?? null);
+        const nextPubDate = pubDateToIsoOrNull(item.pubDate);
         const nextTags = item.tags?.length ? JSON.stringify(item.tags) : null;
         const nextImageUrl = typeof item.imageUrl === "string" && item.imageUrl.trim() ? item.imageUrl.trim() : null;
         const info = stmt.run({
@@ -542,7 +541,7 @@ export async function updateItemContent(item: FeedItem): Promise<void> {
         const arr = normalizeAuthor(item.author);
         return arr?.length ? JSON.stringify(arr) : null;
       })(),
-      pubDate: item.pubDate instanceof Date ? item.pubDate.toISOString() : (item.pubDate ?? null),
+      pubDate: pubDateToIsoOrNull(item.pubDate),
       tags: item.tags?.length ? JSON.stringify(item.tags) : null,
       translations: item.translations && Object.keys(item.translations).length > 0 ? JSON.stringify(item.translations) : null,
     });

@@ -170,6 +170,8 @@
     flex: 1;
     min-height: 0;
     overflow: hidden;
+    /* 相对 #svelte / body 的外层留白（放在最外层，避免被误认为「内容区内边距」） */
+    padding: var(--layout-page-inset, 0.75rem);
     --home-feed-rail-width: 36rem;
     --nav-rail-width: 3rem;
   }
@@ -186,7 +188,6 @@
     min-height: 0;
     width: 100%;
     overflow: hidden;
-    padding-inline: var(--shell-gutter);
   }
 
   .layout-merged-cluster {
@@ -202,10 +203,9 @@
     max-width: min(100%, var(--layout-max-width));
     margin-inline: auto;
     border: 1px solid var(--color-border-muted);
-    border-radius: 0;
+    border-radius: var(--radius-lg);
     overflow: hidden;
     background: var(--color-card);
-    box-shadow: var(--shadow-panel);
   }
 
   .layout-nav-rail {
@@ -238,7 +238,7 @@
     gap: 0;
     width: 100%;
     max-width: 2.35rem;
-    border-radius: 0;
+    border-radius: var(--radius-sm);
     overflow: hidden;
     background: var(--color-muted);
   }
@@ -374,17 +374,12 @@
   }
 
   @media (max-width: 720px) {
-    .layout-app {
-      padding-inline: 0;
-    }
-
     .layout-merged-cluster {
       flex-direction: column;
       width: 100% !important;
-      border-radius: 0;
+      border-radius: var(--radius-md);
       border-left: none;
       border-right: none;
-      box-shadow: none;
     }
 
     .layout-nav-rail {

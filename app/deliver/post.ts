@@ -1,6 +1,7 @@
 // 将条目 POST 到下游：JSON 体为 { sourceRef, items }
 
 import type { FeedItem } from "../types/feedItem.js";
+import { pubDateToIsoOrNull } from "../types/feedItem.js";
 import { logger } from "../core/logger/index.js";
 
 function feedItemsToPayload(items: FeedItem[]): unknown[] {
@@ -8,7 +9,7 @@ function feedItemsToPayload(items: FeedItem[]): unknown[] {
     guid: i.guid,
     title: i.title,
     link: i.link,
-    pubDate: i.pubDate instanceof Date ? i.pubDate.toISOString() : new Date().toISOString(),
+    pubDate: pubDateToIsoOrNull(i.pubDate) ?? new Date().toISOString(),
     author: i.author,
     summary: i.summary,
     content: i.content,

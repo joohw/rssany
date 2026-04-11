@@ -14,13 +14,12 @@
 ## 功能概览
 
 - **统一订阅**：在 `.rssany/sources.json` 中配置网站列表、标准 RSS、IMAP 邮件等，由调度器按 `refresh` 策略拉取。
-- **可插拔信源**：`app/plugins/builtin/` 与 `.rssany/plugins/` 中的 **Site** 插件（`.rssany.js` / `.rssany.ts`），自定义列表解析与详情规则。
+- **可插拔信源**：**Site / Source** 插件（`.rssany.js` / `.rssany.ts`），见 **[插件配置说明](./docs/plugins.md)**。
 - **正文与解析**：在信源 `fetchItems`（及需要的 `ctx.extractItem` 等）内完成；入库后跑 pipeline。
 - **固定 pipeline**：`app/pipeline/` 中打标签、翻译等，由 `.rssany/config.json` 的 `pipeline.steps` 开关（**不是**用户目录下的 pipeline 插件）。
 - **LLM 辅助**：解析、提取、标签、翻译等可按配置走 OpenAI 兼容接口。
 - **站点登录**：需登录的站点通过 Puppeteer 管理 Cookie（与产品用户账号无关）。
 - **可选远端投递**：若 `config.json` 中 `**deliver.url`** 非空，在写库与 pipeline 完成后将条目以 `**{ sourceRef, items }**` JSON **POST** 到该 URL（由 `app/deliver/post.ts` 发送）；留空则仅本地消费。
-- **MCP**：条目检索等能力以 MCP 暴露，供 Cursor、Claude 等使用。
 - **Web 界面**：SvelteKit 构建产物由后端托管；**Feeds** 等需 **邮箱校验**；`**/admin`** 需 `**users.role === 'admin'**`（可从 `**/me**` 进入）。
 
 ---
@@ -42,82 +41,62 @@
 
 ## 快速开始
 
-### 环境要求
+日常使用只需 **Node.js 20.x–23.x**（与 `package.json` 的 `engines` 一致）：
 
-- Node.js **20.x–23.x**（与 `package.json` 的 `engines` 字段一致）
-- **pnpm**
+### 全局安装（推荐）
 
-### 安装依赖
+```bash
+npm install -g rssany   # 与 npm i -g rssany 相同
+rssany
+```
+
+安装包内已包含构建好的后端与 Web 界面；启动后用浏览器打开终端里提示的地址（默认 **`http://127.0.0.1:18473/`**，端口可在**运行命令时当前目录**下的 `.env` 里设置 `PORT`）。
+
+- **数据目录**：首次运行会在 **`~/.rssany/`**（Windows：`%USERPROFILE%\.rssany\`）自动从包内 **`init/`** 生成 `sources.json`、`config.json` 等（已存在则不会覆盖）。
+- **可选配置**：在启动 `rssany` 时的**当前目录**放置 `.env`（可参考仓库里的 `.env.example`），用于 JWT、OAuth、SMTP、LLM（如 `OPENAI_API_KEY` / `OPENAI_BASE_URL` / `OPENAI_MODEL`）等。
+- **重置全部本地数据**（结束占用 `PORT` 的进程并删除用户目录，慎用）：执行 **`rssany reset`**；在含 `.env` 的目录下运行可读取 `PORT` / `RSSANY_USER_DIR`，或事先在环境里导出这些变量。
+
+等价于在项目里执行 `node node_modules/rssany/dist/index.js`；CLI 名为 **`rssany`**。
+
+### 从源码运行（开发 / 贡献）
+
+需要 **pnpm**：
 
 ```bash
 pnpm install
 pnpm run webui:install
+cp .env.example .env   # 按需修改
 ```
 
-### 配置
-
-1. 复制环境变量示例并按需填写（JWT、OAuth、SMTP、LLM 等）：
-  ```bash
-   cp .env.example .env
-  ```
-2. 信源与全局配置：首次启动会在 **`~/.rssany/`**（Windows：`%USERPROFILE%\.rssany\`）下自动从包内 **`init/`** 目录中的默认数据复制生成 `sources.json`、`config.json`（若已存在则不会覆盖）。也可手动复制仓库里的 `init/sources.json`、`init/config.json`。
-3. （可选）LLM：在 `.env` 中设置 `OPENAI_API_KEY`、`OPENAI_BASE_URL`、`OPENAI_MODEL` 等。
-
-### 运行
-
-**开发**（后端根路径托管 `webui` 构建产物，改前端需重新构建或 watch）：
+**开发**（后端托管 `webui` 构建目录；改前端可 watch）：
 
 ```bash
-# 推荐：API + 前端 watch（修改 Svelte 后自动写入构建目录，刷新浏览器即可）
 pnpm run dev:all
-
-# 或分步：先打一次前端再起后端
-pnpm run webui:build
-pnpm dev
 ```
 
-默认监听 `**http://127.0.0.1:18473/**`（端口见 `.env.example` 中 `PORT`，避免与常见开发端口冲突）。
-
-**重置本地数据**（结束占用 `PORT` 的监听进程，并删除 **`~/.rssany/`**，或 `RSSANY_USER_DIR` 所设目录）：
-
-```bash
-pnpm reset
-```
+或分步：`pnpm run webui:build` 后 `pnpm dev`。
 
 **仅调试 WebUI 热更新**（可选）：`cd webui && pnpm dev`（Vite 代理到本机后端，见 `webui/vite.config.ts`）。
 
-**生产**：
+**生产**（本仓库）：`pnpm run webui:build && pnpm start`。
 
-```bash
-pnpm run webui:build && pnpm start
-```
+**重置本地数据**（与全局安装的 `rssany reset` 逻辑相同）：`pnpm reset`。
 
-### npm 全局安装（或 `npx`）
-
-发布包时 `prepublishOnly` 会执行 `build:all`（后端 `vite build` + `webui:build`）。安装后：
-
-```bash
-npm install -g rssany
-rssany
-```
-
-重置数据（结束 `PORT` 监听进程并删除用户目录）：**`rssany reset`**（与仓库内 **`pnpm reset`** 相同逻辑；可在含 `.env` 的目录下执行以读取 `PORT` / `RSSANY_USER_DIR`）。
-
-用户数据在 **`~/.rssany/`**（Windows：`%USERPROFILE%\.rssany`），与工作目录无关。可选环境变量 **`RSSANY_USER_DIR`** 可指定其它路径。等价于 `node node_modules/rssany/dist/index.js`；CLI 名称为 `rssany`。内置 `app/plugins/builtin/`、`statics/`、`webui/build` 随包安装路径解析。
+发布到 npm 时 `prepublishOnly` 会执行 `build:all`（后端 `vite build` + `webui:build`）。
 
 ---
 
 ## 数据流（简图）
 
 ```
-sources.json / Site 插件
+sources.json / 信源插件
   → 调度器触发 fetchItems
   → upsertItems
   → pipeline（每条一次）
   → [可选] deliver.url POST（出站，非入站 API）
 ```
 
-消费侧：**RSS/XML**、`**/api/*`**、**MCP**、Web UI。
+消费侧：**RSS/XML**、`**/api/*`**、Web UI。
 
 ---
 
@@ -130,11 +109,9 @@ sources.json / Site 插件
 
 ---
 
-## 插件与配置
+## 配置
 
-### 信源插件（Site）
-
-放置于 `**app/plugins/builtin/**` 或 `**.rssany/plugins/**`（扁平），用户插件可与内置插件同 `id` 覆盖。最小约定包括 `id`、`listUrlPattern` 等（详见 `app/scraper/sources/web/site.ts`）。
+**信源插件（Site / Source）**：目录约定、`listUrlPattern` / `pattern`、`fetchItems`、与 `sources.json` 的关系等，见 **[docs/plugins.md](./docs/plugins.md)**。
 
 ### Pipeline（固定代码）
 
@@ -173,8 +150,9 @@ sources.json / Site 插件
 ## 仓库目录（摘要）
 
 ```
-├── app/                 # 后端：路由、feeder、scraper、pipeline、mcp、db、auth…
+├── app/                 # 后端：路由、feeder、scraper、pipeline、db、auth…
 │   └── plugins/builtin/ # 内置信源 *.rssany.js
+├── docs/                # 用户文档（如 plugins.md）
 └── webui/               # SvelteKit 前端
 
 ~/.rssany/               # 运行时用户数据（首次启动创建；或 RSSANY_USER_DIR）
