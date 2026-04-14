@@ -1,6 +1,6 @@
 {
   "name": "rssany",
-  "version": "0.1.4",
+  "version": "0.1.5",
   "description": "Universal RSS/Atom/JSON Feed pipeline — fetches, extracts, parses and converts any web content into consumable feeds with plugin support",
   "author": "Joo",
   "type": "module",

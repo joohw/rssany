@@ -792,15 +792,21 @@ export async function getItemsForDate(date: string): Promise<DbItem[]> {
   return mapRowsToDbItems(rows);
 }
 
-/** 各信源条目数与最新一条时间，用于管理页统计（按 canonical 合并，与订阅 ref 对齐） */
-export async function getSourceStats(): Promise<{ source_url: string; count: number; latest_at: string | null }[]> {
+/** 各信源条目数、近 7 天内有过拉取的条目数、最新一条时间，用于管理页统计（按 canonical 合并，与订阅 ref 对齐） */
+export async function getSourceStats(): Promise<
+  { source_url: string; count: number; count_7d: number; latest_at: string | null }[]
+> {
   const { mergeSourceStatsRows } = await import("../utils/httpSourceRef.js");
   const db = await getDb();
   const rows = db
     .prepare(
-      "SELECT source_url, COUNT(*) as count, MAX(COALESCE(pub_date, fetched_at)) as latest_at FROM items GROUP BY source_url ORDER BY count DESC",
+      `SELECT source_url,
+              COUNT(*) as count,
+              SUM(CASE WHEN julianday(fetched_at) >= julianday('now', '-7 days') THEN 1 ELSE 0 END) as count_7d,
+              MAX(COALESCE(pub_date, fetched_at)) as latest_at
+ FROM items GROUP BY source_url ORDER BY count DESC`,
     )
-    .all() as { source_url: string; count: number; latest_at: string | null }[];
+    .all() as { source_url: string; count: number; count_7d: number; latest_at: string | null }[];
   return mergeSourceStatsRows(rows);
 }
 

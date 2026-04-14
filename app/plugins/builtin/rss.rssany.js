@@ -12,6 +12,16 @@ function trimUrl(s) {
   return t || undefined;
 }
 
+/** rss-parser 常把多位作者压成一段逗号（或中文逗号）分隔文本，拆成数组入库。 */
+function authorsFromCommaText(authorRaw) {
+  if (typeof authorRaw !== "string") return undefined;
+  const parts = authorRaw
+    .split(/[,，]/)
+    .map((s) => s.trim())
+    .filter(Boolean);
+  return parts.length > 0 ? parts : undefined;
+}
+
 /** 从 rss-parser 条目上尽量取出配图 URL（入库用 imageUrl，与 Gateway 的 cover_img 对齐）。 */
 function extractItemImageUrl(item) {
   const enc = item.enclosure;
@@ -127,7 +137,7 @@ export default {
             : new Date();
       const authorRaw =
         typeof item.creator === "string" ? item.creator : typeof item.author === "string" ? item.author : undefined;
-      const author = authorRaw ? [authorRaw] : undefined;
+      const author = authorsFromCommaText(authorRaw);
       const summary =
         typeof item.summary === "string" ? item.summary : typeof item.contentSnippet === "string" ? item.contentSnippet : undefined;
       const content =

@@ -32,22 +32,24 @@ function maxIso(a: string | null, b: string | null): string | null {
  * 将 GROUP BY source_url 的统计按规范化键合并（兼容迁移前旧数据或异常重复写法）。
  */
 export function mergeSourceStatsRows(
-  rows: { source_url: string; count: number; latest_at: string | null }[],
-): { source_url: string; count: number; latest_at: string | null }[] {
-  const map = new Map<string, { count: number; latest_at: string | null }>();
+  rows: { source_url: string; count: number; count_7d: number; latest_at: string | null }[],
+): { source_url: string; count: number; count_7d: number; latest_at: string | null }[] {
+  const map = new Map<string, { count: number; count_7d: number; latest_at: string | null }>();
   for (const row of rows) {
     const k = canonicalHttpSourceRef(row.source_url);
     const prev = map.get(k);
+    const count7 = row.count_7d ?? 0;
     if (!prev) {
-      map.set(k, { count: row.count, latest_at: row.latest_at });
+      map.set(k, { count: row.count, count_7d: count7, latest_at: row.latest_at });
     } else {
       map.set(k, {
         count: prev.count + row.count,
+        count_7d: prev.count_7d + count7,
         latest_at: maxIso(prev.latest_at, row.latest_at),
       });
     }
   }
   return [...map.entries()]
-    .map(([source_url, v]) => ({ source_url, count: v.count, latest_at: v.latest_at }))
+    .map(([source_url, v]) => ({ source_url, count: v.count, count_7d: v.count_7d, latest_at: v.latest_at }))
     .sort((a, b) => b.count - a.count);
 }

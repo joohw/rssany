@@ -4,7 +4,9 @@ import type { Hono } from "hono";
 import { getSourceStats } from "../../../db/index.js";
 import { getSource } from "../../../scraper/sources/index.js";
 import { getPluginSites } from "../../../scraper/sources/web/index.js";
-import { getSourcesRaw, saveSourcesFile } from "../../../scraper/subscription/index.js";
+import { getSourcesRaw, saveSourcesFile, getEffectiveProxyForListUrl } from "../../../scraper/subscription/index.js";
+import { launchBrowser, applyProxyAuthToPage, resolveProxy } from "../../../scraper/sources/web/fetcher/index.js";
+import { CACHE_DIR } from "../../../config/paths.js";
 import type { SourceType } from "../../../scraper/subscription/types.js";
 import type { RefreshInterval } from "../../../utils/refreshInterval.js";
 import { VALID_INTERVALS } from "../../../utils/refreshInterval.js";
@@ -30,6 +32,47 @@ export function registerSourcesRoutes(app: Hono): void {
       return c.json(result);
     } catch {
       return c.json({});
+    }
+  });
+
+  /**
+   * 在有头 Chrome 中打开 URL：与抓取共用 CACHE_DIR/browser_data、代理优先级与 /auth/open 一致。
+   * 浏览器在本机服务端弹出，非用户默认浏览器。
+   */
+  app.post("/api/sources/open-browser", requireAdmin(), async (c) => {
+    try {
+      const body = await c.req.json<{ url?: string }>();
+      const raw = typeof body?.url === "string" ? body.url.trim() : "";
+      if (!raw) return c.json({ ok: false, message: "缺少 url" }, 400);
+      const lower = raw.toLowerCase();
+      if (!lower.startsWith("http://") && !lower.startsWith("https://")) {
+        return c.json({ ok: false, message: "仅支持 http(s) URL" }, 400);
+      }
+      const url = raw;
+      const source = getSource(url);
+      const merged = await getEffectiveProxyForListUrl(url, source);
+      const proxy = resolveProxy({ proxy: merged });
+      void launchBrowser({ headless: false, cacheDir: CACHE_DIR, proxy })
+        .then(async (browser) => {
+          try {
+            const page = await browser.newPage();
+            await applyProxyAuthToPage(page, { proxy: merged });
+            const realUserAgent =
+              "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36";
+            await page.setUserAgent(realUserAgent);
+            await page.setViewport({ width: 1366, height: 960 });
+            await page.goto(url, { waitUntil: "domcontentloaded", timeout: 60_000 });
+            page.once("close", () => {
+              void browser.close().catch(() => {});
+            });
+          } catch {
+            await browser.close().catch(() => {});
+          }
+        })
+        .catch(() => {});
+      return c.json({ ok: true, message: "已在爬虫浏览器中打开" });
+    } catch {
+      return c.json({ ok: false, message: "请求体无效" }, 400);
     }
   });
 

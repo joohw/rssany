@@ -1,5 +1,6 @@
 <script lang="ts">
   import { PRODUCT_NAME } from '$lib/brand';
+  import BackToParentRoute from '$lib/BackToParentRoute.svelte';
   import { onMount } from 'svelte';
   import { adminFetchJson } from '$lib/adminAuth';
   import { showToast } from '$lib/toastStore.js';
@@ -143,6 +144,7 @@
 <div class="feed-wrap">
   <div class="feed-col">
     <div class="feed-toolbar-block">
+      <BackToParentRoute />
       <div class="admin-feed-header">
         <div class="admin-feed-header__left">
           <h2>系统标签</h2>

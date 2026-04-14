@@ -2,10 +2,16 @@
   import { untrack } from 'svelte';
   import { Dialog } from 'bits-ui';
   import X from 'lucide-svelte/icons/x';
-  import ExternalLink from 'lucide-svelte/icons/external-link';
+  import FeedCard from '$lib/components/ui/FeedCard.svelte';
   import RefreshCw from 'lucide-svelte/icons/refresh-cw';
   import Globe from 'lucide-svelte/icons/globe';
+  import Rss from 'lucide-svelte/icons/rss';
+  import { Puzzle } from 'lucide-svelte';
+  import Sparkles from 'lucide-svelte/icons/sparkles';
+  import Mail from 'lucide-svelte/icons/mail';
   import { adminFetch } from '$lib/adminAuth';
+  import { showToast } from '$lib/toastStore.js';
+  import type { HomeFeedParseHint } from '$lib/homeFeedPanelStore';
   import { refToTaskId } from '$lib/sourcePullStore.js';
 
   interface FeedRow {
@@ -15,6 +21,9 @@
     pub_date: string | null;
     fetched_at: string;
     summary: string | null;
+    content?: string | null;
+    author?: string[] | null;
+    image_url?: string | null;
   }
 
   interface Props {
@@ -25,6 +34,8 @@
     sourceDescription?: string;
     /** 单源代理：非空时在标题旁显示图标 */
     sourceProxy?: string;
+    /** 解析方式：标题旁显示 RSS / 插件 / LLM / 邮箱 图标（在代理图标旁） */
+    sourceParseHint?: HomeFeedParseHint | null;
     /** `overlay`：右侧抽屉 + 遮罩；`inline`：与信源列表并排占满主区域右侧列 */
     variant?: 'overlay' | 'inline';
     /** @param v */
@@ -37,6 +48,7 @@
     sourceLabel = '',
     sourceDescription = '',
     sourceProxy = '',
+    sourceParseHint = null,
     variant = 'overlay',
     onOpenChange = () => {},
   }: Props = $props();
@@ -45,6 +57,8 @@
   let loading = $state(false);
   let loadError = $state('');
   let loadSeq = $state(0);
+  /** 正在删除的条目 id，避免重复请求 */
+  let deletingId = $state<string | null>(null);
 
   /** 拉取任务 id 映射（runes 下需订阅 store 才能随 refToTaskId 更新） */
   let taskPullMap = $state<Record<string, string>>({});
@@ -98,24 +112,33 @@
     }
   });
 
-  function formatWhen(iso: string | null): string {
-    if (!iso) return '—';
-    try {
-      const d = new Date(iso);
-      if (Number.isNaN(d.getTime())) return '—';
-      return d.toLocaleString('zh-CN', {
-        month: '2-digit',
-        day: '2-digit',
-        hour: '2-digit',
-        minute: '2-digit',
-      });
-    } catch {
-      return '—';
-    }
+  function authorLine(row: FeedRow): string | undefined {
+    const a = row.author;
+    if (!a?.length) return undefined;
+    return a.join(', ');
   }
 
-  function itemTime(row: FeedRow): string {
-    return formatWhen(row.pub_date || row.fetched_at);
+  function onDeleteFeedItem(id: string): void {
+    void deleteFeedItem(id);
+  }
+
+  async function deleteFeedItem(id: string) {
+    const trimmed = id.trim();
+    if (!trimmed || deletingId) return;
+    deletingId = trimmed;
+    try {
+      const res = await adminFetch('/api/items/' + encodeURIComponent(trimmed), { method: 'DELETE' });
+      if (!res.ok) {
+        const txt = await res.text().catch(() => '');
+        throw new Error(txt.trim() || `HTTP ${res.status}`);
+      }
+      items = items.filter((r) => r.id !== trimmed);
+      showToast('已删除该条目', 'success');
+    } catch (e) {
+      showToast(e instanceof Error ? e.message : String(e), 'error');
+    } finally {
+      deletingId = null;
+    }
   }
 
   const sublineText = $derived(sourceDescription.trim() ? sourceDescription.trim() : '—');
@@ -135,6 +158,36 @@
     }
     prevInlinePulling = pulling;
   });
+
+  function parseHintTitle(hint: HomeFeedParseHint): string {
+    switch (hint) {
+      case 'rss':
+        return '标准 RSS/Atom/JSON Feed（内置 __rss__）';
+      case 'plugin':
+        return 'Site 插件（listUrlPattern）或语鲸协议（lingowhale://）';
+      case 'llm':
+        return '通用网页列表：LLM 解析（generic）';
+      case 'email':
+        return '内置 IMAP 邮件插件（__email__）';
+      default:
+        return '';
+    }
+  }
+
+  function parseHintAria(hint: HomeFeedParseHint): string {
+    switch (hint) {
+      case 'rss':
+        return '解析方式：RSS/Atom';
+      case 'plugin':
+        return '解析方式：插件';
+      case 'llm':
+        return '解析方式：LLM';
+      case 'email':
+        return '解析方式：邮箱';
+      default:
+        return '解析方式';
+    }
+  }
 </script>
 
 {#if variant === 'overlay'}
@@ -153,11 +206,30 @@
                   class="source-sheet-title"
                   title={headerTitleAttr}
                 >{sourceLabel || sourceRef || '信源条目'}</Dialog.Title>
-                {#if sourceProxy.trim()}
-                  <span class="source-sheet-proxy" title="代理：{sourceProxy.trim()}" aria-label="已配置代理">
-                    <Globe size={16} class="source-sheet-proxy-globe" aria-hidden="true" />
-                  </span>
-                {/if}
+                <div class="source-sheet-header-icons">
+                  {#if sourceParseHint}
+                    <span
+                      class="source-sheet-meta-icon"
+                      title="解析方式：{parseHintTitle(sourceParseHint)}"
+                      aria-label={parseHintAria(sourceParseHint)}
+                    >
+                      {#if sourceParseHint === 'rss'}
+                        <Rss size={16} class="source-sheet-meta-icon-svg" />
+                      {:else if sourceParseHint === 'plugin'}
+                        <Puzzle size={16} class="source-sheet-meta-icon-svg" />
+                      {:else if sourceParseHint === 'llm'}
+                        <Sparkles size={16} class="source-sheet-meta-icon-svg" />
+                      {:else if sourceParseHint === 'email'}
+                        <Mail size={16} class="source-sheet-meta-icon-svg" />
+                      {/if}
+                    </span>
+                  {/if}
+                  {#if sourceProxy.trim()}
+                    <span class="source-sheet-proxy" title="代理：{sourceProxy.trim()}" aria-label="已配置代理">
+                      <Globe size={16} class="source-sheet-proxy-globe" aria-hidden="true" />
+                    </span>
+                  {/if}
+                </div>
               </div>
             </div>
             <p class="source-sheet-sub source-sheet-sub-desc" title={sourceRef}>{sublineText}</p>
@@ -174,27 +246,22 @@
           {:else if items.length === 0}
             <div class="source-sheet-state">暂无条目</div>
           {:else}
-            <ul class="source-feed-list">
+            <div class="source-feed-cards">
               {#each items as row (row.id)}
-                <li class="source-feed-row">
-                  <a
-                    class="source-feed-link"
-                    href={row.url}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    title={row.summary?.trim() || row.title || row.url}
-                  >
-                    <span class="source-feed-title">{row.title?.trim() ? row.title : row.url}</span>
-                    <span class="source-feed-meta">
-                      <time datetime={row.pub_date || row.fetched_at}>{itemTime(row)}</time>
-                      <span class="source-feed-ext" aria-hidden="true">
-                        <ExternalLink size={12} />
-                      </span>
-                    </span>
-                  </a>
-                </li>
+                <FeedCard
+                  title={row.title?.trim() || ''}
+                  link={row.url}
+                  summary={row.summary ?? undefined}
+                  content={row.content ?? undefined}
+                  author={authorLine(row)}
+                  pubDate={row.pub_date || row.fetched_at}
+                  sourceRef={sourceRef.trim()}
+                  coverImg={row.image_url?.trim() ? row.image_url : undefined}
+                  guid={row.id}
+                  onDelete={onDeleteFeedItem}
+                />
               {/each}
-            </ul>
+            </div>
           {/if}
         </div>
       </Dialog.Content>
@@ -210,11 +277,30 @@
               <h2 class="source-sheet-title" title={headerTitleAttr}>
                 {sourceLabel || sourceRef || '信源条目'}
               </h2>
-              {#if sourceProxy.trim()}
-                <span class="source-sheet-proxy" title="代理：{sourceProxy.trim()}" aria-label="已配置代理">
-                  <Globe size={16} class="source-sheet-proxy-globe" aria-hidden="true" />
-                </span>
-              {/if}
+              <div class="source-sheet-header-icons">
+                {#if sourceParseHint}
+                  <span
+                    class="source-sheet-meta-icon"
+                    title="解析方式：{parseHintTitle(sourceParseHint)}"
+                    aria-label={parseHintAria(sourceParseHint)}
+                  >
+                    {#if sourceParseHint === 'rss'}
+                      <Rss size={16} class="source-sheet-meta-icon-svg" />
+                    {:else if sourceParseHint === 'plugin'}
+                      <Puzzle size={16} class="source-sheet-meta-icon-svg" />
+                    {:else if sourceParseHint === 'llm'}
+                      <Sparkles size={16} class="source-sheet-meta-icon-svg" />
+                    {:else if sourceParseHint === 'email'}
+                      <Mail size={16} class="source-sheet-meta-icon-svg" />
+                    {/if}
+                  </span>
+                {/if}
+                {#if sourceProxy.trim()}
+                  <span class="source-sheet-proxy" title="代理：{sourceProxy.trim()}" aria-label="已配置代理">
+                    <Globe size={16} class="source-sheet-proxy-globe" aria-hidden="true" />
+                  </span>
+                {/if}
+              </div>
             </div>
           </div>
           <p class="source-sheet-sub source-sheet-sub-desc" title={sourceRef}>{sublineText}</p>
@@ -233,27 +319,22 @@
         {:else if items.length === 0}
           <div class="source-sheet-state">暂无条目</div>
         {:else}
-          <ul class="source-feed-list">
+          <div class="source-feed-cards">
             {#each items as row (row.id)}
-              <li class="source-feed-row">
-                <a
-                  class="source-feed-link"
-                  href={row.url}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  title={row.summary?.trim() || row.title || row.url}
-                >
-                  <span class="source-feed-title">{row.title?.trim() ? row.title : row.url}</span>
-                  <span class="source-feed-meta">
-                    <time datetime={row.pub_date || row.fetched_at}>{itemTime(row)}</time>
-                    <span class="source-feed-ext" aria-hidden="true">
-                      <ExternalLink size={12} />
-                    </span>
-                  </span>
-                </a>
-              </li>
+              <FeedCard
+                title={row.title?.trim() || ''}
+                link={row.url}
+                summary={row.summary ?? undefined}
+                content={row.content ?? undefined}
+                author={authorLine(row)}
+                pubDate={row.pub_date || row.fetched_at}
+                sourceRef={sourceRef.trim()}
+                coverImg={row.image_url?.trim() ? row.image_url : undefined}
+                guid={row.id}
+                onDelete={onDeleteFeedItem}
+              />
             {/each}
-          </ul>
+          </div>
         {/if}
       </div>
     {:else}
@@ -467,6 +548,21 @@
     flex: 1 1 0%;
     min-width: 0;
   }
+  .source-sheet-header-icons {
+    flex-shrink: 0;
+    display: inline-flex;
+    align-items: center;
+    gap: 0.3rem;
+    line-height: 0;
+  }
+  .source-sheet-meta-icon {
+    display: inline-flex;
+    align-items: center;
+    color: var(--color-muted-foreground-soft);
+  }
+  :global(.source-sheet-meta-icon-svg) {
+    opacity: 0.92;
+  }
   .source-sheet-proxy {
     flex-shrink: 0;
     display: inline-flex;
@@ -548,56 +644,7 @@
     color: var(--color-destructive);
   }
 
-  .source-feed-list {
-    list-style: none;
-    margin: 0;
-    padding: 0;
-  }
-  .source-feed-row {
-    border-bottom: 1px solid var(--color-border-muted);
-  }
-  .source-feed-row:last-child {
-    border-bottom: none;
-  }
-  .source-feed-link {
-    display: flex;
-    flex-direction: column;
-    align-items: stretch;
-    gap: 0.25rem;
-    padding: 0.65rem 1.25rem;
+  .source-feed-cards {
     min-width: 0;
-    text-decoration: none;
-    color: inherit;
-    transition: background 0.12s;
-  }
-  .source-feed-link:hover {
-    background: var(--color-muted);
-  }
-  .source-feed-title {
-    font-size: 0.8125rem;
-    font-weight: 500;
-    color: var(--color-foreground);
-    line-height: 1.4;
-    min-width: 0;
-    white-space: nowrap;
-    overflow: hidden;
-    text-overflow: ellipsis;
-  }
-  .source-feed-link:hover .source-feed-title {
-    color: var(--color-primary);
-  }
-  .source-feed-meta {
-    display: inline-flex;
-    align-items: center;
-    align-self: flex-start;
-    gap: 0.35rem;
-    flex-shrink: 0;
-    font-size: 0.7rem;
-    color: var(--color-muted-foreground-soft);
-    font-variant-numeric: tabular-nums;
-  }
-  .source-feed-ext {
-    opacity: 0.65;
-    flex-shrink: 0;
   }
 </style>

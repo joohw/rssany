@@ -43,6 +43,8 @@
     displayLabel: string;
     description?: string;
     count: number;
+    /** 近 7 天内 fetched_at 落在窗口内的条目数（与后端 count_7d 一致） */
+    weekCount: number;
     latestAt: string | null;
     pluginId: string | null;
     weight: number;
@@ -51,7 +53,7 @@
     parseHint: ParseHint | null;
   }
 
-  type SortMode = 'alpha' | 'parse' | 'latest' | 'count' | 'weight';
+  type SortMode = 'alpha' | 'parse' | 'latest' | 'count' | 'week' | 'weight';
   type SortDir = 'asc' | 'desc';
 
   function defaultDirForMode(mode: SortMode): SortDir {
@@ -262,6 +264,9 @@
         case 'count':
           cmp = a.count - b.count;
           break;
+        case 'week':
+          cmp = a.weekCount - b.weekCount;
+          break;
       }
       if (cmp !== 0) return flip * cmp;
       return a.displayLabel.localeCompare(b.displayLabel, 'zh-CN');
@@ -285,6 +290,7 @@
     if (mode === 'weight') return '权重';
     if (mode === 'latest') return '最近拉取';
     if (mode === 'parse') return '解析';
+    if (mode === 'week') return '近7天';
     return '数量';
   }
 
@@ -293,7 +299,7 @@
     sortPopoverOpen = false;
   }
 
-  const SORT_MENU_MODES: SortMode[] = ['alpha', 'weight', 'latest', 'parse', 'count'];
+  const SORT_MENU_MODES: SortMode[] = ['alpha', 'weight', 'latest', 'parse', 'count', 'week'];
 
   $: filteredCards = sortCards(
     filterQuery.trim()
@@ -327,19 +333,26 @@
       rawSources = Array.isArray(data.sources) ? data.sources : [];
 
       const statsArr = statsRes.ok
-        ? (await statsRes.json() as { source_url: string; count: number; latest_at?: string | null }[])
+        ? (await statsRes.json() as {
+            source_url: string;
+            count: number;
+            count_7d?: number;
+            latest_at?: string | null;
+          }[])
         : [];
       /** 与后端 mergeSourceStatsRows 一致：键统一为 canonical */
-      const statsMap = new Map<string, { count: number; latestAt: string | null }>();
+      const statsMap = new Map<string, { count: number; weekCount: number; latestAt: string | null }>();
       for (const s of statsArr) {
         const k = canonicalHttpSourceRef(s.source_url);
         const prev = statsMap.get(k);
         const lat = s.latest_at ?? null;
+        const w = typeof s.count_7d === 'number' && Number.isFinite(s.count_7d) ? s.count_7d : 0;
         if (!prev) {
-          statsMap.set(k, { count: s.count, latestAt: lat });
+          statsMap.set(k, { count: s.count, weekCount: w, latestAt: lat });
         } else {
           statsMap.set(k, {
             count: prev.count + s.count,
+            weekCount: prev.weekCount + w,
             latestAt:
               !prev.latestAt ? lat : !lat ? prev.latestAt : prev.latestAt >= lat ? prev.latestAt : lat,
           });
@@ -363,7 +376,7 @@
         .filter((s) => s?.ref?.trim())
         .map((s) => {
           const ref = s.ref.trim();
-          const stat = statsMap.get(canonicalHttpSourceRef(ref)) ?? { count: 0, latestAt: null };
+          const stat = statsMap.get(canonicalHttpSourceRef(ref)) ?? { count: 0, weekCount: 0, latestAt: null };
           const pid = pluginMap[ref] ?? null;
           const proxy = s.proxy?.trim();
           return {
@@ -371,6 +384,7 @@
             displayLabel: (s.label && s.label.trim()) || ref,
             description: s.description?.trim(),
             count: stat?.count ?? 0,
+            weekCount: stat?.weekCount ?? 0,
             latestAt: stat?.latestAt ?? null,
             pluginId: pid,
             weight: s.weight ?? 0,
@@ -565,6 +579,26 @@
     return u.href;
   }
 
+  /** 在本机服务端拉起与抓取相同的有头 Chrome（共用 profile / 代理），非系统默认浏览器 */
+  async function openSourceInScraperBrowser(ref: string, e?: MouseEvent) {
+    e?.preventDefault();
+    e?.stopPropagation();
+    try {
+      const res = await adminFetch('/api/sources/open-browser', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ url: ref }),
+      });
+      const data = (await res.json()) as { ok?: boolean; message?: string };
+      if (res.ok && data.ok) showToast(data.message ?? '已在爬虫浏览器中打开', 'success');
+      else showToast(data.message ?? '打开失败', 'error');
+    } catch {
+      showToast('打开失败', 'error');
+    } finally {
+      openMoreRef = null;
+    }
+  }
+
   async function copyRssUrl(ref: string) {
     const text = rssUrlForRef(ref);
     try {
@@ -656,6 +690,7 @@
         displayLabel: card.displayLabel,
         ...(card.description?.trim() ? { description: card.description.trim() } : {}),
         ...(card.proxy?.trim() ? { proxy: card.proxy.trim() } : {}),
+        ...(card.parseHint != null ? { parseHint: card.parseHint } : {}),
       });
       return;
     }
@@ -871,6 +906,7 @@
     sourceLabel={sheetCard?.displayLabel ?? ''}
     sourceDescription={sheetCard?.description?.trim() ?? ''}
     sourceProxy={sheetCard?.proxy?.trim() ?? ''}
+    sourceParseHint={sheetCard?.parseHint ?? null}
     onOpenChange={(v) => {
       sheetOpen = v;
       if (!v) sheetCard = null;
@@ -972,7 +1008,11 @@
                   {/if}
                   <div class="title-line">
                     <span class="title-text">{card.displayLabel}</span>
-                    <span class="title-item-count" title="已收录条目">{card.count}</span>
+                    <span
+                      class="title-item-count"
+                      title="已收录 {card.count} 条 · 近 7 天内有拉取记录的条目 {card.weekCount} 条"
+                      >{card.count}</span
+                    >
                   </div>
                 </div>
               </div>
@@ -1022,15 +1062,15 @@
                         <span>复制 RSS 地址</span>
                       </button>
                       {#if isHttpRef(card.ref)}
-                        <a
+                        <button
+                          type="button"
                           class="more-menu-item"
-                          href={card.ref}
-                          target="_blank"
-                          rel="noopener noreferrer"
+                          title="在本机服务端启动与抓取相同的有头 Chrome（共用浏览器数据目录与代理）"
+                          onclick={(e) => openSourceInScraperBrowser(card.ref, e)}
                         >
                           <ExternalLink size={14} />
                           <span>打开链接</span>
-                        </a>
+                        </button>
                       {/if}
                       <button
                         type="button"

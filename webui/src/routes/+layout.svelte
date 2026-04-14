@@ -128,6 +128,7 @@
             sourceLabel={$homeFeedPanelSource?.displayLabel ?? ''}
             sourceDescription={$homeFeedPanelSource?.description ?? ''}
             sourceProxy={$homeFeedPanelSource?.proxy?.trim() ?? ''}
+            sourceParseHint={$homeFeedPanelSource?.parseHint ?? null}
             onOpenChange={(v) => {
               if (!v) homeFeedPanelSource.set(null);
             }}
