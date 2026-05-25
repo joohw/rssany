@@ -40,6 +40,9 @@ export function HomeFooter() {
           <a href="/#pipeline" className="text-muted-foreground hover:text-foreground">
             {t("header.pipeline")}
           </a>
+          <a href="/blog" className="text-muted-foreground hover:text-foreground">
+            {t("header.blog")}
+          </a>
           <a href="/#faq" className="text-muted-foreground hover:text-foreground">
             FAQ
           </a>

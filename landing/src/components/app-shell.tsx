@@ -6,7 +6,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   return (
     <>
       <SiteHeader />
-      {children}
+      <div className="pt-[var(--app-header-height)]">{children}</div>
     </>
   );
 }

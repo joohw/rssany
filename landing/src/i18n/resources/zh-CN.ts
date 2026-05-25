@@ -3,6 +3,7 @@ const zhCN = {
     home: "首页",
     features: "特性",
     pipeline: "管线",
+    blog: "博客",
     docs: "文档",
     backHome: "返回首页",
     github: "GitHub",
@@ -78,6 +79,13 @@ const zhCN = {
     },
     footerTagline: "定制专属信息源 · 内容生产与资讯管线",
     footerCopyright: "© 2026 rssany",
+  },
+  blog: {
+    indexTitle: "博客",
+    indexSubtitle: "信息源定制、插件解析、pipeline 加工与 RSS / JSON API / MCP 输出实践。",
+    empty: "暂无文章。",
+    backToBlog: "← 返回博客",
+    viewPipeline: "了解管线 →",
   },
 } as const;
 

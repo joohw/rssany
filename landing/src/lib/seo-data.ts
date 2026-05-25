@@ -1,7 +1,8 @@
 import type { AppLanguage } from "@/i18n/config";
+import { BLOG_POSTS, blogPathname } from "@/lib/blog-data";
 import { GITHUB_URL, NPM_URL, normalizePath, SITE_NAME } from "@/lib/site";
 
-export type SeoPageKey = "home";
+export type SeoPageKey = "home" | "blog";
 
 type SeoCopy = {
   title: string;
@@ -31,6 +32,21 @@ export const SEO_COPY: Record<AppLanguage, Record<SeoPageKey, SeoCopy>> = {
         "开源",
       ],
     },
+    blog: {
+      title: "博客 · RssAny 信息源定制与内容管线",
+      description:
+        "RssAny 博客：网页/RSS/邮件信源定制、插件解析、pipeline 加工与 RSS / JSON API / MCP 输出实践。",
+      ogImage: "/use-case-zh.png",
+      keywords: [
+        "RssAny 博客",
+        "RSS 聚合",
+        "信息源定制",
+        "内容管线",
+        "自托管",
+        "MCP",
+        "JSON API",
+      ],
+    },
   },
   en: {
     home: {
@@ -51,6 +67,21 @@ export const SEO_COPY: Record<AppLanguage, Record<SeoPageKey, SeoCopy>> = {
         "open source",
       ],
     },
+    blog: {
+      title: "Blog · RssAny feed curation & content pipelines",
+      description:
+        "RssAny blog: curating web/RSS/email sources, plugin parsing, pipeline enrichment, and RSS / JSON API / MCP publishing.",
+      ogImage: "/use-case-en.png",
+      keywords: [
+        "RssAny blog",
+        "RSS aggregator",
+        "feed curation",
+        "content pipeline",
+        "self-hosted",
+        "MCP",
+        "JSON API",
+      ],
+    },
   },
 };
 
@@ -64,8 +95,9 @@ export function resolvePageCopy(page: SeoPageKey, language: AppLanguage): SeoCop
   return SEO_COPY[language][page];
 }
 
-export function pathnameForPage(page: SeoPageKey): string {
+export function pathnameForPage(page: SeoPageKey, slugArg?: string): string {
   if (page === "home") return "/";
+  if (page === "blog") return slugArg ? `/blog/${slugArg}` : "/blog";
   return "/";
 }
 
@@ -227,20 +259,57 @@ export function getHomeTitle(language: AppLanguage): string {
 export function buildSitemapEntries(siteUrl: string, lastModified = new Date()): Array<{
   url: string;
   lastModified: Date;
-  changeFrequency: "weekly";
+  changeFrequency: "weekly" | "monthly";
   priority: number;
   alternates: {
     languages: Record<string, string>;
   };
 }> {
-  const pathname = pathnameForPage("home");
+  const homePath = pathnameForPage("home");
+  const blogIndexPath = pathnameForPage("blog");
 
-  return [
+  const entries: Array<{
+    url: string;
+    lastModified: Date;
+    changeFrequency: "weekly" | "monthly";
+    priority: number;
+    alternates: { languages: Record<string, string> };
+  }> = [
     {
-      url: `${siteUrl}${pathname}`,
+      url: `${siteUrl}${homePath}`,
       lastModified,
       changeFrequency: "weekly",
       priority: 1,
+      alternates: {
+        languages: {
+          "zh-CN": hreflangUrl(siteUrl, homePath, "zh-CN"),
+          en: hreflangUrl(siteUrl, homePath, "en"),
+          "x-default": hreflangUrl(siteUrl, homePath, "zh-CN"),
+        },
+      },
+    },
+    {
+      url: `${siteUrl}${blogIndexPath}`,
+      lastModified,
+      changeFrequency: "weekly",
+      priority: 0.88,
+      alternates: {
+        languages: {
+          "zh-CN": hreflangUrl(siteUrl, blogIndexPath, "zh-CN"),
+          en: hreflangUrl(siteUrl, blogIndexPath, "en"),
+          "x-default": hreflangUrl(siteUrl, blogIndexPath, "zh-CN"),
+        },
+      },
+    },
+  ];
+
+  for (const post of BLOG_POSTS) {
+    const pathname = blogPathname(post.slug);
+    entries.push({
+      url: `${siteUrl}${pathname}`,
+      lastModified,
+      changeFrequency: "monthly",
+      priority: post.priority,
       alternates: {
         languages: {
           "zh-CN": hreflangUrl(siteUrl, pathname, "zh-CN"),
@@ -248,6 +317,8 @@ export function buildSitemapEntries(siteUrl: string, lastModified = new Date()):
           "x-default": hreflangUrl(siteUrl, pathname, "zh-CN"),
         },
       },
-    },
-  ];
+    });
+  }
+
+  return entries;
 }

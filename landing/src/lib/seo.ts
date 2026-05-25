@@ -6,8 +6,11 @@ import {
   hreflangUrl,
   pathnameForPage,
   resolvePageCopy,
+  SEO_COPY,
   type SeoPageKey,
 } from "@/lib/seo-data";
+import { blogPathname } from "@/lib/blog-data";
+import { getBlogPost } from "@/lib/blog-data.server";
 import { getPublicSiteUrlFromRequest, normalizePath, SITE_NAME } from "@/lib/site";
 
 export type { FaqItem, SeoPageKey } from "@/lib/seo-data";
@@ -43,6 +46,28 @@ export async function buildPageMetadata(page: SeoPageKey): Promise<Metadata> {
   return buildMetadataFromCopy({ siteUrl, language, pathname, title, description, ogImage, keywords });
 }
 
+export async function buildBlogPostPageMetadata(slug: string): Promise<Metadata> {
+  const language = await resolveSeoLanguage();
+  const siteUrl = await resolveSiteUrl();
+  const post = getBlogPost(slug, language);
+  if (!post) return {};
+
+  const pathname = blogPathname(slug);
+  const { keywords } = resolvePageCopy("blog", language);
+
+  return buildMetadataFromCopy({
+    siteUrl,
+    language,
+    pathname,
+    title: post.title,
+    description: post.description || post.title,
+    ogImage: SEO_COPY[language].home.ogImage,
+    keywords,
+    openGraphType: "article",
+    publishedTime: post.date || undefined,
+  });
+}
+
 function buildMetadataFromCopy(options: {
   siteUrl: string;
   language: AppLanguage;
@@ -51,8 +76,20 @@ function buildMetadataFromCopy(options: {
   description: string;
   ogImage: string;
   keywords: string[];
+  openGraphType?: "website" | "article";
+  publishedTime?: string;
 }): Metadata {
-  const { siteUrl, language, pathname, title, description, ogImage, keywords } = options;
+  const {
+    siteUrl,
+    language,
+    pathname,
+    title,
+    description,
+    ogImage,
+    keywords,
+    openGraphType = "website",
+    publishedTime,
+  } = options;
   const canonical = `${siteUrl}${normalizePath(pathname)}`;
   const googleSiteVerification = process.env.GOOGLE_SITE_VERIFICATION?.trim();
 
@@ -91,15 +128,22 @@ function buildMetadataFromCopy(options: {
     },
     icons: {
       icon: [
-        { url: "/favicon.ico", sizes: "32x32" },
-        { url: "/rssany-light.svg", type: "image/svg+xml" },
-        { url: "/icon.svg", type: "image/svg+xml" },
+        {
+          url: "/rssany-light.svg",
+          type: "image/svg+xml",
+          media: "(prefers-color-scheme: light)",
+        },
+        {
+          url: "/rssany.svg",
+          type: "image/svg+xml",
+          media: "(prefers-color-scheme: dark)",
+        },
       ],
-      shortcut: ["/favicon.ico"],
+      shortcut: "/favicon.ico",
       apple: [{ url: "/rssany-light.svg", type: "image/svg+xml" }],
     },
     openGraph: {
-      type: "website",
+      type: openGraphType,
       siteName: SITE_NAME,
       title,
       description,
@@ -107,6 +151,7 @@ function buildMetadataFromCopy(options: {
       locale: language === "zh-CN" ? "zh_CN" : "en_US",
       alternateLocale: language === "zh-CN" ? ["en_US"] : ["zh_CN"],
       images: [{ url: ogImage, width: 730, height: 731, alt: title }],
+      ...(publishedTime ? { publishedTime } : {}),
     },
     twitter: {
       card: "summary_large_image",

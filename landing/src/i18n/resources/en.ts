@@ -3,6 +3,7 @@ const en = {
     home: "Home",
     features: "Features",
     pipeline: "Pipeline",
+    blog: "Blog",
     docs: "Docs",
     backHome: "Back to home",
     github: "GitHub",
@@ -78,6 +79,13 @@ const en = {
     },
     footerTagline: "Curate dedicated sources · content & news pipelines",
     footerCopyright: "© 2026 rssany",
+  },
+  blog: {
+    indexTitle: "Blog",
+    indexSubtitle: "Feed curation, plugin parsing, pipeline enrichment, and RSS / JSON API / MCP publishing.",
+    empty: "No posts yet.",
+    backToBlog: "← Back to blog",
+    viewPipeline: "Explore pipeline →",
   },
 } as const;
 
