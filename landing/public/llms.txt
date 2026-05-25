@@ -1,6 +1,6 @@
 # rssany
 
-> 自托管 RSS / 订阅管线：把网页列表、RSS/Atom、邮件等信源通过定时抓取与插件解析，变成统一条目库，再输出 RSS XML、JSON API，并可选 MCP 消费。
+> 定制专属信息源 — 面向内容生产与资讯管线的自托管订阅系统：接入网页、RSS、邮件等信源，统一入库加工后输出 RSS、JSON API 与 MCP。
 
 ## 站点
 - 主页: /
@@ -11,11 +11,11 @@
 - 本文件: /llms.txt
 
 ## 核心能力
-- 统一订阅：sources.json 配置网站、RSS、IMAP 邮件等
+- 定制信源：sources.json 配置网站、RSS、IMAP 邮件等
 - 可插拔信源：内置 Site 插件 + ~/.rssany/plugins 用户扩展
 - 固定 pipeline：打标签、翻译等（config.json pipeline.steps）
 - LLM 辅助：解析、提取、标签、翻译（OpenAI 兼容接口）
-- 输出：/rss/*、/api/*、Web UI、可选 MCP
+- 输出：/rss/*、/api/*、Web UI、MCP，接入内容生产与资讯管线
 
 ## 快速开始
 ```bash

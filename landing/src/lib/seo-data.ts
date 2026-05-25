@@ -12,17 +12,17 @@ type SeoCopy = {
 export const SEO_COPY: Record<AppLanguage, Record<SeoPageKey, SeoCopy>> = {
   "zh-CN": {
     home: {
-      title: "自托管 RSS 订阅管线 · 网页 / RSS / 邮件统一入库 · rssany",
+      title: "定制专属信息源 · 内容生产与资讯管线 · rssany",
       description:
-        "RssAny 把网页列表、RSS/Atom、邮件等信源通过定时抓取与插件解析，变成统一条目库，再输出 RSS XML、JSON API，并可选 MCP 消费。",
+        "RssAny 面向内容生产与资讯工作流，帮你定制网页、RSS、邮件等信源，定时抓取与插件解析后统一入库，再输出 RSS、JSON API 与 MCP，接入创作与分发管线。",
       ogImage: "/use-case-zh.png",
     },
   },
   en: {
     home: {
-      title: "Self-hosted RSS pipeline · unify web, RSS, and email feeds · rssany",
+      title: "Curate dedicated feeds for content & news pipelines · rssany",
       description:
-        "RssAny fetches web lists, RSS/Atom, and email sources on a schedule, parses them with plugins, deduplicates into SQLite, and outputs RSS XML, JSON API, and optional MCP tools.",
+        "RssAny helps you curate web, RSS, and email sources for content production and news workflows — fetch, parse, dedupe, enrich, then publish RSS, JSON API, and MCP for editorial tools.",
       ogImage: "/use-case-en.png",
     },
   },
@@ -50,7 +50,7 @@ export const FAQ_ITEMS: Record<AppLanguage, FaqItem[]> = {
     {
       question: "RssAny 是什么？",
       answer:
-        "RssAny 是一套自托管的订阅管线：抓取网页列表、标准 RSS、IMAP 邮件等信源，解析与补全文后入库去重，再按需生成 RSS/Atom/JSON Feed 与 JSON API。核心是「爬取 → 入库 → 转可订阅流」。",
+        "RssAny 是一套自托管的信息源定制与订阅管线，面向内容生产与资讯工作流。它抓取网页列表、标准 RSS、IMAP 邮件等信源，解析与补全文后入库去重，再按需生成 RSS/Atom/JSON Feed、JSON API 与 MCP，供创作与分发流程消费。",
     },
     {
       question: "支持哪些信源类型？",
@@ -77,7 +77,7 @@ export const FAQ_ITEMS: Record<AppLanguage, FaqItem[]> = {
     {
       question: "What is RssAny?",
       answer:
-        "RssAny is a self-hosted subscription pipeline: it fetches web lists, RSS/Atom, and IMAP mail, parses and enriches items, deduplicates into SQLite, and exposes RSS/Atom/JSON feeds plus JSON API. The core loop is fetch → store → publish.",
+        "RssAny is a self-hosted pipeline for curating information sources in content production and news workflows. It fetches web lists, RSS/Atom, and IMAP mail, parses and enriches items, deduplicates into SQLite, then publishes RSS/Atom/JSON feeds, JSON API, and MCP for editorial and distribution tools.",
     },
     {
       question: "Which source types are supported?",

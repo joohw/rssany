@@ -13,23 +13,23 @@ const en = {
     switchToEn: "Switch to English",
   },
   home: {
-    title: "Turn any source into an RSS feed",
+    title: "Curate dedicated information sources",
     subtitle:
-      "Self-hosted pipeline: schedule fetches for web lists, RSS/Atom, and mail, parse with plugins, store in SQLite, then publish RSS XML, JSON API, and optional MCP.",
+      "Self-hosted pipeline for content production and news workflows: ingest web, RSS, and email, parse with plugins, store in SQLite, enrich on demand, then publish RSS, JSON API, and MCP for editorial and distribution tools.",
     quickStart: "Quick start",
     quickStartHint: "First run creates ~/.rssany/ with sources.json and config.json",
-    useCaseAlt: "RssAny web UI for sources, items, and RSS output",
+    useCaseAlt: "RssAny web UI to curate sources, browse items, and feed content pipelines",
     copy: "Copy",
     copySuccess: "Commands copied to clipboard",
     copyFailed: "Copy failed",
     pipelineTitle: "Fixed pipeline per item",
     pipelineSubtitle: "After upsert, each item runs tagging, translation, and more — toggled in config.json.",
-    featuresTitle: "Why RssAny",
-    featuresSubtitle: "One self-hosted stack from fetch and parse to dedupe, enrich, and publish.",
+    featuresTitle: "Built for content and news pipelines",
+    featuresSubtitle: "From curated sources through fetch, parse, enrich, and publish — one stack for intelligence gathering and distribution.",
     features: {
       sources: {
-        title: "Unified subscriptions",
-        description: "Configure web lists, RSS feeds, and IMAP mail in sources.json; the scheduler pulls on refresh intervals.",
+        title: "Curated sources",
+        description: "Configure web lists, RSS feeds, and IMAP mail in sources.json; the scheduler keeps your news intake on refresh intervals.",
       },
       plugins: {
         title: "Pluggable sources",
@@ -44,8 +44,8 @@ const en = {
         description: "Parsing, extraction, tags, and translation can use an OpenAI-compatible API with rules-first fallbacks.",
       },
       output: {
-        title: "Many outputs",
-        description: "Generate RSS/Atom/JSON feeds on demand, expose /api/* JSON, and optional MCP tools for agents.",
+        title: "Feed your pipeline",
+        description: "Generate RSS/Atom/JSON feeds on demand, expose /api/* JSON and MCP for editorial tools, agents, and downstream systems.",
       },
       selfhost: {
         title: "Self-hosted & open source",
@@ -54,8 +54,8 @@ const en = {
     },
     installNpm: "Install via npm",
     viewDocs: "Read docs",
-    ctaTitle: "Start subscribing today",
-    ctaSubtitle: "Install in one command, run locally, keep full control of your data.",
+    ctaTitle: "Start curating your sources",
+    ctaSubtitle: "Install in one command, run locally, and own your news and content pipeline.",
     ctaGithub: "View on GitHub",
     ctaNpm: "npm package",
     pipelineItems: {
@@ -76,7 +76,7 @@ const en = {
         description: "When deliver.url is set, POST { sourceRef, items } JSON after pipeline completes.",
       },
     },
-    footerTagline: "Self-hosted subscription pipeline · RSS from any source",
+    footerTagline: "Curate dedicated sources · content & news pipelines",
     footerCopyright: "© 2026 rssany",
   },
 } as const;

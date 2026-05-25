@@ -13,23 +13,23 @@ const zhCN = {
     switchToEn: "Switch to English",
   },
   home: {
-    title: "把任何信息变成 RSS 订阅",
+    title: "定制专属信息源",
     subtitle:
-      "自托管订阅管线：网页列表、RSS/Atom、邮件等信源定时抓取，插件解析后统一入库，再输出 RSS XML、JSON API，并可选 MCP。",
+      "面向内容生产与资讯管线的自托管订阅系统：接入网页、RSS、邮件等信源，定时抓取与插件解析后统一入库，按需加工并输出 RSS、JSON API 与 MCP，喂给创作与分发流程。",
     quickStart: "快速开始",
     quickStartHint: "首次运行会在 ~/.rssany/ 生成 sources.json 与 config.json",
-    useCaseAlt: "RssAny Web 界面：管理信源、浏览条目与 RSS 输出",
+    useCaseAlt: "RssAny Web 界面：定制信源、浏览资讯条目并输出到内容管线",
     copy: "复制",
     copySuccess: "命令已复制到剪贴板",
     copyFailed: "复制失败",
     pipelineTitle: "固定 pipeline，按需加工每条",
     pipelineSubtitle: "入库后对每条条目依次执行打标签、翻译等步骤，由 config.json 开关控制。",
-    featuresTitle: "为什么用 RssAny",
-    featuresSubtitle: "一套自托管方案，覆盖抓取、解析、去重、加工与对外输出。",
+    featuresTitle: "为内容生产而生的订阅管线",
+    featuresSubtitle: "从信源定制、抓取解析到入库加工与对外输出，一条链路服务资讯采集与内容分发。",
     features: {
       sources: {
-        title: "统一订阅",
-        description: "在 sources.json 配置网站列表、标准 RSS、IMAP 邮件等，调度器按 refresh 策略拉取。",
+        title: "定制信源",
+        description: "在 sources.json 按需配置网站列表、标准 RSS、IMAP 邮件等，调度器按 refresh 策略持续拉取资讯。",
       },
       plugins: {
         title: "可插拔信源",
@@ -44,8 +44,8 @@ const zhCN = {
         description: "解析、正文提取、标签与翻译可按配置走 OpenAI 兼容接口，规则优先、LLM 兜底。",
       },
       output: {
-        title: "多种消费方式",
-        description: "按需生成 RSS/Atom/JSON Feed，提供 /api/* JSON API，并可选 MCP 工具供 Agent 查询。",
+        title: "接入内容管线",
+        description: "按需生成 RSS/Atom/JSON Feed，提供 /api/* JSON API 与 MCP，供创作工具、Agent 与下游分发系统消费。",
       },
       selfhost: {
         title: "自托管开源",
@@ -54,8 +54,8 @@ const zhCN = {
     },
     installNpm: "npm 安装",
     viewDocs: "阅读文档",
-    ctaTitle: "马上开始订阅",
-    ctaSubtitle: "一行命令安装，本地运行，数据完全在你手里。",
+    ctaTitle: "开始定制你的信息源",
+    ctaSubtitle: "一行命令安装，本地运行，把资讯管线握在自己手里。",
     ctaGithub: "GitHub 源码",
     ctaNpm: "npm 包",
     pipelineItems: {
@@ -76,7 +76,7 @@ const zhCN = {
         description: "config.json 中 deliver.url 非空时，向该 URL POST { sourceRef, items } JSON。",
       },
     },
-    footerTagline: "自托管订阅管线 · 把任何信息变成 RSS",
+    footerTagline: "定制专属信息源 · 内容生产与资讯管线",
     footerCopyright: "© 2026 rssany",
   },
 } as const;
