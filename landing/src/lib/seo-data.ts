@@ -1,5 +1,5 @@
 import type { AppLanguage } from "@/i18n/config";
-import { normalizePath, SITE_NAME } from "@/lib/site";
+import { GITHUB_URL, NPM_URL, normalizePath, SITE_NAME } from "@/lib/site";
 
 export type SeoPageKey = "home";
 
@@ -7,6 +7,7 @@ type SeoCopy = {
   title: string;
   description: string;
   ogImage: string;
+  keywords: string[];
 };
 
 export const SEO_COPY: Record<AppLanguage, Record<SeoPageKey, SeoCopy>> = {
@@ -16,6 +17,19 @@ export const SEO_COPY: Record<AppLanguage, Record<SeoPageKey, SeoCopy>> = {
       description:
         "RssAny 面向内容生产与资讯工作流，帮你定制网页、RSS、邮件等信源，定时抓取与插件解析后统一入库，再输出 RSS、JSON API 与 MCP，接入创作与分发管线。",
       ogImage: "/use-case-zh.png",
+      keywords: [
+        "RssAny",
+        "RSS",
+        "信息源定制",
+        "内容生产",
+        "资讯管线",
+        "自托管",
+        "RSS 聚合",
+        "订阅管线",
+        "JSON API",
+        "MCP",
+        "开源",
+      ],
     },
   },
   en: {
@@ -24,6 +38,18 @@ export const SEO_COPY: Record<AppLanguage, Record<SeoPageKey, SeoCopy>> = {
       description:
         "RssAny helps you curate web, RSS, and email sources for content production and news workflows — fetch, parse, dedupe, enrich, then publish RSS, JSON API, and MCP for editorial tools.",
       ogImage: "/use-case-en.png",
+      keywords: [
+        "RssAny",
+        "RSS",
+        "feed aggregator",
+        "self-hosted",
+        "content pipeline",
+        "news workflow",
+        "information sources",
+        "JSON API",
+        "MCP",
+        "open source",
+      ],
     },
   },
 };
@@ -107,6 +133,8 @@ export function buildBaseJsonLdGraph(options: {
   language: AppLanguage;
 }): Record<string, unknown> {
   const { siteUrl, language } = options;
+  const copy = SEO_COPY[language].home;
+  const faqItems = FAQ_ITEMS[language];
 
   return {
     "@context": "https://schema.org",
@@ -114,31 +142,72 @@ export function buildBaseJsonLdGraph(options: {
       {
         "@type": "Organization",
         "@id": `${siteUrl}/#organization`,
-        name: SITE_NAME,
+        name: "RssAny",
+        alternateName: SITE_NAME,
         url: siteUrl,
-        description: SEO_COPY[language].home.description,
-        logo: `${siteUrl}/rssany-light.svg`,
+        description: copy.description,
+        logo: {
+          "@type": "ImageObject",
+          url: `${siteUrl}/rssany-light.svg`,
+        },
+        sameAs: [GITHUB_URL, NPM_URL],
       },
       {
         "@type": "WebSite",
         "@id": `${siteUrl}/#website`,
         url: siteUrl,
-        name: SITE_NAME,
-        description: SEO_COPY[language].home.description,
+        name: "RssAny",
+        alternateName: SITE_NAME,
+        description: copy.description,
         publisher: { "@id": `${siteUrl}/#organization` },
         inLanguage: ["zh-CN", "en"],
       },
       {
+        "@type": "WebPage",
+        "@id": `${siteUrl}/#webpage`,
+        url: siteUrl,
+        name: copy.title,
+        description: copy.description,
+        isPartOf: { "@id": `${siteUrl}/#website` },
+        about: { "@id": `${siteUrl}/#software` },
+        inLanguage: language,
+        primaryImageOfPage: {
+          "@type": "ImageObject",
+          url: `${siteUrl}${copy.ogImage}`,
+        },
+      },
+      {
         "@type": "SoftwareApplication",
         "@id": `${siteUrl}/#software`,
-        name: "rssany",
-        applicationCategory: "DeveloperApplication",
+        name: "RssAny",
+        alternateName: SITE_NAME,
+        applicationCategory: "BusinessApplication",
+        applicationSubCategory: "FeedAggregator",
         operatingSystem: "Windows, macOS, Linux",
         offers: { "@type": "Offer", price: "0", priceCurrency: "USD" },
-        description: SEO_COPY[language].home.description,
+        description: copy.description,
         url: siteUrl,
-        downloadUrl: "https://www.npmjs.com/package/rssany",
+        downloadUrl: NPM_URL,
+        softwareHelp: `${GITHUB_URL}#readme`,
+        featureList: [
+          language === "zh-CN" ? "定制网页、RSS、邮件等信息源" : "Curate web, RSS, and email sources",
+          language === "zh-CN" ? "可插拔信源插件" : "Pluggable source plugins",
+          language === "zh-CN" ? "固定 pipeline 打标签与翻译" : "Fixed pipeline for tagging and translation",
+          language === "zh-CN" ? "RSS / JSON API / MCP 输出" : "RSS, JSON API, and MCP outputs",
+          language === "zh-CN" ? "自托管与 SQLite 本地存储" : "Self-hosted storage with SQLite",
+        ],
         publisher: { "@id": `${siteUrl}/#organization` },
+      },
+      {
+        "@type": "FAQPage",
+        "@id": `${siteUrl}/#faq`,
+        isPartOf: { "@id": `${siteUrl}/#webpage` },
+        inLanguage: language,
+        mainEntity: faqItems.map((item) => ({
+          "@type": "Question",
+          name: item.question,
+          acceptedAnswer: { "@type": "Answer", text: item.answer },
+        })),
       },
     ],
   };
@@ -148,21 +217,37 @@ export function buildFaqJsonLd(options: {
   siteUrl: string;
   language: AppLanguage;
 }): Record<string, unknown> {
-  const { siteUrl, language } = options;
-  const faqItems = FAQ_ITEMS[language];
-
-  return {
-    "@context": "https://schema.org",
-    "@type": "FAQPage",
-    "@id": `${siteUrl}/#faq`,
-    mainEntity: faqItems.map((item) => ({
-      "@type": "Question",
-      name: item.question,
-      acceptedAnswer: { "@type": "Answer", text: item.answer },
-    })),
-  };
+  return buildBaseJsonLdGraph(options);
 }
 
 export function getHomeTitle(language: AppLanguage): string {
   return SEO_COPY[language].home.title;
+}
+
+export function buildSitemapEntries(siteUrl: string, lastModified = new Date()): Array<{
+  url: string;
+  lastModified: Date;
+  changeFrequency: "weekly";
+  priority: number;
+  alternates: {
+    languages: Record<string, string>;
+  };
+}> {
+  const pathname = pathnameForPage("home");
+
+  return [
+    {
+      url: `${siteUrl}${pathname}`,
+      lastModified,
+      changeFrequency: "weekly",
+      priority: 1,
+      alternates: {
+        languages: {
+          "zh-CN": hreflangUrl(siteUrl, pathname, "zh-CN"),
+          en: hreflangUrl(siteUrl, pathname, "en"),
+          "x-default": hreflangUrl(siteUrl, pathname, "zh-CN"),
+        },
+      },
+    },
+  ];
 }

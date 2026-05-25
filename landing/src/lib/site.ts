@@ -2,10 +2,21 @@ export const SITE_NAME = "rssany";
 
 export const SITE_TAGLINE = "定制专属信息源 · 内容生产与资讯管线";
 
+export const GITHUB_URL = (process.env.NEXT_PUBLIC_GITHUB_URL || "https://github.com/joohw/rssany").trim();
+
+export const NPM_URL = "https://www.npmjs.com/package/rssany";
+
 export function normalizePath(path: string): string {
   if (!path) return "/";
   if (path.length > 1 && path.endsWith("/")) return path.slice(0, -1);
   return path;
+}
+
+/** Prefer PUBLIC_SITE_URL so sitemap/robots stay stable in production. */
+export function resolvePublicSiteUrl(host?: string): string {
+  const fromEnv = process.env.PUBLIC_SITE_URL?.trim().replace(/\/+$/, "");
+  if (fromEnv) return fromEnv;
+  return getPublicSiteUrlFromRequest(host);
 }
 
 export function getPublicSiteUrlFromRequest(host?: string): string {
@@ -15,6 +26,14 @@ export function getPublicSiteUrlFromRequest(host?: string): string {
   return host.startsWith("http://") || host.startsWith("https://")
     ? host
     : `https://${host}`;
+}
+
+export function getSiteHost(siteUrl: string): string | undefined {
+  try {
+    return new URL(siteUrl).host;
+  } catch {
+    return undefined;
+  }
 }
 
 /** @deprecated Use getHomeTitle from @/lib/seo for localized titles. */

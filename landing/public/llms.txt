@@ -2,6 +2,10 @@
 
 > 定制专属信息源 — 面向内容生产与资讯管线的自托管订阅系统：接入网页、RSS、邮件等信源，统一入库加工后输出 RSS、JSON API 与 MCP。
 
+- 站点: https://rssany.com/
+- Sitemap: https://rssany.com/sitemap.xml
+- Robots: https://rssany.com/robots.txt
+
 ## 站点
 - 主页: /
 - 特性: /#features

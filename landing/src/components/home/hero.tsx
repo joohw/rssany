@@ -41,7 +41,7 @@ export function HomeHero() {
       <div className="mx-auto max-w-6xl">
         <div className="grid grid-cols-1 items-start gap-10 lg:grid-cols-2 lg:gap-14">
           <div className="min-w-0 max-w-xl lg:max-w-none">
-            <h1 className="text-balance text-4xl font-bold tracking-tight text-foreground sm:text-5xl">
+            <h1 className="text-balance text-4xl font-bold leading-[1.35] tracking-tight text-foreground sm:text-5xl sm:leading-[1.4]">
               {t("home.title")}
             </h1>
 
@@ -51,7 +51,7 @@ export function HomeHero() {
 
             <ClientDownloadButtons className="mt-6" />
 
-            <div className={`${styles.terminalCard} mt-8`}>
+            <div className={`${styles.terminalCard} mt-10 sm:mt-12`}>
               <div className={styles.terminalHeader}>
                 <div className="flex gap-1.5" aria-hidden>
                   <span className={styles.terminalDot} />

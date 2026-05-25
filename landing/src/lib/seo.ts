@@ -14,6 +14,7 @@ export type { FaqItem, SeoPageKey } from "@/lib/seo-data";
 export {
   buildBaseJsonLdGraph,
   buildFaqJsonLd,
+  buildSitemapEntries,
   FAQ_ITEMS,
   getHomeTitle,
 } from "@/lib/seo-data";
@@ -37,10 +38,9 @@ export async function buildPageMetadata(page: SeoPageKey): Promise<Metadata> {
   const language = await resolveSeoLanguage();
   const siteUrl = await resolveSiteUrl();
   const pathname = pathnameForPage(page);
-  const { title, description, ogImage } = resolvePageCopy(page, language);
-  const canonical = `${siteUrl}${pathname}`;
+  const { title, description, ogImage, keywords } = resolvePageCopy(page, language);
 
-  return buildMetadataFromCopy({ siteUrl, language, pathname, title, description, ogImage });
+  return buildMetadataFromCopy({ siteUrl, language, pathname, title, description, ogImage, keywords });
 }
 
 function buildMetadataFromCopy(options: {
@@ -50,13 +50,37 @@ function buildMetadataFromCopy(options: {
   title: string;
   description: string;
   ogImage: string;
+  keywords: string[];
 }): Metadata {
-  const { siteUrl, language, pathname, title, description, ogImage } = options;
+  const { siteUrl, language, pathname, title, description, ogImage, keywords } = options;
   const canonical = `${siteUrl}${normalizePath(pathname)}`;
+  const googleSiteVerification = process.env.GOOGLE_SITE_VERIFICATION?.trim();
 
   return {
+    metadataBase: new URL(siteUrl),
     title,
     description,
+    keywords,
+    applicationName: "RssAny",
+    category: "technology",
+    creator: "RssAny",
+    publisher: "RssAny",
+    formatDetection: {
+      email: false,
+      address: false,
+      telephone: false,
+    },
+    robots: {
+      index: true,
+      follow: true,
+      googleBot: {
+        index: true,
+        follow: true,
+        "max-image-preview": "large",
+        "max-snippet": -1,
+        "max-video-preview": -1,
+      },
+    },
     alternates: {
       canonical,
       languages: {
@@ -64,6 +88,10 @@ function buildMetadataFromCopy(options: {
         en: hreflangUrl(siteUrl, pathname, "en"),
         "x-default": hreflangUrl(siteUrl, pathname, "zh-CN"),
       },
+    },
+    icons: {
+      icon: [{ url: "/rssany-light.svg", type: "image/svg+xml" }],
+      apple: [{ url: "/rssany-light.svg", type: "image/svg+xml" }],
     },
     openGraph: {
       type: "website",
@@ -73,13 +101,20 @@ function buildMetadataFromCopy(options: {
       url: canonical,
       locale: language === "zh-CN" ? "zh_CN" : "en_US",
       alternateLocale: language === "zh-CN" ? ["en_US"] : ["zh_CN"],
-      images: [{ url: `${siteUrl}${ogImage}`, width: 730, height: 731, alt: title }],
+      images: [{ url: ogImage, width: 730, height: 731, alt: title }],
     },
     twitter: {
       card: "summary_large_image",
       title,
       description,
-      images: [`${siteUrl}${ogImage}`],
+      images: [ogImage],
     },
+    ...(googleSiteVerification
+      ? {
+          verification: {
+            google: googleSiteVerification,
+          },
+        }
+      : {}),
   };
 }
