@@ -90,7 +90,12 @@ function buildMetadataFromCopy(options: {
       },
     },
     icons: {
-      icon: [{ url: "/rssany-light.svg", type: "image/svg+xml" }],
+      icon: [
+        { url: "/favicon.ico", sizes: "32x32" },
+        { url: "/rssany-light.svg", type: "image/svg+xml" },
+        { url: "/icon.svg", type: "image/svg+xml" },
+      ],
+      shortcut: ["/favicon.ico"],
       apple: [{ url: "/rssany-light.svg", type: "image/svg+xml" }],
     },
     openGraph: {
