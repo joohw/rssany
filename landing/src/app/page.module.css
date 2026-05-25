@@ -1,0 +1,83 @@
+/* 首页专用样式（避免写入 globals.css） */
+
+.useCaseShot {
+  overflow: hidden;
+  border: 1px solid color-mix(in oklch, var(--border) 80%, transparent);
+  border-radius: 0.75rem;
+  background: color-mix(in oklch, var(--card) 88%, var(--muted) 12%);
+}
+
+.useCaseShot img {
+  display: block;
+  width: 100%;
+  height: auto;
+}
+
+/* 纯灰渐变背景：oklch 第二项为 chroma，全程为 0，避免任何色相 */
+.landingBackdrop {
+  opacity: 0.62;
+  background:
+    radial-gradient(ellipse 118% 82% at 50% -20%, oklch(0.91 0 0) 0%, transparent 56%),
+    radial-gradient(ellipse 92% 58% at 96% 42%, oklch(0.87 0 0) 0%, transparent 53%),
+    radial-gradient(ellipse 88% 52% at 6% 88%, oklch(0.93 0 0) 0%, transparent 50%);
+}
+
+:global(.dark) .landingBackdrop {
+  opacity: 0.48;
+  background:
+    radial-gradient(ellipse 118% 82% at 50% -20%, oklch(0.27 0 0) 0%, transparent 56%),
+    radial-gradient(ellipse 92% 58% at 94% 40%, oklch(0.24 0 0) 0%, transparent 53%);
+}
+
+.landingBackdropVeil {
+  background: linear-gradient(
+    to bottom,
+    color-mix(in oklch, var(--background) 38%, transparent),
+    color-mix(in oklch, var(--background) 74%, transparent),
+    var(--background)
+  );
+}
+
+.home :global(.btn:hover:not(:disabled)) {
+  box-shadow: none;
+}
+
+.terminalCard {
+  overflow: hidden;
+  border: 1px solid color-mix(in oklch, var(--border) 80%, transparent);
+  border-radius: 0.75rem;
+  background: color-mix(in oklch, var(--card) 88%, var(--muted) 12%);
+}
+
+.terminalHeader {
+  display: flex;
+  align-items: center;
+  border-bottom: 1px solid color-mix(in oklch, var(--border) 80%, transparent);
+  padding: 0.75rem 1rem;
+}
+
+.terminalDot {
+  display: block;
+  width: 0.75rem;
+  height: 0.75rem;
+  border-radius: 9999px;
+  background: color-mix(in oklch, var(--muted-foreground) 28%, transparent);
+}
+
+.providerStrip {
+  row-gap: 1rem;
+}
+
+.providerIcon {
+  display: block;
+  flex-shrink: 0;
+  width: 2rem;
+  height: 2rem;
+  object-fit: contain;
+  object-position: center;
+  filter: brightness(0);
+}
+
+:global(.dark) .providerIcon {
+  filter: brightness(0) invert(1);
+}

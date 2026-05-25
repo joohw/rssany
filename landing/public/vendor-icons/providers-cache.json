@@ -1,0 +1,18 @@
+{
+  "description": "Cached provider icons used by homepage and leaderboard pages.",
+  "providers": [
+    { "id": "openai", "icon": "/vendor-icons/openai.svg" },
+    { "id": "anthropic", "icon": "/vendor-icons/anthropic.svg" },
+    { "id": "google", "icon": "/vendor-icons/google.svg" },
+    { "id": "mistral", "icon": "/vendor-icons/mistral.svg" },
+    { "id": "deepseek", "icon": "/vendor-icons/deepseek.svg" },
+    { "id": "xai", "icon": "/vendor-icons/xai.svg" },
+    { "id": "azure", "icon": "/vendor-icons/azure.svg" },
+    { "id": "groq", "icon": "/vendor-icons/groq.svg" },
+    { "id": "nvidia", "icon": "/vendor-icons/nvidia.svg" },
+    { "id": "cohere", "icon": "/vendor-icons/cohere.svg" },
+    { "id": "huggingface", "icon": "/vendor-icons/huggingface.svg" },
+    { "id": "openrouter", "icon": "/vendor-icons/openrouter.svg" },
+    { "id": "qwen", "icon": "/vendor-icons/alibaba.svg" }
+  ]
+}

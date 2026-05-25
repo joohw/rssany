@@ -1,0 +1,30 @@
+# rssany
+
+> 自托管 RSS / 订阅管线：把网页列表、RSS/Atom、邮件等信源通过定时抓取与插件解析，变成统一条目库，再输出 RSS XML、JSON API，并可选 MCP 消费。
+
+## 站点
+- 主页: /
+- 特性: /#features
+- 管线: /#pipeline
+- FAQ: /#faq
+- 机器可读站点地图: /sitemap.xml
+- 本文件: /llms.txt
+
+## 核心能力
+- 统一订阅：sources.json 配置网站、RSS、IMAP 邮件等
+- 可插拔信源：内置 Site 插件 + ~/.rssany/plugins 用户扩展
+- 固定 pipeline：打标签、翻译等（config.json pipeline.steps）
+- LLM 辅助：解析、提取、标签、翻译（OpenAI 兼容接口）
+- 输出：/rss/*、/api/*、Web UI、可选 MCP
+
+## 快速开始
+```bash
+npm install -g rssany
+rssany
+# http://127.0.0.1:18473/
+```
+
+## 链接
+- GitHub: https://github.com/joohw/rssany
+- npm: https://www.npmjs.com/package/rssany
+- 插件文档: https://github.com/joohw/rssany/blob/main/docs/plugins.md
