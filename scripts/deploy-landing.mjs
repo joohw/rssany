@@ -149,7 +149,8 @@ async function main() {
   const repoRoot = process.cwd();
   const configPath = path.resolve(repoRoot, getArgValue("--config") || ".env.deploy");
   const envFilePath = path.resolve(repoRoot, getArgValue("--env-file") || ".env.landing");
-  const dockerfilePath = path.resolve(repoRoot, "landing/Dockerfile.frontend");
+  const landingRoot = path.resolve(repoRoot, "landing");
+  const dockerfilePath = path.resolve(landingRoot, "Dockerfile.frontend");
 
   if (!fs.existsSync(dockerfilePath)) {
     throw new Error(`dockerfile not found: ${dockerfilePath}`);
@@ -225,8 +226,8 @@ async function main() {
   if (!skipImageUpdate) {
     console.log("\n[1/6] Building local docker image...");
     const buildArgs = pullBaseImages
-      ? ["build", "--platform", dockerPlatform, "--pull=true", "-f", dockerfilePath, "-t", imageRef, "."]
-      : ["build", "--platform", dockerPlatform, "--pull=false", "-f", dockerfilePath, "-t", imageRef, "."];
+      ? ["build", "--platform", dockerPlatform, "--pull=true", "-f", dockerfilePath, "-t", imageRef, landingRoot]
+      : ["build", "--platform", dockerPlatform, "--pull=false", "-f", dockerfilePath, "-t", imageRef, landingRoot];
     await run("docker", buildArgs, { cwd: repoRoot });
 
     console.log("\n[2/6] Logging in to registry...");
