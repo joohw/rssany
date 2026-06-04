@@ -15,7 +15,6 @@ const nextConfig: NextConfig = {
       { source: "/guides", destination: "/", permanent: true },
       { source: "/guides/:path*", destination: "/", permanent: true },
       { source: "/compare/:path*", destination: "/", permanent: true },
-      { source: "/skill", destination: "/", permanent: true },
       { source: "/dashboard", destination: "/", permanent: true },
       { source: "/dashboard/:path*", destination: "/", permanent: true },
     ];

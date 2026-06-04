@@ -4,6 +4,7 @@ const zhCN = {
     features: "特性",
     pipeline: "管线",
     blog: "博客",
+    skill: "Skill",
     docs: "文档",
     backHome: "返回首页",
     github: "GitHub",

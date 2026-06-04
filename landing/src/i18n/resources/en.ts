@@ -4,6 +4,7 @@ const en = {
     features: "Features",
     pipeline: "Pipeline",
     blog: "Blog",
+    skill: "Skill",
     docs: "Docs",
     backHome: "Back to home",
     github: "GitHub",

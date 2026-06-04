@@ -1,0 +1,102 @@
+name: landing-deploy
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - "landing/**"
+      - "scripts/deploy-landing.mjs"
+      - ".github/workflows/landing-deploy.yml"
+      - "package.json"
+      - "pnpm-lock.yaml"
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: "Docker image tag; defaults to the short commit SHA"
+        required: false
+        type: string
+      no_image_update:
+        description: "Skip docker build/push and only restart the remote container"
+        required: false
+        default: false
+        type: boolean
+      pull_base:
+        description: "Ask docker build to pull newer base images"
+        required: false
+        default: false
+        type: boolean
+
+permissions:
+  contents: read
+
+concurrency:
+  group: landing-deploy
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v5
+
+      - name: Setup Node
+        uses: actions/setup-node@v5
+        with:
+          node-version: "22"
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 10
+          run_install: false
+
+      - name: Install deploy dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Restore deploy config
+        env:
+          DEPLOY_ENV: ${{ secrets.DEPLOY_ENV }}
+          LANDING_ENV: ${{ secrets.LANDING_ENV }}
+        run: |
+          set -euo pipefail
+          if [ -z "$DEPLOY_ENV" ]; then
+            echo "DEPLOY_ENV secret is missing. Sync local .env.deploy with: gh secret set DEPLOY_ENV < .env.deploy" >&2
+            exit 1
+          fi
+          if [ -z "$LANDING_ENV" ]; then
+            echo "LANDING_ENV secret is missing. Sync local .env.landing with: gh secret set LANDING_ENV < .env.landing" >&2
+            exit 1
+          fi
+          printf '%s\n' "$DEPLOY_ENV" > .env.deploy
+          printf '%s\n' "$LANDING_ENV" > .env.landing
+          chmod 600 .env.deploy .env.landing
+
+      - name: Resolve image tag
+        id: image
+        run: |
+          set -euo pipefail
+          input_tag="${{ github.event.inputs.tag }}"
+          if [ -n "$input_tag" ]; then
+            tag="$input_tag"
+          else
+            tag="${GITHUB_SHA::7}"
+          fi
+          echo "tag=$tag" >> "$GITHUB_OUTPUT"
+
+      - name: Deploy landing
+        env:
+          TAG: ${{ steps.image.outputs.tag }}
+          NO_IMAGE_UPDATE: ${{ github.event.inputs.no_image_update }}
+          PULL_BASE: ${{ github.event.inputs.pull_base }}
+        run: |
+          set -euo pipefail
+          args=(--tag "$TAG")
+          if [ "$NO_IMAGE_UPDATE" = "true" ]; then
+            args+=(--no-image-update)
+          fi
+          if [ "$PULL_BASE" = "true" ]; then
+            args+=(--pull-base)
+          fi
+          pnpm run deploy:landing -- "${args[@]}"

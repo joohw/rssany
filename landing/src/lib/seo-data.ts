@@ -301,6 +301,19 @@ export function buildSitemapEntries(siteUrl: string, lastModified = new Date()):
         },
       },
     },
+    {
+      url: `${siteUrl}/skill`,
+      lastModified,
+      changeFrequency: "monthly",
+      priority: 0.72,
+      alternates: {
+        languages: {
+          "zh-CN": `${siteUrl}/skill`,
+          en: `${siteUrl}/skill`,
+          "x-default": `${siteUrl}/skill`,
+        },
+      },
+    },
   ];
 
   for (const post of BLOG_POSTS) {

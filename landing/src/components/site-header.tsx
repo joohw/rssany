@@ -37,6 +37,7 @@ export function SiteHeader() {
       { text: t("header.features"), to: "/#features" },
       { text: t("header.pipeline"), to: "/#pipeline" },
       { text: t("header.blog"), to: "/blog" },
+      { text: t("header.skill"), to: "/skill" },
       { text: t("header.docs"), to: "https://github.com/joohw/rssany#readme" },
     ];
   }, [t]);
