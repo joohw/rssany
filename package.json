@@ -17,7 +17,7 @@
     "app/plugins/builtin",
     "app/plugins/site.rssany.js",
     "statics",
-    "webui/build",
+    "app/webui/build",
     ".env.example",
     "README.md",
     "init",
@@ -66,7 +66,7 @@
   "license": "MIT",
   "devDependencies": {
     "@eslint/js": "^9.15.0",
-    "@types/jsdom": "^21.1.7",
+    "@types/jsdom": "^28.0.3",
     "@types/mailparser": "^3.4.6",
     "@types/node": "^25.2.0",
     "@types/node-cron": "^3.0.11",
@@ -90,15 +90,14 @@
     "hono": "^4.12.12",
     "https-proxy-agent": "^7.0.6",
     "imapflow": "^1.2.10",
-    "jsdom": "^25.0.0",
+    "jsdom": "^29.1.1",
     "mailparser": "^3.9.3",
     "marked": "^17.0.3",
-    "node-cron": "^3.0.3",
+    "node-cron": "^4.2.1",
     "node-html-parser": "^7.0.2",
     "nodemailer": "^8.0.2",
-    "openai": "^4.76.1",
+    "openai": "^6.42.0",
     "puppeteer-core": "^24.36.0",
-    "rss-parser": "^3.13.0",
-    "zod": "^4.3.6"
+    "rss-parser": "^3.13.0"
   }
 }

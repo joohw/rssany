@@ -14,11 +14,13 @@ yarn.lock
 # 源码与未构建前端（白名单未包含时不会进包，此处双保险）
 app/
 webui/
-!webui/build/
+!app/webui/
+!app/webui/build/
 
 # 仅发布 reset 脚本时排除其它 scripts（白名单已限 scripts/reset.mjs）
 scripts/
 !scripts/reset.mjs
+!scripts/dev.mjs
 
 # 开发配置与测试
 tsconfig.json
