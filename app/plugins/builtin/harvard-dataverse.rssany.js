@@ -1,3 +1,7 @@
+export const id = "harvard-dataverse";
+export const name = "Harvard Dataverse";
+export const listUrlPattern = /^https:\/\/dataverse\.harvard\.edu(?:\/?$|\/\?.*|\/dataverse\/[^/?#]+\/?(?:\?.*)?|\/dataverse\.xhtml(?:\?.*)?)$/i;
+
 let _deps;
 
 
@@ -34,7 +38,7 @@ function toHttpUrl(rawUrl, baseUrl = DATAVERSE_ORIGIN) {
   if (!text) return null;
   try {
     const url = new URL(text, baseUrl);
-    if (!/^https?:$/i.test(url.protocol)) return null;
+    if (!/^https:$/i.test(url.protocol)) return null;
     return url.href;
   } catch {
     return null;
@@ -131,7 +135,7 @@ function toFeedItem(record, index) {
   };
 }
 
-async function fetchItems(sourceId, ctx) {
+export async function fetchItems(sourceId, ctx) {
   _deps = ctx.deps;
   const query = buildQuery(sourceId);
   const apiUrl = `${DATAVERSE_SEARCH_API}?${query.toString()}`;
@@ -158,9 +162,3 @@ async function fetchItems(sourceId, ctx) {
   return items;
 }
 
-export default {
-  id: "harvard-dataverse",
-  listUrlPattern:
-    /^https?:\/\/dataverse\.harvard\.edu(?:\/?$|\/\?.*|\/dataverse\/[^/?#]+\/?(?:\?.*)?|\/dataverse\.xhtml(?:\?.*)?)$/i,
-  fetchItems,
-};

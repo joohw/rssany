@@ -1,7 +1,11 @@
+export const id = "opendrivelab-embodiedai";
+export const name = "Opendrivelab Embodiedai";
+export const listUrlPattern = /^https:\/\/(www\.)?opendrivelab\.com\/EmbodiedAI\/?(\?.*)?$/i;
+
 let _deps;
 
 
-const SITE_ID = "opendrivelab-embodiedai";
+const SITE_ID = id;
 const DATE_RE = /\b(20\d{2})[./-](\d{1,2})[./-](\d{1,2})\b/;
 const ACTION_LINK_LABELS = new Set([
   "paper",
@@ -29,7 +33,7 @@ function toAbsoluteHttpUrl(rawHref, baseUrl) {
   if (!href || href.startsWith("#") || href.startsWith("javascript:")) return null;
   try {
     const url = new URL(href, baseUrl);
-    if (!/^https?:$/i.test(url.protocol)) return null;
+    if (!/^https:$/i.test(url.protocol)) return null;
     return url.href;
   } catch {
     return null;
@@ -94,7 +98,7 @@ function buildItemsFromHtml(html, finalUrl) {
   return items;
 }
 
-async function fetchItems(sourceId, ctx) {
+export async function fetchItems(sourceId, ctx) {
   _deps = ctx.deps;
   const { html, finalUrl } = await ctx.fetchHtml(sourceId, { waitMs: 3500 });
   const items = buildItemsFromHtml(html, finalUrl);
@@ -107,8 +111,3 @@ async function fetchItems(sourceId, ctx) {
   throw new Error(`[${SITE_ID}] 未解析到 Embodied AI 条目，页面结构可能已变化`);
 }
 
-export default {
-  id: SITE_ID,
-  listUrlPattern: /^https?:\/\/(www\.)?opendrivelab\.com\/EmbodiedAI\/?(\?.*)?$/i,
-  fetchItems,
-};

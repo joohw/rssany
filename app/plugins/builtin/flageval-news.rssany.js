@@ -1,3 +1,7 @@
+export const id = "flageval-news";
+export const name = "Flageval News";
+export const listUrlPattern = /^https:\/\/flageval\.baai\.ac\.cn\/#\/news(?:[/?].*)?$/i;
+
 let _deps;
 
 
@@ -72,7 +76,7 @@ async function fetchNewsList() {
 }
 
 
-async function fetchItems(_sourceId, _ctx) {
+export async function fetchItems(_sourceId, _ctx) {
   _deps = _ctx.deps;
   const newsList = await fetchNewsList();
   const seen = new Set();
@@ -110,9 +114,3 @@ async function fetchItems(_sourceId, _ctx) {
   return items;
 }
 
-
-export default {
-  id: "flageval-news",
-  listUrlPattern: /^https?:\/\/flageval\.baai\.ac\.cn\/#\/news(?:[/?].*)?$/i,
-  fetchItems,
-};

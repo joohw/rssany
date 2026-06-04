@@ -152,6 +152,7 @@
    * 与标签 / 日志一致：`main.main-fill` 不滚动，仅 `.feed-body-scroll` 内滚动；顶栏为 admin-feed-header。
    */
   .feed-wrap {
+    --feed-sticky-gap-after: 0;
     margin-top: calc(-1 * var(--main-padding-top));
     width: 100%;
     max-width: 100%;
@@ -205,7 +206,7 @@
     min-height: 0;
     display: flex;
     flex-direction: column;
-    padding: 1rem 0;
+    padding: 0.5rem 0 1rem;
     box-sizing: border-box;
   }
 

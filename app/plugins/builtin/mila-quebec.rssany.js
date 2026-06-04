@@ -1,3 +1,7 @@
+export const id = "mila-quebec";
+export const name = "Mila Quebec";
+export const listUrlPattern = /^https:\/\/(www\.)?mila\.quebec\/en(?:\/news)?(?:\/)?(?:\?.*)?$/i;
+
 let _deps;
 
 // Mila (Quebec AI Institute) 新闻列表插件：支持首页 /en 与新闻页 /en/news
@@ -39,7 +43,7 @@ function toAbsoluteHttpUrl(rawHref, baseUrl) {
   if (!href || href.startsWith("#") || href.startsWith("javascript:")) return null;
   try {
     const url = new URL(href, baseUrl);
-    if (!/^https?:$/i.test(url.protocol)) return null;
+    if (!/^https:$/i.test(url.protocol)) return null;
     return url.href;
   } catch {
     return null;
@@ -131,7 +135,7 @@ function chooseSummary(node, title) {
 }
 
 
-async function fetchItems(sourceId, ctx) {
+export async function fetchItems(sourceId, ctx) {
   _deps = ctx.deps;
   const { html, finalUrl } = await ctx.fetchHtml(sourceId, { waitMs: 4000 });
   const root = _deps.parseHtml(html);
@@ -191,9 +195,3 @@ async function fetchItems(sourceId, ctx) {
   return items;
 }
 
-
-export default {
-  id: "mila-quebec",
-  listUrlPattern: /^https?:\/\/(www\.)?mila\.quebec\/en(?:\/news)?(?:\/)?(?:\?.*)?$/i,
-  fetchItems,
-};

@@ -129,18 +129,18 @@ function buildMetadataFromCopy(options: {
     icons: {
       icon: [
         {
-          url: "/rssany-light.svg",
+          url: "/rssany.svg",
           type: "image/svg+xml",
           media: "(prefers-color-scheme: light)",
         },
         {
-          url: "/rssany.svg",
+          url: "/rssany-light.svg",
           type: "image/svg+xml",
           media: "(prefers-color-scheme: dark)",
         },
       ],
       shortcut: "/favicon.ico",
-      apple: [{ url: "/rssany-light.svg", type: "image/svg+xml" }],
+      apple: [{ url: "/rssany.svg", type: "image/svg+xml" }],
     },
     openGraph: {
       type: openGraphType,

@@ -1,3 +1,8 @@
+export const id = "huaweicloud-bbs-blogs";
+export const name = "Huaweicloud Bbs Blogs";
+export const listUrlPattern = /^https:\/\/bbs\.huaweicloud\.com\/blogs\/?(\?.*)?$/i;
+export const refreshInterval = "1h";
+
 let _deps;
 
 // 华为云社区博客插件：抓取 https://bbs.huaweicloud.com/blogs 列表条目（默认仅列表，不做 enrich）
@@ -28,7 +33,7 @@ function toAbsoluteUrl(href, baseUrl) {
   if (!href) return null;
   try {
     const url = new URL(href, baseUrl);
-    if (!/^https?:$/i.test(url.protocol)) return null;
+    if (!/^https:$/i.test(url.protocol)) return null;
     return url.href;
   } catch {
     return null;
@@ -160,7 +165,7 @@ function parseFromTitleAnchors(root, pageUrl) {
 }
 
 
-async function fetchItems(sourceId, ctx) {
+export async function fetchItems(sourceId, ctx) {
   _deps = ctx.deps;
   const { html, finalUrl } = await ctx.fetchHtml(sourceId, { waitMs: 4500 });
   const root = _deps.parseHtml(html);
@@ -176,10 +181,3 @@ async function fetchItems(sourceId, ctx) {
   return items;
 }
 
-
-export default {
-  id: "huaweicloud-bbs-blogs",
-  listUrlPattern: /^https?:\/\/bbs\.huaweicloud\.com\/blogs\/?(\?.*)?$/i,
-  refreshInterval: "1h",
-  fetchItems,
-};

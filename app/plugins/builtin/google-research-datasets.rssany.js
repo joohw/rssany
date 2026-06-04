@@ -1,3 +1,7 @@
+export const id = "google-research-datasets";
+export const name = "Google Research Datasets";
+export const listUrlPattern = /^https:\/\/research\.google\/resources\/datasets\/?(\?.*)?$/i;
+
 let _deps;
 
 
@@ -29,7 +33,7 @@ function resolveHttpUrl(rawHref, baseUrl) {
 
   try {
     const url = new URL(href, baseUrl);
-    if (!/^https?:$/i.test(url.protocol)) return null;
+    if (!/^https:$/i.test(url.protocol)) return null;
     return url;
   } catch {
     return null;
@@ -150,7 +154,7 @@ function parseFromRawHtml(html, finalUrl) {
 }
 
 
-async function fetchItems(sourceId, ctx) {
+export async function fetchItems(sourceId, ctx) {
   _deps = ctx.deps;
   const { html, finalUrl } = await ctx.fetchHtml(sourceId, { waitMs: 3500 });
   const fromPurified = parseFromPurifiedHtml(html, finalUrl || sourceId || DATASETS_URL);
@@ -163,9 +167,3 @@ async function fetchItems(sourceId, ctx) {
   throw new Error("[google-research-datasets] 未解析到数据集条目，页面结构可能已变化");
 }
 
-
-export default {
-  id: "google-research-datasets",
-  listUrlPattern: /^https?:\/\/research\.google\/resources\/datasets\/?(\?.*)?$/i,
-  fetchItems,
-};

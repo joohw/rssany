@@ -1,3 +1,7 @@
+export const id = "uci-ml-repository";
+export const name = "UCI Ml Repository";
+export const listUrlPattern = /^https:\/\/archive\.ics\.uci\.edu(?:\/(?:datasets\/?)?)?(?:\?.*)?$/i;
+
 let _deps;
 
 
@@ -16,7 +20,7 @@ function resolveDatasetLink(rawHref, baseUrl) {
   if (!href || href.startsWith("#") || href.startsWith("javascript:")) return null;
   try {
     const url = new URL(href, baseUrl);
-    if (!/^https?:$/i.test(url.protocol)) return null;
+    if (!/^https:$/i.test(url.protocol)) return null;
     if (url.hostname !== "archive.ics.uci.edu") return null;
     if (!/^\/dataset\/\d+\/[^/?#]+$/i.test(url.pathname)) return null;
     url.search = "";
@@ -89,7 +93,7 @@ function parseFromGenericAnchors(root, baseUrl) {
   return items;
 }
 
-async function fetchItems(sourceId, ctx) {
+export async function fetchItems(sourceId, ctx) {
   _deps = ctx.deps;
   const { html, finalUrl } = await ctx.fetchHtml(sourceId, { waitMs: 4000 });
   const baseUrl = finalUrl || sourceId || UCI_ORIGIN;
@@ -104,8 +108,3 @@ async function fetchItems(sourceId, ctx) {
   throw new Error("[uci-ml-repository] 未解析到数据集条目，页面结构可能已变化");
 }
 
-export default {
-  id: "uci-ml-repository",
-  listUrlPattern: /^https?:\/\/archive\.ics\.uci\.edu(?:\/(?:datasets\/?)?)?(?:\?.*)?$/i,
-  fetchItems,
-};

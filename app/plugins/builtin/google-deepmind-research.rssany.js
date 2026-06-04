@@ -1,3 +1,7 @@
+export const id = "google-deepmind-research";
+export const name = "Google Deepmind Research";
+export const listUrlPattern = /^https:\/\/deepmind\.google\/research\/?(?:\?.*)?$/i;
+
 let _deps;
 
 // Google DeepMind Research 插件：抓取 research 页面中的最新研究条目（不做 enrich）
@@ -38,7 +42,7 @@ function toAbsoluteHttpUrl(rawHref, baseUrl) {
   if (!href || href.startsWith("#") || href.startsWith("javascript:")) return null;
   try {
     const url = new URL(href, baseUrl);
-    if (!/^https?:$/i.test(url.protocol)) return null;
+    if (!/^https:$/i.test(url.protocol)) return null;
     return url.href;
   } catch {
     return null;
@@ -200,7 +204,7 @@ function parseItemsFromAnchors(root, baseUrl) {
 }
 
 
-async function fetchItems(sourceId, ctx) {
+export async function fetchItems(sourceId, ctx) {
   _deps = ctx.deps;
   const { html, finalUrl } = await ctx.fetchHtml(sourceId, { waitMs: 4500 });
   const root = _deps.parseHtml(html);
@@ -215,9 +219,3 @@ async function fetchItems(sourceId, ctx) {
   throw new Error("[google-deepmind-research] 未解析到研究条目，页面结构可能已变化");
 }
 
-
-export default {
-  id: "google-deepmind-research",
-  listUrlPattern: /^https?:\/\/deepmind\.google\/research\/?(?:\?.*)?$/i,
-  fetchItems,
-};

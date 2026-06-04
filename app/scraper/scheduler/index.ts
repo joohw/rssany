@@ -3,7 +3,7 @@
 import { watch } from "node:fs";
 import { getAllSources, getSourcesRaw } from "../subscription/index.js";
 import { resolveRef } from "../subscription/types.js";
-import { getItems } from "../../feeder/index.js";
+import { crawlSource } from "../../feeder/index.js";
 import { SOURCES_CONFIG_PATH } from "../../config/paths.js";
 import { getDeliverConfig } from "../../config/deliver.js";
 import { joinGatewayPath, postDeliverSourcesSafe } from "../../deliver/post.js";
@@ -16,7 +16,7 @@ const SOURCES_CONCURRENCY = 1;
 
 function createPullTask(ref: string, cacheDir: string, cronExpr: string): scheduler.ScheduledTask {
   return async () => {
-    await getItems(ref, {
+    await crawlSource(ref, {
       cacheDir,
       cron: cronExpr,
     });

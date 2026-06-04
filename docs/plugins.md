@@ -17,12 +17,31 @@ RSSAny 通过 **`.rssany.js` / `.rssany.ts`** 插件扩展「非标准 RSS」站
 
 ## 模块格式
 
-- **ESM**，默认导出插件对象：`export default { ... }`（或 `export default site`）。
+- **ESM**. Recommended protocol: named exports (`export const id`, `export const listUrlPattern`, `export async function fetchItems`). `export default` is still accepted for existing plugins, but new plugins should not need it.
 - 每个文件应导出 **一个** 合法的 **Site** 或 **Source** 实现；加载失败或结构不符会在日志中告警并跳过（见 `app/plugins/loader.ts`）。
 
 ---
 
-## Site 插件（网页列表站）
+## Field Layout Convention
+
+Plugin files should keep predefined declarative fields together at the top of the exported object. Do not scatter `id`, `listUrlPattern`, `pattern`, `refreshInterval`, `proxy`, auth fields, or similar metadata near the bottom of the file.
+
+Recommended shape:
+
+```js
+export const id = "my-site";
+export const listUrlPattern = /^https:\/\/example\.com\/?$/i;
+export const refreshInterval = "1day";
+export const proxy = undefined;
+
+export async function fetchItems(sourceId, ctx) {
+  // implementation
+  return [];
+}
+```
+---
+
+## Site插件（网页列表站）
 
 用于「列表 URL 匹配 `listUrlPattern`、在 `fetchItems` 里抓列表与详情」的站点。
 

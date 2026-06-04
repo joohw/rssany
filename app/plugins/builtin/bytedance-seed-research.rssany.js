@@ -1,3 +1,7 @@
+export const id = "bytedance-seed-research";
+export const name = "Bytedance Seed Research";
+export const listUrlPattern = /^https:\/\/seed\.bytedance\.com\/(zh|en)\/research(?:\/)?(\?.*)?$/i;
+
 let _deps;
 
 // ByteDance Seed 研究页插件：抓取研究论文与动态条目（不含 enrich）
@@ -189,7 +193,7 @@ function dedupeAndSort(items) {
 }
 
 
-async function fetchItems(sourceId, ctx) {
+export async function fetchItems(sourceId, ctx) {
   _deps = ctx.deps;
   // 该站点条目核心数据在脚本 JSON 中，需关闭 purify 才能读取。
   const { html, finalUrl } = await ctx.fetchHtml(sourceId, { waitMs: 4500, purify: false });
@@ -223,9 +227,3 @@ async function fetchItems(sourceId, ctx) {
   return items;
 }
 
-
-export default {
-  id: "bytedance-seed-research",
-  listUrlPattern: /^https?:\/\/seed\.bytedance\.com\/(zh|en)\/research(?:\/)?(\?.*)?$/i,
-  fetchItems,
-};

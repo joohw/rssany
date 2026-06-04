@@ -1,0 +1,94 @@
+name: npm-publish
+
+# Publish the root rssany npm package on v* tags or manual dispatch.
+on:
+  push:
+    tags:
+      - "v*"
+  workflow_dispatch:
+    inputs:
+      version:
+        description: "Release version without leading v"
+        required: false
+        type: string
+
+permissions:
+  contents: read
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    if: ${{ startsWith(github.ref, 'refs/tags/v') || github.event_name == 'workflow_dispatch' }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v5
+
+      - name: Decide npm publish
+        id: npm_gate
+        env:
+          NPM_TOKEN: ${{ secrets.NPM_TOKEN }}
+        run: |
+          if [ -n "$NPM_TOKEN" ]; then
+            echo "publish=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "publish=false" >> "$GITHUB_OUTPUT"
+            echo "NPM_TOKEN is not configured; skipping npm publish."
+          fi
+
+      - name: Setup Node
+        if: ${{ steps.npm_gate.outputs.publish == 'true' }}
+        uses: actions/setup-node@v5
+        with:
+          node-version: "22"
+          registry-url: "https://registry.npmjs.org"
+
+      - name: Setup pnpm
+        if: ${{ steps.npm_gate.outputs.publish == 'true' }}
+        uses: pnpm/action-setup@v4
+        with:
+          version: 10
+          run_install: false
+
+      - name: Install dependencies
+        if: ${{ steps.npm_gate.outputs.publish == 'true' }}
+        run: pnpm install --frozen-lockfile
+
+      - name: Sync package version from tag
+        if: ${{ steps.npm_gate.outputs.publish == 'true' && startsWith(github.ref, 'refs/tags/v') }}
+        run: |
+          target_version="${GITHUB_REF_NAME#v}"
+          current_version="$(node -p "require('./package.json').version")"
+          if [ "$current_version" != "$target_version" ]; then
+            npm version "$target_version" --no-git-tag-version
+          else
+            echo "package.json version already $target_version, skip npm version"
+          fi
+
+      - name: Sync package version from input
+        if: ${{ steps.npm_gate.outputs.publish == 'true' && github.event_name == 'workflow_dispatch' && github.event.inputs.version != '' }}
+        run: |
+          target_version="${{ github.event.inputs.version }}"
+          current_version="$(node -p "require('./package.json').version")"
+          if [ "$current_version" != "$target_version" ]; then
+            npm version "$target_version" --no-git-tag-version
+          else
+            echo "package.json version already $target_version, skip npm version"
+          fi
+
+      - name: Check published npm version
+        id: npm_version
+        if: ${{ steps.npm_gate.outputs.publish == 'true' }}
+        run: |
+          version="$(node -p "require('./package.json').version")"
+          if npm view "rssany@${version}" version >/dev/null 2>&1; then
+            echo "exists=true" >> "$GITHUB_OUTPUT"
+            echo "rssany ${version} is already published; skipping npm publish."
+          else
+            echo "exists=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Publish npm package
+        if: ${{ steps.npm_gate.outputs.publish == 'true' && steps.npm_version.outputs.exists != 'true' }}
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+        run: npm publish --access public

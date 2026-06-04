@@ -2,7 +2,9 @@ export const SITE_NAME = "rssany";
 
 export const SITE_TAGLINE = "定制专属信息源 · 内容生产与资讯管线";
 
-export const GITHUB_URL = (process.env.NEXT_PUBLIC_GITHUB_URL || "https://github.com/joohw/rssany").trim();
+export const PUBLIC_SITE_URL = "https://rssany.com";
+
+export const GITHUB_URL = "https://github.com/joohw/rssany";
 
 export const NPM_URL = "https://www.npmjs.com/package/rssany";
 
@@ -12,20 +14,19 @@ export function normalizePath(path: string): string {
   return path;
 }
 
-/** Prefer PUBLIC_SITE_URL so sitemap/robots stay stable in production. */
-export function resolvePublicSiteUrl(host?: string): string {
-  const fromEnv = process.env.PUBLIC_SITE_URL?.trim().replace(/\/+$/, "");
-  if (fromEnv) return fromEnv;
-  return getPublicSiteUrlFromRequest(host);
+/** Canonical public URL for sitemap/robots. */
+export function resolvePublicSiteUrl(_host?: string): string {
+  return PUBLIC_SITE_URL;
 }
 
 export function getPublicSiteUrlFromRequest(host?: string): string {
-  const fromEnv = process.env.PUBLIC_SITE_URL?.trim().replace(/\/+$/, "");
-  if (fromEnv) return fromEnv;
-  if (!host) return "http://localhost:28473";
-  return host.startsWith("http://") || host.startsWith("https://")
-    ? host
-    : `https://${host}`;
+  if (process.env.NODE_ENV === "development") {
+    if (!host) return "http://localhost:28473";
+    return host.startsWith("http://") || host.startsWith("https://")
+      ? host.replace(/\/+$/, "")
+      : `http://${host}`.replace(/\/+$/, "");
+  }
+  return PUBLIC_SITE_URL;
 }
 
 export function getSiteHost(siteUrl: string): string | undefined {

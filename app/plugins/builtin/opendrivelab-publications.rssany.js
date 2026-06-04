@@ -1,3 +1,7 @@
+export const id = "opendrivelab-publications";
+export const name = "Opendrivelab Publications";
+export const listUrlPattern = /^https:\/\/(www\.)?opendrivelab\.com\/publications\/?(\?.*)?$/i;
+
 let _deps;
 
 
@@ -16,7 +20,7 @@ function toHttpUrl(rawHref, baseUrl) {
   if (!rawHref) return null;
   try {
     const url = new URL(rawHref, baseUrl);
-    if (!/^https?:$/i.test(url.protocol)) return null;
+    if (!/^https:$/i.test(url.protocol)) return null;
     return url;
   } catch {
     return null;
@@ -83,7 +87,7 @@ function extractContext(anchor) {
 }
 
 
-async function fetchItems(sourceId, ctx) {
+export async function fetchItems(sourceId, ctx) {
   _deps = ctx.deps;
   const { html, finalUrl } = await ctx.fetchHtml(sourceId, { waitMs: 3500 });
   const root = _deps.parseHtml(html);
@@ -122,9 +126,3 @@ async function fetchItems(sourceId, ctx) {
   return items;
 }
 
-
-export default {
-  id: "opendrivelab-publications",
-  listUrlPattern: /^https?:\/\/(www\.)?opendrivelab\.com\/publications\/?(\?.*)?$/i,
-  fetchItems,
-};

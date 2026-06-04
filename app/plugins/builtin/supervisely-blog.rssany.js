@@ -1,3 +1,7 @@
+export const id = "supervisely-blog";
+export const name = "Supervisely Blog";
+export const listUrlPattern = /^https:\/\/(www\.)?supervisely\.com\/blog\/?(?:\?.*)?$/i;
+
 let _deps;
 
 // Supervisely Blog 插件：抓取列表页并解析为 FeedItem（不做正文 enrich）
@@ -35,7 +39,7 @@ function toAbsoluteUrl(href, baseUrl) {
   if (!href) return null;
   try {
     const url = new URL(href, baseUrl);
-    if (!/^https?:$/i.test(url.protocol)) return null;
+    if (!/^https:$/i.test(url.protocol)) return null;
     return url.href;
   } catch {
     return null;
@@ -136,7 +140,7 @@ function parseFromHeadingFallback(root, baseUrl) {
 }
 
 
-async function fetchItems(sourceId, ctx) {
+export async function fetchItems(sourceId, ctx) {
   _deps = ctx.deps;
   const { html, finalUrl } = await ctx.fetchHtml(sourceId, { waitMs: 3500 });
   const root = _deps.parseHtml(html);
@@ -151,9 +155,3 @@ async function fetchItems(sourceId, ctx) {
   return items;
 }
 
-
-export default {
-  id: "supervisely-blog",
-  listUrlPattern: /^https?:\/\/(www\.)?supervisely\.com\/blog\/?(?:\?.*)?$/i,
-  fetchItems,
-};

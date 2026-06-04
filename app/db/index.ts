@@ -410,7 +410,8 @@ export async function upsertItems(items: FeedItem[], sourceUrlOverride?: string)
       const nextAuthor = nextAuthorArr?.length ? JSON.stringify(nextAuthorArr) : null;
       const nextPubDate = pubDateToIsoOrNull(item.pubDate);
       const nextTags = item.tags?.length ? JSON.stringify(item.tags) : null;
-      const nextImageUrl = typeof item.imageUrl === "string" && item.imageUrl.trim() ? item.imageUrl.trim() : null;
+      const rawImageUrl = item.imageUrl ?? item.coverImg ?? item.cover_img;
+      const nextImageUrl = typeof rawImageUrl === "string" && rawImageUrl.trim() ? rawImageUrl.trim() : null;
 
       const info = insertStmt.run({
         id: item.guid,
@@ -444,8 +445,14 @@ export async function upsertItems(items: FeedItem[], sourceUrlOverride?: string)
         !!nextTitle &&
         !isDateOnlyTitle(nextTitle) &&
         (isDateOnlyTitle(existing.title) || !normalizeText(existing.title));
+      const existingSummaryText = normalizeText(existing.summary ?? "");
+      const shouldClearDuplicatedSummary =
+        nextSummary == null && !!nextTitle && existingSummaryText === nextTitle;
       const shouldRepairSummary =
-        !!nextSummary && normalizeText(existing.summary ?? "").length < nextSummary.length;
+        (!!nextSummary &&
+          (existingSummaryText.length < nextSummary.length ||
+            /!\[[^\]]*\]\([^)]*\)/.test(existingSummaryText))) ||
+        shouldClearDuplicatedSummary;
       const shouldRepairImageUrl = !!nextImageUrl && !existing.image_url?.trim();
       const existingAuthorArr = parseAuthorFromDb(existing.author);
       const shouldRepairAuthor = !!nextAuthorArr?.length && !existingAuthorArr?.length;
@@ -470,7 +477,7 @@ export async function upsertItems(items: FeedItem[], sourceUrlOverride?: string)
         id: item.guid,
         title: shouldRepairTitle ? nextTitle : existing.title,
         author: shouldRepairAuthor ? nextAuthor : (existing.author ?? null),
-        summary: shouldRepairSummary ? nextSummary : existing.summary,
+        summary: shouldClearDuplicatedSummary ? null : (shouldRepairSummary ? nextSummary : existing.summary),
         imageUrl: shouldRepairImageUrl ? nextImageUrl : (existing.image_url ?? null),
         pubDate: shouldRepairPubDate ? nextPubDate : existing.pub_date,
         fetchedAt: now,
@@ -493,6 +500,8 @@ export async function getExistingIds(guids: string[]): Promise<Set<string>> {
 export async function updateItemContent(item: FeedItem): Promise<void> {
   return withWriteLock(async () => {
     const db = await getDb();
+    const rawImageUrl = item.imageUrl ?? item.coverImg ?? item.cover_img;
+    const nextImageUrl = typeof rawImageUrl === "string" && rawImageUrl.trim() ? rawImageUrl.trim() : null;
     db.prepare(`
       UPDATE items SET
         content = COALESCE(content, @content),
@@ -505,7 +514,7 @@ export async function updateItemContent(item: FeedItem): Promise<void> {
     `).run({
       id: item.guid,
       content: item.content ?? null,
-      imageUrl: typeof item.imageUrl === "string" && item.imageUrl.trim() ? item.imageUrl.trim() : null,
+      imageUrl: nextImageUrl,
       author: (() => {
         const arr = normalizeAuthor(item.author);
         return arr?.length ? JSON.stringify(arr) : null;
@@ -515,49 +524,6 @@ export async function updateItemContent(item: FeedItem): Promise<void> {
       translations: item.translations && Object.keys(item.translations).length > 0 ? JSON.stringify(item.translations) : null,
     });
   });
-}
-
-/** 按信源 URL 列表分页拉取 */
-export async function queryFeedItems(
-  sourceUrls: string[],
-  limit: number,
-  offset: number,
-  opts?: { since?: string; until?: string },
-): Promise<{ items: DbItem[]; hasMore: boolean }> {
-  if (sourceUrls.length === 0) return { items: [], hasMore: false };
-  const expanded = [...new Set(sourceUrls.map((u) => canonicalHttpSourceRef(u)).filter(Boolean))];
-  if (expanded.length === 0) return { items: [], hasMore: false };
-  const db = await getDb();
-  const placeholders = expanded.map((_, i) => `@u${i}`).join(", ");
-  const conditions: string[] = [`source_url IN (${placeholders})`];
-  const params: Record<string, unknown> = { lim: limit + 1, off: offset };
-  expanded.forEach((url, i) => { params[`u${i}`] = url; });
-  const sqlParams = params as unknown as Record<string, string | number | null>;
-  if (opts?.since) {
-    conditions.push("COALESCE(pub_date, fetched_at) >= @since");
-    params.since = opts.since.length === 10 ? `${opts.since}T00:00:00.000Z` : opts.since;
-  }
-  if (opts?.until) {
-    conditions.push("COALESCE(pub_date, fetched_at) < @until");
-    if (opts.until.length === 10) {
-      const d = new Date(`${opts.until}T12:00:00Z`);
-      d.setUTCDate(d.getUTCDate() + 1);
-      params.until = d.toISOString();
-    } else {
-      params.until = opts.until;
-    }
-  }
-  const where = conditions.length ? `WHERE ${conditions.join(" AND ")}` : "";
-  const rows = db
-    .prepare(`
-      SELECT * FROM items ${where}
-      ORDER BY COALESCE(pub_date, fetched_at) DESC
-      LIMIT ${limit + 1} OFFSET ${offset}
-    `)
-    .all(sqlParams) as Record<string, unknown | null>[];
-  const hasMore = rows.length > limit;
-  const items = mapRowsToDbItems(hasMore ? rows.slice(0, limit) : rows);
-  return { items, hasMore };
 }
 
 /** 按 id（guid）取单条 */
@@ -649,7 +615,7 @@ export async function queryItems(opts: {
   const sqlParams = params as unknown as Record<string, string | number | null>;
   const rows = db
     .prepare(`
-      SELECT i.id, i.url, i.source_url, i.title, i.author, i.summary, i.content, i.tags, i.translations, i.pub_date, i.fetched_at, i.pushed_at
+      SELECT i.id, i.url, i.source_url, i.title, i.author, i.summary, i.content, i.image_url, i.tags, i.translations, i.pub_date, i.fetched_at, i.pushed_at
       FROM items i ${where}
       ORDER BY COALESCE(i.pub_date, i.fetched_at) DESC
       LIMIT ${limit} OFFSET ${offset}

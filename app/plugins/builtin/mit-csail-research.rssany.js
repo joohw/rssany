@@ -1,10 +1,14 @@
+export const id = "mit-csail-research";
+export const name = "MIT CSAIL Research";
+export const listUrlPattern = /^https:\/\/(www\.)?csail\.mit\.edu\/research(?:\?.*)?$/i;
+
 let _deps;
 
 // MIT CSAIL Research plugin: warm up via homepage, then parse /research list items.
 
 
 
-const SITE_ID = "mit-csail-research";
+const SITE_ID = id;
 const CSAIL_HOME_URL = "https://www.csail.mit.edu/";
 const CSAIL_RESEARCH_PATH = "/research";
 const SUMMARY_SELECTOR = "div, p, span, h2, h3, h4, a";
@@ -35,7 +39,7 @@ function toAbsoluteHttpUrl(rawHref, baseUrl) {
   if (!href || href.startsWith("#") || href.startsWith("javascript:") || href.startsWith("mailto:")) return null;
   try {
     const url = new URL(href, baseUrl);
-    if (!/^https?:$/i.test(url.protocol)) return null;
+    if (!/^https:$/i.test(url.protocol)) return null;
     return url.href;
   } catch {
     return null;
@@ -169,7 +173,7 @@ function parseItems(html, finalUrl, requestedCategory) {
 }
 
 
-async function fetchItems(sourceId, ctx) {
+export async function fetchItems(sourceId, ctx) {
   _deps = ctx.deps;
   const sourceUrl = new URL(sourceId);
   const requestedCategory = sourceUrl.searchParams.get("category") ?? "";
@@ -200,9 +204,3 @@ async function fetchItems(sourceId, ctx) {
   return items;
 }
 
-
-export default {
-  id: SITE_ID,
-  listUrlPattern: /^https?:\/\/(www\.)?csail\.mit\.edu\/research(?:\?.*)?$/i,
-  fetchItems,
-};

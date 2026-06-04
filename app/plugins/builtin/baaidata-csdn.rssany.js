@@ -1,3 +1,7 @@
+export const id = "baaidata-csdn";
+export const name = "Baaidata CSDN";
+export const listUrlPattern = /^https:\/\/baaidata\.csdn\.net\/?(?:\?.*)?$/i;
+
 let _deps;
 
 
@@ -16,7 +20,7 @@ function toAbsoluteUrl(rawHref, pageUrl) {
   if (!rawHref) return null;
   try {
     const url = new URL(rawHref, pageUrl);
-    if (!/^https?:$/i.test(url.protocol)) return null;
+    if (!/^https:$/i.test(url.protocol)) return null;
     return url.href;
   } catch {
     return null;
@@ -222,7 +226,7 @@ function parseStateItems(html, finalUrl) {
   return items;
 }
 
-async function fetchItems(sourceId, ctx) {
+export async function fetchItems(sourceId, ctx) {
   _deps = ctx.deps;
   const rendered = await ctx.fetchHtml(sourceId, { waitMs: 3500 });
   const fromDom = parseDomItems(rendered.html, rendered.finalUrl);
@@ -235,8 +239,3 @@ async function fetchItems(sourceId, ctx) {
   throw new Error("[baaidata-csdn] 未解析到条目，页面结构可能已变化");
 }
 
-export default {
-  id: "baaidata-csdn",
-  listUrlPattern: /^https?:\/\/baaidata\.csdn\.net\/?(?:\?.*)?$/i,
-  fetchItems,
-};

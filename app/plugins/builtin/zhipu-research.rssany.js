@@ -1,3 +1,7 @@
+export const id = "zhipu-research";
+export const name = "Zhipu Research";
+export const listUrlPattern = /^https:\/\/(www\.)?zhipuai\.cn\/zh\/research\/?(?:[?#].*)?$/i;
+
 let _deps;
 
 // 智谱研究页插件：仅抓取列表，不做正文 enrich（兼容净化后的 HTML）
@@ -300,7 +304,7 @@ function buildItemsFromLeafSequence(html, titleIdMap) {
 }
 
 
-async function fetchItems(sourceId, ctx) {
+export async function fetchItems(sourceId, ctx) {
   _deps = ctx.deps;
   // 需要读取页面脚本里的 blogsItems（包含详情 id），因此这里禁用净化。
   const { html, finalUrl } = await ctx.fetchHtml(sourceId, { waitMs: 5000, purify: false });
@@ -325,10 +329,3 @@ async function fetchItems(sourceId, ctx) {
 
   throw new Error("[zhipu-research] 未解析到研究条目，页面结构可能已变化");
 }
-
-
-export default {
-  id: "zhipu-research",
-  listUrlPattern: ZHIPU_RESEARCH_URL,
-  fetchItems,
-};

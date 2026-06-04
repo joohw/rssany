@@ -39,6 +39,7 @@ export interface SourceContext {
 export interface Source {
   /** 信源唯一标识，如 "xiaohongshu"、"__rss__"、"__email__" */
   readonly id: string;
+  readonly name?: string;
   /** 匹配 sourceId 的模式（URL、email://、api:// 等协议均可）；若提供 match 则优先用 match */
   readonly pattern: string | RegExp;
   /** 可选：自定义匹配函数，优先级高于 pattern（用于 RSS 的 looksLikeFeed 等） */

@@ -1,3 +1,8 @@
+export const id = "venturebeat";
+export const name = "Venturebeat";
+export const listUrlPattern = /^https:\/\/(www\.)?venturebeat\.com\/?(\?.*)?$/i;
+export const refreshInterval = "1h";
+
 let _deps;
 
 // VentureBeat 插件：通过官方 RSS Feed 拉取列表，规避首页安全检查页
@@ -35,7 +40,7 @@ function toFeedUrl(sourceId) {
 
 function mapFeedItem(item) {
   const link = normalizeText(item.link ?? "");
-  if (!/^https?:\/\//i.test(link)) return null;
+  if (!/^https:\/\//i.test(link)) return null;
 
   const title = normalizeText(item.title ?? "");
   const pubDate = toValidDate(item.isoDate ?? item.pubDate);
@@ -53,7 +58,7 @@ function mapFeedItem(item) {
 }
 
 
-async function fetchItems(sourceId, _ctx) {
+export async function fetchItems(sourceId, _ctx) {
   _deps = _ctx.deps;
   const parser = new _deps.RssParser({
     timeout: 15_000,
@@ -88,10 +93,3 @@ async function fetchItems(sourceId, _ctx) {
   return items;
 }
 
-
-export default {
-  id: "venturebeat",
-  listUrlPattern: /^https?:\/\/(www\.)?venturebeat\.com\/?(\?.*)?$/i,
-  refreshInterval: "1h",
-  fetchItems,
-};

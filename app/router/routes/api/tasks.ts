@@ -4,7 +4,7 @@ import type { Hono } from "hono";
 import * as taskStore from "../../../tasks/index.js";
 import * as scheduler from "../../../scheduler/index.js";
 import { CACHE_DIR } from "../../../config/paths.js";
-import { getItems } from "../../../feeder/index.js";
+import { crawlSource } from "../../../feeder/index.js";
 import { SOURCES_GROUP } from "../../../scraper/scheduler/index.js";
 import { requireAdmin } from "../../../auth/middleware.js";
 
@@ -27,7 +27,7 @@ export function registerTasksRoutes(app: Hono): void {
         scheduler.schedule(SOURCES_GROUP, taskId, async () => {
           taskStore.setTaskRunning(taskId);
           try {
-            await getItems(ref, { cacheDir: CACHE_DIR, force: true });
+            await crawlSource(ref, { cacheDir: CACHE_DIR, force: true });
             taskStore.setTaskDone(taskId, { ok: true });
           } catch (err) {
             const msg = err instanceof Error ? err.message : String(err);

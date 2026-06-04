@@ -10,7 +10,6 @@ modules/
 .env.local
 .env.*.local
 .env.deploy
-.env.landing
 
 # Landing (Next.js)
 landing/node_modules/

@@ -192,18 +192,20 @@
 <div class="feed-wrap">
   <div class="feed-col">
     <div class="plugins-toolbar-block">
-      <div class="feed-header">
-        <div class="header-left">
+      <div class="admin-feed-header">
+        <div class="admin-feed-header__left">
+          <h2>插件</h2>
+          <p class="admin-feed-header__desc">管理站点解析插件与登录检查</p>
+        </div>
+        <div class="admin-feed-header__actions">
           <input
-            class="filter-input"
+            class="admin-toolbar-input"
             type="search"
             placeholder="过滤…"
             bind:value={filterQuery}
             autocomplete="off"
             spellcheck={false}
           />
-        </div>
-        <div class="header-right">
           <button
             type="button"
             class="btn-add"
@@ -382,51 +384,13 @@
     padding-bottom: var(--feed-sticky-gap-after);
   }
 
-  .feed-header {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    gap: 1rem;
-    padding: 0.75rem 0;
-    flex-shrink: 0;
-    border-bottom: 1px solid var(--color-border-muted);
+  .plugins-toolbar-block :global(.admin-feed-header) {
+    min-height: 4.1rem;
   }
-  .header-left {
-    display: flex;
-    align-items: center;
-    gap: 0.5rem;
-    flex: 1;
-    min-width: 0;
+  .plugins-toolbar-block :global(.admin-toolbar-input) {
+    width: min(18rem, 45vw);
   }
-  .header-right {
-    display: flex;
-    align-items: center;
-    gap: 0.5rem;
-    flex-shrink: 0;
-  }
-  .filter-input {
-    flex: 1;
-    min-width: 7rem;
-    max-width: 18rem;
-    width: auto;
-    padding: 0.35rem 0.6rem;
-    font-size: 0.8125rem;
-    border: 1px solid var(--color-input);
-    border-radius: var(--radius-sm);
-    outline: none;
-    background: var(--color-card-elevated);
-    color: var(--color-foreground);
-    transition:
-      border-color 0.15s,
-      background 0.15s;
-  }
-  .filter-input:focus {
-    border-color: var(--color-primary);
-    background: var(--color-card);
-  }
-  .filter-input::placeholder {
-    color: var(--color-muted-foreground-soft);
-  }
+
   .btn-add {
     display: inline-flex;
     align-items: center;
@@ -625,6 +589,9 @@
     .feed-wrap {
       max-width: 100%;
     }
+    .plugins-toolbar-block :global(.admin-toolbar-input) {
+      width: auto;
+    }
     .th-pattern {
       width: 28%;
     }
@@ -691,10 +658,6 @@
     font-size: 0.75rem;
     line-height: 1.5;
     color: var(--color-muted-foreground-soft);
-  }
-  .add-hint code {
-    font-size: 0.68rem;
-    word-break: break-all;
   }
   .field {
     display: flex;

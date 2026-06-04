@@ -31,6 +31,7 @@ export function buildSiteContext(site: Site, ctx: SourceContext): SiteContext {
         purify: opts?.purify,
         waitForSelector: opts?.waitForSelector,
         waitForSelectorTimeoutMs: opts?.waitForSelectorTimeoutMs,
+        scrollBeforeSnapshot: opts?.scrollBeforeSnapshot,
         useHttpResponseBody: opts?.useHttpResponseBody,
       });
       return { html: res.body, finalUrl: res.finalUrl ?? url, status: res.status };
@@ -77,6 +78,7 @@ export function createWebSource(site: Site): Source {
   const authFlow = toAuthFlow(site);
   return {
     id: site.id,
+    name: site.name,
     pattern: site.listUrlPattern,
     priority: 50,
     refreshInterval: site.refreshInterval ?? undefined,

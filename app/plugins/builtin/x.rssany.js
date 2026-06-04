@@ -1,3 +1,7 @@
+export const id = "x";
+export const name = "X";
+export const listUrlPattern = /^https:\/\/(www\.)?x\.com\/[^/?#]+\/?(?:[?#].*)?$/i;
+
 let _deps;
 
 // X (Twitter) 站点插件：用户主页列表抓取与解析
@@ -161,13 +165,13 @@ function extractMediaUrl(article) {
   const video = article.querySelector("video[poster]");
   if (video) {
     const poster = video.getAttribute("poster");
-    if (poster && /^https?:\/\//i.test(poster)) return poster;
+    if (poster && /^https:\/\//i.test(poster)) return poster;
   }
   for (const img of article.querySelectorAll(
     '[data-testid="card.wrapper"] img[src*="twimg.com/card_img"], [data-testid="card.wrapper"] img[src*="pbs.twimg.com/card_img"]',
   )) {
     const src = img.getAttribute("src");
-    if (src && /^https?:\/\//i.test(src) && !/profile_images/i.test(src)) {
+    if (src && /^https:\/\//i.test(src) && !/profile_images/i.test(src)) {
       return normalizeCardImgUrl(src);
     }
   }
@@ -288,7 +292,7 @@ function entriesToFeedItems(entries) {
 }
 
 
-async function fetchItems(sourceId, ctx) {
+export async function fetchItems(sourceId, ctx) {
   _deps = ctx.deps;
   const { html, finalUrl } = await ctx.fetchHtml(sourceId, { waitMs: 6000 });
   const root = _deps.parseHtml(html);
@@ -320,9 +324,3 @@ async function fetchItems(sourceId, ctx) {
   throw new Error(`[X] ${message}`);
 }
 
-
-export default {
-  id: "x",
-  listUrlPattern: "https://x.com/{username}",
-  fetchItems,
-};

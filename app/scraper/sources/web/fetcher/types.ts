@@ -46,6 +46,15 @@ export interface RequestConfig {
   waitForSelector?: string;
   /** waitForSelector 的超时毫秒，默认 20000 */
   waitForSelectorTimeoutMs?: number;
+  /** 取 HTML 前滚动容器以触发懒加载（如小红书用户主页笔记流） */
+  scrollBeforeSnapshot?: {
+    /** 滚动容器选择器，默认 document.scrollingElement */
+    selector?: string;
+    /** 滚动轮数，默认 6 */
+    rounds?: number;
+    /** 每轮滚动后等待毫秒，默认 800 */
+    pauseMs?: number;
+  };
   /**
    * 为 true 时优先用导航响应的原文（`HTTPResponse.text()`），适用于 RSS/Atom/XML/JSON Feed 等非 HTML，
    * 避免 `page.content()` 得到浏览器渲染后的 DOM。与 Site/Source 插件 `fetchHtml` 的选项一致。

@@ -1,3 +1,7 @@
+export const id = "agi-eval-evaluation";
+export const name = "Agi Eval Evaluation";
+export const listUrlPattern = /^https:\/\/agi-eval\.(org|cn)\/evaluation\/home(?:\/[^/?#]+)?\/?(?:\?.*)?$/i;
+
 let _deps;
 
 
@@ -28,7 +32,7 @@ function clampText(text, maxLen = 300) {
 function pickOrigin(sourceId) {
   try {
     const url = new URL(sourceId);
-    if (/^https?:$/i.test(url.protocol)) return url.origin;
+    if (/^https:$/i.test(url.protocol)) return url.origin;
   } catch {
     // ignore
   }
@@ -151,7 +155,7 @@ function toFeedItem(record, origin, _source) {
   };
 }
 
-async function fetchItems(sourceId, ctx) {
+export async function fetchItems(sourceId, ctx) {
   _deps = ctx.deps;
   const origin = pickOrigin(sourceId);
   const sources = parseSources(sourceId);
@@ -181,8 +185,3 @@ async function fetchItems(sourceId, ctx) {
   return items;
 }
 
-export default {
-  id: "agi-eval-evaluation",
-  listUrlPattern: /^https?:\/\/agi-eval\.(org|cn)\/evaluation\/home(?:\/[^/?#]+)?\/?(?:\?.*)?$/i,
-  fetchItems,
-};

@@ -65,13 +65,13 @@ async function migrateFile(from: string, to: string): Promise<void> {
   }
 }
 
-/** 包内首次初始化用的默认数据（`init/`；发布包需列入 package.json `files`） */
-const INIT_DATA_DIR = join(PACKAGE_ROOT, "init");
+/** 包内首次初始化用的默认数据（`app/init/`；发布包需列入 package.json `files`） */
+const INIT_DATA_DIR = join(PACKAGE_ROOT, "app/init");
 const EXAMPLE_SOURCES = join(INIT_DATA_DIR, "sources.json");
 const EXAMPLE_CONFIG = join(INIT_DATA_DIR, "config.json");
 
 /**
- * 若用户目录尚无 `sources.json` / `config.json`，则从包内 `init/sources.json`、`init/config.json` 复制（不覆盖已有文件）。
+ * 若用户目录尚无 `sources.json` / `config.json`，则从包内 `app/init/sources.json`、`app/init/config.json` 复制（不覆盖已有文件）。
  */
 async function seedExampleConfigsIfMissing(): Promise<void> {
   if (!(await pathExists(SOURCES_CONFIG_PATH)) && (await pathExists(EXAMPLE_SOURCES))) {

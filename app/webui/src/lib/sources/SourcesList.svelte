@@ -1434,7 +1434,7 @@
     width: 1rem;
     height: 1rem;
     border-radius: 3px;
-    background: var(--color-muted);
+    background: transparent;
     overflow: hidden;
   }
   .source-title-favicon {

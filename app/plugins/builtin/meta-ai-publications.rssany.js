@@ -1,3 +1,7 @@
+export const id = "meta-ai-publications";
+export const name = "Meta AI Publications";
+export const listUrlPattern = /^https:\/\/ai\.meta\.com\/results\/?\?.*content_types(?:%5B0%5D|\[0\])=publication(?:&.*)?$/i;
+
 let _deps;
 
 // Meta AI Publications 插件：抓取结果页中的 publication 条目（不做正文 enrich）
@@ -5,8 +9,6 @@ let _deps;
 
 
 const PUBLICATION_PATH_RE = /^\/research\/publications\/[^?#]+\/?$/i;
-const PUBLICATION_RESULTS_URL_RE =
-  /^https?:\/\/ai\.meta\.com\/results\/?\?.*content_types(?:%5B0%5D|\[0\])=publication(?:&.*)?$/i;
 const MONTH_TO_INDEX = {
   january: 0,
   february: 1,
@@ -42,7 +44,7 @@ function toAbsolutePublicationUrl(rawHref, pageUrl) {
   if (!href || href.startsWith("#") || href.startsWith("javascript:")) return null;
   try {
     const url = new URL(href, pageUrl);
-    if (!/^https?:$/i.test(url.protocol)) return null;
+    if (!/^https:$/i.test(url.protocol)) return null;
     if (url.hostname !== "ai.meta.com") return null;
     if (!PUBLICATION_PATH_RE.test(url.pathname)) return null;
     return url.href;
@@ -169,7 +171,7 @@ function extractSummary(card, title) {
 }
 
 
-async function fetchItems(sourceId, ctx) {
+export async function fetchItems(sourceId, ctx) {
   _deps = ctx.deps;
   const { html, finalUrl, status } = await ctx.fetchHtml(sourceId, { waitMs: 3500, purify: false });
   if (status >= 400) {
@@ -212,10 +214,3 @@ async function fetchItems(sourceId, ctx) {
   }
   return items;
 }
-
-
-export default {
-  id: "meta-ai-publications",
-  listUrlPattern: PUBLICATION_RESULTS_URL_RE,
-  fetchItems,
-};

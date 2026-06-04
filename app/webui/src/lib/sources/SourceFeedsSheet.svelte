@@ -12,7 +12,7 @@
   import { adminFetch } from '$lib/adminAuth';
   import { showToast } from '$lib/toastStore.js';
   import type { HomeFeedParseHint } from '$lib/homeFeedPanelStore';
-  import { refToTaskId } from '$lib/sourcePullStore.js';
+  import { clearPulling, refToTaskId, setPulling } from '$lib/sourcePullStore.js';
 
   interface FeedRow {
     id: string;
@@ -151,6 +151,48 @@
     [sourceLabel, sourceRef].filter(Boolean).join(' · ') || undefined,
   );
 
+  async function pollTask(taskId: string): Promise<{ ok: boolean; error?: string }> {
+    for (let i = 0; i < 120; i++) {
+      const res = await adminFetch(`/api/tasks/${taskId}`);
+      if (!res.ok) return { ok: false, error: '轮询失败' };
+      const data = (await res.json()) as { status?: string; error?: string };
+      if (data.status === 'done') return { ok: true };
+      if (data.status === 'error') return { ok: false, error: data.error ?? '拉取失败' };
+      await new Promise((r) => setTimeout(r, 800));
+    }
+    return { ok: false, error: '拉取超时' };
+  }
+
+  async function forcePullSource(ref: string, e?: MouseEvent) {
+    e?.preventDefault();
+    e?.stopPropagation();
+    const trimmed = ref.trim();
+    if (!trimmed || trimmed in taskPullMap) return;
+    try {
+      const res = await adminFetch('/api/tasks', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ type: 'source-pull', ref: trimmed }),
+      });
+      const data = (await res.json()) as { taskId?: string; error?: string };
+      if (!res.ok || !data.taskId) {
+        showToast(data.error ?? '拉取失败', 'error');
+        return;
+      }
+      setPulling(trimmed, data.taskId);
+      const result = await pollTask(data.taskId);
+      if (result.ok) {
+        await loadItems();
+      } else {
+        showToast(result.error ?? '拉取失败', 'error');
+      }
+    } catch (err) {
+      showToast(err instanceof Error ? err.message : '拉取失败', 'error');
+    } finally {
+      clearPulling(trimmed);
+    }
+  }
+
   const inlinePulling = $derived(
     variant === 'inline' && open && sourceRef.trim() !== '' && sourceRef in taskPullMap,
   );
@@ -263,6 +305,7 @@
                   sourceRef={sourceRef.trim()}
                   coverImg={row.image_url?.trim() ? row.image_url : undefined}
                   guid={row.id}
+                  rawItem={row}
                   onDelete={onDeleteFeedItem}
                 />
               {/each}
@@ -305,16 +348,22 @@
                     <Globe size={16} class="source-sheet-proxy-globe" aria-hidden="true" />
                   </span>
                 {/if}
+                <button
+                  type="button"
+                  class:pulling={inlinePulling}
+                  class="source-sheet-pull-status"
+                  title={inlinePulling ? '拉取中…' : '立即拉取'}
+                  aria-label={inlinePulling ? '拉取中' : '立即拉取'}
+                  aria-busy={inlinePulling}
+                  onclick={(e) => forcePullSource(sourceRef, e)}
+                >
+                  <RefreshCw size={16} />
+                </button>
               </div>
             </div>
           </div>
           <p class="source-sheet-sub source-sheet-sub-desc" title={sourceRef}>{sublineText}</p>
         </div>
-        {#if inlinePulling}
-          <div class="source-sheet-pull-status" title="拉取中…" aria-live="polite">
-            <RefreshCw size={18} />
-          </div>
-        {/if}
       </header>
       <div class="source-sheet-body">
         {#if loading && items.length === 0}
@@ -336,6 +385,7 @@
                 sourceRef={sourceRef.trim()}
                 coverImg={row.image_url?.trim() ? row.image_url : undefined}
                 guid={row.id}
+                rawItem={row}
                 onDelete={onDeleteFeedItem}
               />
             {/each}
@@ -497,12 +547,31 @@
     display: inline-flex;
     align-items: center;
     justify-content: center;
-    width: 2.25rem;
-    height: 2.25rem;
-    margin: -0.1rem 0 0;
-    color: var(--color-primary);
+    width: 1rem;
+    height: 1rem;
+    padding: 0;
+    line-height: 0;
+    border: 0;
+    border-radius: 0.25rem;
+    background: transparent;
+    color: var(--color-muted-foreground-soft);
+    cursor: pointer;
+    opacity: 0.92;
+    transition: color 0.15s ease, opacity 0.15s ease;
   }
-  .source-sheet-pull-status :global(svg) {
+  .source-sheet-pull-status:hover {
+    color: var(--color-primary);
+    opacity: 1;
+  }
+  .source-sheet-pull-status:focus-visible {
+    outline: 2px solid color-mix(in srgb, var(--color-primary) 45%, transparent);
+    outline-offset: 2px;
+  }
+  .source-sheet-pull-status.pulling {
+    color: var(--color-primary);
+    opacity: 1;
+  }
+  .source-sheet-pull-status.pulling :global(svg) {
     animation: source-sheet-spin 0.8s linear infinite;
   }
   @keyframes source-sheet-spin {
@@ -557,7 +626,7 @@
     flex-shrink: 0;
     display: inline-flex;
     align-items: center;
-    gap: 0.3rem;
+    gap: 0.42rem;
     line-height: 0;
   }
   .source-sheet-meta-icon {

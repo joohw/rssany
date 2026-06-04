@@ -180,7 +180,7 @@ export function buildBaseJsonLdGraph(options: {
         description: copy.description,
         logo: {
           "@type": "ImageObject",
-          url: `${siteUrl}/rssany-light.svg`,
+          url: `${siteUrl}/rssany.svg`,
         },
         sameAs: [GITHUB_URL, NPM_URL],
       },

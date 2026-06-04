@@ -94,9 +94,11 @@
 <div class="feed-wrap">
   <div class="feed-col">
     <div class="settings-toolbar-block">
-      <div class="feed-header">
+      <div class="admin-feed-header settings-header">
+        <div class="admin-feed-header__left">
         <h2>设置</h2>
-        <p class="sub">管理入口与调试工具</p>
+          <p class="admin-feed-header__desc">管理入口与调试工具</p>
+        </div>
       </div>
     </div>
 
@@ -175,12 +177,10 @@
   .settings-toolbar-block {
     flex-shrink: 0;
     padding-top: var(--main-padding-top);
-    padding-bottom: calc(var(--feed-sticky-gap-after) * 0.95);
-    border-bottom: 1px solid var(--color-border-muted);
+    padding-bottom: 0;
   }
-  .feed-header {
-    padding: 0;
-    flex-shrink: 0;
+  .settings-header {
+    min-height: 4.1rem;
   }
   .settings-body-scroll {
     flex: 1;
@@ -190,18 +190,6 @@
     overscroll-behavior-y: contain;
     -webkit-overflow-scrolling: touch;
   }
-  .feed-header h2 {
-    font-size: 0.9375rem;
-    font-weight: 600;
-    margin: 0 0 0.2375rem;
-    color: var(--color-foreground);
-  }
-  .sub {
-    font-size: 0.75rem;
-    color: var(--color-muted-foreground-soft);
-    margin: 0;
-  }
-
   .body {
     padding: 0.95rem 0 1.425rem;
     box-sizing: border-box;

@@ -1,3 +1,7 @@
+export const id = "moonshot";
+export const name = "Moonshot";
+export const listUrlPattern = /^https:\/\/(www\.)?moonshot\.ai(?:\/[a-z]{2}(?:-[a-z]{2})?)?\/?(\?.*)?$/i;
+
 let _deps;
 
 // Moonshot 官方站插件：抓取首页“最新研究”列表，输出 FeedItem（不含 enrich）
@@ -24,7 +28,7 @@ function toAbsoluteHttpUrl(rawHref, baseUrl) {
   if (!href || href.startsWith("#") || href.startsWith("javascript:")) return null;
   try {
     const url = new URL(href, baseUrl);
-    if (!/^https?:$/i.test(url.protocol)) return null;
+    if (!/^https:$/i.test(url.protocol)) return null;
     return url.href;
   } catch {
     return null;
@@ -95,7 +99,7 @@ function collectCandidateAnchors(root) {
 }
 
 
-async function fetchItems(sourceId, ctx) {
+export async function fetchItems(sourceId, ctx) {
   _deps = ctx.deps;
   const { html, finalUrl } = await ctx.fetchHtml(sourceId, { waitMs: 4500 });
   const root = _deps.parseHtml(html);
@@ -119,9 +123,3 @@ async function fetchItems(sourceId, ctx) {
   return items;
 }
 
-
-export default {
-  id: "moonshot",
-  listUrlPattern: /^https?:\/\/(www\.)?moonshot\.ai(?:\/[a-z]{2}(?:-[a-z]{2})?)?\/?(\?.*)?$/i,
-  fetchItems,
-};

@@ -1,3 +1,7 @@
+export const id = "amii-research-talent";
+export const name = "Amii Research Talent";
+export const listUrlPattern = /^https:\/\/(www\.)?amii\.ca\/research-talent\/?(\?.*)?$/i;
+
 let _deps;
 
 // Amii Research & Talent 插件：抓取人物卡片列表（不做正文 enrich）
@@ -17,7 +21,7 @@ function resolvePeopleLink(rawHref, pageUrl) {
   if (!rawHref) return null;
   try {
     const url = new URL(rawHref, pageUrl);
-    if (!/^https?:$/i.test(url.protocol)) return null;
+    if (!/^https:$/i.test(url.protocol)) return null;
     if (!PEOPLE_PATH_RE.test(url.pathname)) return null;
     return url.href;
   } catch {
@@ -52,7 +56,7 @@ function extractPeopleItems(root, pageUrl) {
   return items;
 }
 
-async function fetchItems(sourceId, ctx) {
+export async function fetchItems(sourceId, ctx) {
   _deps = ctx.deps;
   const { html, finalUrl } = await ctx.fetchHtml(sourceId, { waitMs: 3000 });
   const root = _deps.parseHtml(html);
@@ -66,8 +70,3 @@ async function fetchItems(sourceId, ctx) {
   return items;
 }
 
-export default {
-  id: "amii-research-talent",
-  listUrlPattern: /^https?:\/\/(www\.)?amii\.ca\/research-talent\/?(\?.*)?$/i,
-  fetchItems,
-};

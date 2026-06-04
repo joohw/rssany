@@ -1,8 +1,12 @@
+export const id = "pjlab-adg-publications";
+export const name = "PJLAB Adg Publications";
+export const listUrlPattern = /^https:\/\/pjlab-adg\.github\.io\/publications\/?(\?.*)?$/i;
+
 let _deps;
 
 
 
-const SITE_ID = "pjlab-adg-publications";
+const SITE_ID = id;
 
 
 function normalizeText(text) {
@@ -33,7 +37,7 @@ function toAbsoluteLink(rawHref, baseUrl) {
   if (!href || href.startsWith("#") || href.startsWith("javascript:")) return null;
   try {
     const url = new URL(href, baseUrl);
-    if (!/^https?:$/i.test(url.protocol)) return null;
+    if (!/^https:$/i.test(url.protocol)) return null;
     return url.href;
   } catch {
     return null;
@@ -183,7 +187,7 @@ function parseItems(html, finalUrl) {
 }
 
 
-async function fetchItems(sourceId, ctx) {
+export async function fetchItems(sourceId, ctx) {
   _deps = ctx.deps;
   const { html, finalUrl } = await ctx.fetchHtml(sourceId, { waitMs: 3500 });
   const pageUrl = finalUrl || sourceId;
@@ -194,9 +198,3 @@ async function fetchItems(sourceId, ctx) {
   return items;
 }
 
-
-export default {
-  id: SITE_ID,
-  listUrlPattern: /^https?:\/\/pjlab-adg\.github\.io\/publications\/?(\?.*)?$/i,
-  fetchItems,
-};

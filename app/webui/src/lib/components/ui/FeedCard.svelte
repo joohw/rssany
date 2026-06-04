@@ -16,6 +16,7 @@
     guid?: string | undefined;
     /** http(s)、data URL 或裸 base64 规范化后的地址；有则显示在卡片右侧方图 */
     coverImg?: string | undefined;
+    rawItem?: unknown;
     onDelete?: ((id: string) => void) | undefined;
   }
 
@@ -32,10 +33,12 @@
     authors = undefined,
     guid = undefined,
     coverImg = undefined,
+    rawItem = undefined,
     onDelete = undefined,
   }: Props = $props();
 
   let ctxMenu = $state({ show: false, x: 0, y: 0 });
+  let copyState = $state<'idle' | 'copied' | 'error'>('idle');
   let faviconLoadFailed = $state(false);
 
   function stripHtml(s: string): string {
@@ -45,6 +48,20 @@
       .replace(/<[^>]+>/g, ' ')
       .replace(/\s+/g, ' ')
       .trim();
+  }
+
+  function extractInlineImage(s: string): string | undefined {
+    const markdown = s.match(/!\[[^\]]*\]\(([^)\s]+)(?:\s+['"][^'"]*['"])?\)/);
+    if (markdown?.[1]) return markdown[1].trim();
+    const html = s.match(/<img\b[^>]*\bsrc=["']([^"']+)["'][^>]*>/i);
+    if (html?.[1]) return html[1].trim();
+    return undefined;
+  }
+
+  function removeInlineImages(s: string): string {
+    return s
+      .replace(/!\[[^\]]*\]\(([^)\s]+)(?:\s+['"][^'"]*['"])?\)/g, ' ')
+      .replace(/<img\b[^>]*>/gi, ' ');
   }
 
   function formatPublishTime(dateStr?: string): string {
@@ -91,18 +108,32 @@
   const letter = $derived(avatar.letter);
   const avatarBg = $derived(avatar.avatarBg);
   const bodyRaw = $derived((content?.trim() || summary?.trim() || '').trim());
-  const summaryDisplay = $derived(bodyRaw ? stripHtml(bodyRaw) : '');
+  const effectiveCoverImg = $derived(coverImg?.trim() || extractInlineImage(bodyRaw));
+  const summaryDisplay = $derived(bodyRaw ? stripHtml(removeInlineImages(bodyRaw)) : '');
   const hasTitle = $derived(!!title?.trim());
   const summaryIsLink = $derived(!!(link && !hasTitle && summaryDisplay));
 
   function handleContextMenu(e: MouseEvent) {
-    if (!guid || !onDelete) return;
+    if (!rawItem && !(guid && onDelete)) return;
     e.preventDefault();
+    copyState = 'idle';
     ctxMenu = { show: true, x: e.clientX, y: e.clientY };
   }
 
   function closeContextMenu() {
     ctxMenu = { ...ctxMenu, show: false };
+  }
+
+  async function copyJson() {
+    if (!rawItem) return;
+    const text = JSON.stringify(rawItem, null, 2);
+    try {
+      await navigator.clipboard.writeText(text);
+      copyState = 'copied';
+      window.setTimeout(closeContextMenu, 350);
+    } catch {
+      copyState = 'error';
+    }
   }
 
   function doDelete() {
@@ -125,7 +156,7 @@
       <a
         class="feed-card-icon"
         class:feed-card-icon--favicon={showFavicon}
-        style:background-color={showFavicon ? 'var(--color-muted)' : avatarBg}
+        style:background-color={showFavicon ? 'transparent' : avatarBg}
         style:color="#fff"
         href={sourceHref}
         title={sourceRef || siteHost || '筛选该来源'}
@@ -150,7 +181,7 @@
       <div
         class="feed-card-icon"
         class:feed-card-icon--favicon={showFavicon}
-        style:background-color={showFavicon ? 'var(--color-muted)' : avatarBg}
+        style:background-color={showFavicon ? 'transparent' : avatarBg}
         style:color="#fff"
         title={sourceRef || siteHost || '来源'}
         role="img"
@@ -225,7 +256,7 @@
       <a class="feed-card-open-original" href={link} target="_blank" rel="noopener noreferrer">查看原文</a>
     {/if}
 
-    {#if coverImg}
+    {#if effectiveCoverImg}
       <div class="feed-card-media">
         {#if link}
           <a
@@ -235,17 +266,17 @@
             rel="noopener noreferrer"
             title="打开原文"
           >
-            <img src={coverImg} alt="" class="feed-card-media-img" loading="lazy" decoding="async" />
+            <img src={effectiveCoverImg} alt="" class="feed-card-media-img" loading="lazy" decoding="async" />
           </a>
         {:else}
-          <img src={coverImg} alt="" class="feed-card-media-img" loading="lazy" decoding="async" />
+          <img src={effectiveCoverImg} alt="" class="feed-card-media-img" loading="lazy" decoding="async" />
         {/if}
       </div>
     {/if}
   </div>
 </div>
 
-{#if ctxMenu.show && guid && onDelete}
+{#if ctxMenu.show && (rawItem || (guid && onDelete))}
   <div class="ctx-menu-backdrop" onclick={closeContextMenu} role="presentation">
     <div
       class="ctx-menu"
@@ -256,7 +287,14 @@
       onclick={(e) => e.stopPropagation()}
       onkeydown={(e) => e.stopPropagation()}
     >
-      <button class="ctx-menu-item ctx-delete" type="button" onclick={doDelete}>删除</button>
+      {#if rawItem}
+        <button class="ctx-menu-item" type="button" onclick={copyJson}>
+          {copyState === 'copied' ? '已复制' : copyState === 'error' ? '复制失败' : '复制 JSON'}
+        </button>
+      {/if}
+      {#if guid && onDelete}
+        <button class="ctx-menu-item ctx-delete" type="button" onclick={doDelete}>删除</button>
+      {/if}
     </div>
   </div>
 {/if}

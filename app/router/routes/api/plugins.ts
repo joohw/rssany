@@ -11,24 +11,26 @@ import { initSources } from "../../../scraper/sources/index.js";
 import { BUILTIN_PLUGINS_DIR, USER_PLUGINS_DIR, PLUGIN_SITE_TEMPLATE_PATH } from "../../../config/paths.js";
 
 const SITE_TEMPLATE_FALLBACK = `/**
- * Site 插件模板（由 /plugins 页添加，位于 .rssany/plugins/）
- * HTML DOM 解析请用 ctx.deps.parseHtml，勿在插件内 import node_modules。
+ * Site plugin template created from the /plugins page.
+ * Plugin protocol: named exports. No export default is required.
+ * Parse HTML with ctx.deps.parseHtml; do not import app dependencies directly.
  */
-export default {
-  id: "__PLUGIN_ID__",
-  listUrlPattern: __LIST_URL_PATTERN__,
-  refreshInterval: "1day",
 
-  async fetchItems(sourceId, ctx) {
-    const { html, finalUrl } = await ctx.fetchHtml(sourceId, {
-      waitMs: 2000,
-      purify: true,
-    });
-    void ctx.deps.parseHtml(html);
-    void finalUrl;
-    return [];
-  },
-};
+// Predefined fields stay together at the top.
+export const id = "__PLUGIN_ID__";
+export const name = "__PLUGIN_ID__";
+export const listUrlPattern = __LIST_URL_PATTERN__;
+export const refreshInterval = "1day";
+
+export async function fetchItems(sourceId, ctx) {
+  const { html, finalUrl } = await ctx.fetchHtml(sourceId, {
+    waitMs: 2000,
+    purify: true,
+  });
+  void ctx.deps.parseHtml(html);
+  void finalUrl;
+  return [];
+}
 `;
 
 function isValidNewPluginId(id: string): boolean {
@@ -106,6 +108,7 @@ export function registerPluginsRoutes(app: Hono): void {
     const sites = getPluginSites().map((s) => ({
       kind: "site" as const,
       id: s.id,
+      name: s.name ?? s.id,
       listUrlPattern: typeof s.listUrlPattern === "string" ? s.listUrlPattern : String(s.listUrlPattern),
       hasAuth: !!(s.checkAuth && s.loginUrl),
     }));
@@ -115,6 +118,7 @@ export function registerPluginsRoutes(app: Hono): void {
       .map((src) => ({
         kind: "source" as const,
         id: src.id,
+        name: src.name ?? src.id,
         listUrlPattern: typeof src.pattern === "string" ? src.pattern : String(src.pattern),
         hasAuth: false,
       }));

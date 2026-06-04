@@ -1,3 +1,7 @@
+export const id = "selectdataset";
+export const name = "Selectdataset";
+export const listUrlPattern = /^https:\/\/(www\.)?selectdataset\.com\/(?:$|\?.*|search(?:\?.*)?|subject(?:\?.*)?)$/i;
+
 let _deps;
 
 // SelectDataset 插件：解析首页/搜索页 Nuxt payload，输出数据集条目（不含 enrich）
@@ -66,7 +70,7 @@ function parseFromAnchorDom(html, finalUrl) {
     let link = null;
     try {
       const url = new URL(href, baseUrl);
-      if (!/^https?:$/i.test(url.protocol)) continue;
+      if (!/^https:$/i.test(url.protocol)) continue;
       if (!/\/dataset\/[A-Za-z0-9]{16,}/.test(url.pathname)) continue;
       link = url.href;
     } catch {
@@ -184,7 +188,7 @@ function parseFromNuxtPayload(html) {
 }
 
 
-async function fetchItems(sourceId, ctx) {
+export async function fetchItems(sourceId, ctx) {
   _deps = ctx.deps;
   const { html, finalUrl } = await ctx.fetchHtml(sourceId, { waitMs: 3500 });
   const fromAnchorDom = parseFromAnchorDom(html, finalUrl);
@@ -198,9 +202,3 @@ async function fetchItems(sourceId, ctx) {
   throw new Error("[selectdataset] 未解析到数据集条目，页面结构可能已变化");
 }
 
-
-export default {
-  id: "selectdataset",
-  listUrlPattern: /^https?:\/\/(www\.)?selectdataset\.com\/(?:$|\?.*|search(?:\?.*)?|subject(?:\?.*)?)$/i,
-  fetchItems,
-};

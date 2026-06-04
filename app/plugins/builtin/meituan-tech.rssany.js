@@ -1,3 +1,8 @@
+export const id = "meituan-tech";
+export const name = "Meituan Tech";
+export const listUrlPattern = /^https:\/\/(www\.)?tech\.meituan\.com(\/.*)?$/i;
+export const refreshInterval = "1day";
+
 let _deps;
 
 // 美团技术团队博客：https://tech.meituan.com/
@@ -12,7 +17,7 @@ function toAbsoluteUrl(href, baseUrl) {
   if (!href) return null;
   try {
     const url = new URL(href, baseUrl);
-    if (!/^https?:$/i.test(url.protocol)) return null;
+    if (!/^https:$/i.test(url.protocol)) return null;
     return url.href;
   } catch {
     return null;
@@ -34,7 +39,7 @@ function hashGuid(link) {
   return _deps.createHash("sha256").update(link).digest("hex");
 }
 
-async function fetchItems(sourceId, ctx) {
+export async function fetchItems(sourceId, ctx) {
   _deps = ctx.deps;
   const { html, finalUrl } = await ctx.fetchHtml(sourceId, {
     waitMs: 5000,
@@ -120,11 +125,3 @@ async function enrichItem(item, ctx) {
   return ctx.extractItem(item);
 }
 
-export default {
-  id: "meituan-tech",
-  listUrlPattern: /^https?:\/\/(www\.)?tech\.meituan\.com(\/.*)?$/i,
-  detailUrlPattern: /^https?:\/\/(www\.)?tech\.meituan\.com\/\d{4}\/\d{2}\/\d{2}\/[^/]+\.html(?:\?.*)?$/i,
-  refreshInterval: "1day",
-  fetchItems,
-  enrichItem,
-};

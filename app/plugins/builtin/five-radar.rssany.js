@@ -1,8 +1,13 @@
+export const id = "five-radar";
+export const name = "Five Radar";
+export const listUrlPattern = /^https:\/\/(?:www\.)?5radar\.com(?:\/[A-Za-z0-9_-]+\/news)?\/?(?:[?#].*)?$/i;
+export const refreshInterval = "10min";
+
 let _deps;
 
 
 
-const SITE_ID = "five-radar";
+const SITE_ID = id;
 const DEFAULT_PAGE_SIZE = 30;
 const THEME_PAGE_SIZE = 20;
 const THEME_PAGE_SIZE_CANDIDATES = [20, 10, 5];
@@ -238,7 +243,7 @@ function toAbsoluteLink(rawUrl, origin, row) {
   if (text) {
     try {
       const url = new URL(text, origin);
-      if (/^https?:$/i.test(url.protocol) && !isHomepageLink(url)) return url.href;
+      if (/^https:$/i.test(url.protocol) && !isHomepageLink(url)) return url.href;
     } catch {
       // ignore malformed url from upstream API
     }
@@ -439,7 +444,7 @@ async function fetchAllThemeRows(origin, pageSize = THEME_PAGE_SIZE, maxPages = 
 }
 
 
-async function fetchItems(sourceId, _ctx) {
+export async function fetchItems(sourceId, _ctx) {
   _deps = _ctx.deps;
   let sourceUrl;
   try {
@@ -447,7 +452,7 @@ async function fetchItems(sourceId, _ctx) {
   } catch {
     throw new Error(`[${SITE_ID}] 无效 URL: ${sourceId}`);
   }
-  if (!/^https?:$/i.test(sourceUrl.protocol)) {
+  if (!/^https:$/i.test(sourceUrl.protocol)) {
     throw new Error(`[${SITE_ID}] 仅支持 http/https URL`);
   }
 
@@ -481,10 +486,3 @@ async function fetchItems(sourceId, _ctx) {
   return items;
 }
 
-
-export default {
-  id: SITE_ID,
-  refreshInterval: "10min",
-  listUrlPattern: /^https?:\/\/(?:www\.)?5radar\.com(?:\/[A-Za-z0-9_-]+\/news)?\/?(?:[?#].*)?$/i,
-  fetchItems,
-};

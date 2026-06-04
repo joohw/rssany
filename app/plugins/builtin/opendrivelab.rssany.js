@@ -1,9 +1,13 @@
+export const id = "opendrivelab";
+export const name = "Opendrivelab";
+export const listUrlPattern = /^https:\/\/(www\.)?opendrivelab\.com\/?(\?.*)?$/i;
+
 let _deps;
 
 // OpenDriveLab 首页插件：解析首页展示内容并输出 FeedItem（不含 enrich）
 
 
-const SITE_ID = "opendrivelab";
+const SITE_ID = id;
 const NAVIGATION_TITLES = new Set([
   "news",
   "recruit",
@@ -58,7 +62,7 @@ function toAbsoluteHttpUrl(rawHref, baseUrl) {
   if (!href || href.startsWith("#") || href.startsWith("javascript:") || href.startsWith("mailto:")) return null;
   try {
     const url = new URL(href, baseUrl);
-    if (!/^https?:$/i.test(url.protocol)) return null;
+    if (!/^https:$/i.test(url.protocol)) return null;
     return url.href;
   } catch {
     return null;
@@ -307,7 +311,7 @@ function parseFromTitleAnchors(root, finalUrl, seen) {
   return items;
 }
 
-async function fetchItems(sourceId, ctx) {
+export async function fetchItems(sourceId, ctx) {
   _deps = ctx.deps;
   const { html, finalUrl } = await ctx.fetchHtml(sourceId, { waitMs: 4500 });
   const root = _deps.parseHtml(html);
@@ -326,8 +330,3 @@ async function fetchItems(sourceId, ctx) {
   throw new Error(`[${SITE_ID}] 未解析到首页条目，页面结构可能已变化`);
 }
 
-export default {
-  id: SITE_ID,
-  listUrlPattern: /^https?:\/\/(www\.)?opendrivelab\.com\/?(\?.*)?$/i,
-  fetchItems,
-};

@@ -1,3 +1,8 @@
+export const id = "hacker-news-newest";
+export const name = "Hacker News Newest";
+export const listUrlPattern = /^https:\/\/news\.ycombinator\.com\/newest\/?(\?.*)?$/i;
+export const refreshInterval = "10min";
+
 let _deps;
 
 // Hacker News newest 插件：解析 newest 列表页为 FeedItem（仅列表，不做正文 enrich）
@@ -17,7 +22,7 @@ function toAbsoluteUrl(rawHref, baseUrl) {
   if (!href || href.startsWith("#") || href.startsWith("javascript:")) return null;
   try {
     const url = new URL(href, baseUrl);
-    if (!/^https?:$/i.test(url.protocol)) return null;
+    if (!/^https:$/i.test(url.protocol)) return null;
     return url.href;
   } catch {
     return null;
@@ -88,7 +93,7 @@ function parseMeta(root, row, itemId) {
 }
 
 
-async function fetchItems(sourceId, ctx) {
+export async function fetchItems(sourceId, ctx) {
   _deps = ctx.deps;
   const { html, finalUrl } = await ctx.fetchHtml(sourceId, { waitMs: 3000 });
   const root = _deps.parseHtml(html);
@@ -121,10 +126,3 @@ async function fetchItems(sourceId, ctx) {
   return items;
 }
 
-
-export default {
-  id: "hacker-news-newest",
-  listUrlPattern: /^https?:\/\/news\.ycombinator\.com\/newest\/?(\?.*)?$/i,
-  refreshInterval: "10min",
-  fetchItems,
-};

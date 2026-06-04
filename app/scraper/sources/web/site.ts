@@ -27,6 +27,11 @@ export interface SiteContext {
       purify?: boolean;
       waitForSelector?: string;
       waitForSelectorTimeoutMs?: number;
+      scrollBeforeSnapshot?: {
+        selector?: string;
+        rounds?: number;
+        pauseMs?: number;
+      };
       /** 使用导航 HTTP 响应原文（适合 RSS/XML），见 RequestConfig.useHttpResponseBody */
       useHttpResponseBody?: boolean;
     }
@@ -46,6 +51,7 @@ export interface SiteContext {
 export interface Site {
   /** 站点标识，如 "xiaohongshu"、"lingowhale" */
   readonly id: string;
+  readonly name?: string;
   /** 列表页 URL 匹配模式，{placeholder} 匹配路径段 */
   readonly listUrlPattern: string | RegExp;
   /** 条目有效时间窗口；不填默认 1day */

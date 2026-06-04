@@ -1,8 +1,12 @@
+export const id = "paperswithcode";
+export const name = "Paperswithcode";
+export const listUrlPattern = /^https:\/\/(www\.)?paperswithcode\.(co|com)(?:\/(?:papers)?\/?)?(?:\?.*)?$/i;
+
 let _deps;
 
 
 
-const SITE_ID = "paperswithcode";
+const SITE_ID = id;
 const API_ORIGIN = "https://paperswithcode.co";
 const DEFAULT_TRENDING_LIMIT = 30;
 const DEFAULT_MAX_AGE_DAYS = 180;
@@ -187,7 +191,7 @@ async function fetchLatestItems(sourceUrl) {
 }
 
 
-async function fetchItems(sourceId, _ctx) {
+export async function fetchItems(sourceId, _ctx) {
   _deps = _ctx.deps;
   let sourceUrl;
   try {
@@ -219,9 +223,3 @@ async function fetchItems(sourceId, _ctx) {
   throw new Error(`[${SITE_ID}] 未解析到条目（${errors.join(" | ")}）`);
 }
 
-
-export default {
-  id: SITE_ID,
-  listUrlPattern: /^https?:\/\/(www\.)?paperswithcode\.(co|com)(?:\/(?:papers)?\/?)?(?:\?.*)?$/i,
-  fetchItems,
-};

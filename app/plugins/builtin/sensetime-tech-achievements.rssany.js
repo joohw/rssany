@@ -1,7 +1,11 @@
+export const id = "sensetime-tech-achievements";
+export const name = "Sensetime Tech Achievements";
+export const listUrlPattern = /^https:\/\/(www\.)?sensetime\.com\/cn\/technology-achievements(\?.*)?$/i;
+
 let _deps;
 
 
-const SITE_ID = "sensetime-tech-achievements";
+const SITE_ID = id;
 const DATE_RE = /\b(20\d{2})-(\d{1,2})-(\d{1,2})\b/;
 
 function normalizeText(text) {
@@ -18,7 +22,7 @@ function toAbsoluteUrl(rawHref, baseUrl) {
   if (!href || href.startsWith("#") || href.startsWith("javascript:")) return null;
   try {
     const url = new URL(href, baseUrl);
-    if (!/^https?:$/i.test(url.protocol)) return null;
+    if (!/^https:$/i.test(url.protocol)) return null;
     return url.href;
   } catch {
     return null;
@@ -135,7 +139,7 @@ async function fetchItemsFromApi(finalUrl) {
   return items;
 }
 
-async function fetchItems(sourceId, ctx) {
+export async function fetchItems(sourceId, ctx) {
   _deps = ctx.deps;
   const { html, finalUrl } = await ctx.fetchHtml(sourceId, { waitMs: 3500 });
   const items = parseItemsFromHtml(html, finalUrl);
@@ -147,8 +151,3 @@ async function fetchItems(sourceId, ctx) {
   throw new Error(`[${SITE_ID}] 未解析到学术成果条目，页面结构或接口可能已变化`);
 }
 
-export default {
-  id: SITE_ID,
-  listUrlPattern: /^https?:\/\/(www\.)?sensetime\.com\/cn\/technology-achievements(\?.*)?$/i,
-  fetchItems,
-};

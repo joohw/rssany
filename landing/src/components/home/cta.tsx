@@ -2,9 +2,7 @@
 
 import { useTranslation } from "react-i18next";
 import { actionButtonGridClass } from "@/components/home/client-download-buttons";
-
-const GITHUB_URL = (process.env.NEXT_PUBLIC_GITHUB_URL || "https://github.com/joohw/rssany").trim();
-const NPM_URL = "https://www.npmjs.com/package/rssany";
+import { GITHUB_URL, NPM_URL } from "@/lib/site";
 const DOCS_URL = "https://github.com/joohw/rssany/blob/main/README.md";
 
 export function HomeCta() {

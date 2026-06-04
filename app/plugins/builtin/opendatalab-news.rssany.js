@@ -1,3 +1,8 @@
+export const id = "opendatalab-news";
+export const name = "Opendatalab News";
+export const listUrlPattern = /^https:\/\/(www\.)?opendatalab\.(org\.cn|com)\/news\/?(\?.*)?$/i;
+export const refreshInterval = "1h";
+
 let _deps;
 
 
@@ -139,7 +144,7 @@ function mapItems(records, source) {
   return items;
 }
 
-async function fetchItems(_sourceId, _ctx) {
+export async function fetchItems(_sourceId, _ctx) {
   _deps = _ctx.deps;
   const collected = [];
 
@@ -166,9 +171,3 @@ async function fetchItems(_sourceId, _ctx) {
   return deduped;
 }
 
-export default {
-  id: "opendatalab-news",
-  listUrlPattern: /^https?:\/\/(www\.)?opendatalab\.(org\.cn|com)\/news\/?(\?.*)?$/i,
-  refreshInterval: "1h",
-  fetchItems,
-};

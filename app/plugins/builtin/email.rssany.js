@@ -1,4 +1,9 @@
 // 内置 IMAP 邮件插件：匹配 imap://、imaps:// 协议 URL
+export const id = "__email__";
+export const name = "Email";
+export const pattern = /^imaps?:\/\//;
+export const priority = 0;
+export const refreshInterval = "30min";
 
 function parseImapUrl(sourceId) {
   const url = new URL(sourceId);
@@ -17,12 +22,7 @@ function makeGuid(messageId, uid, host, createHash) {
   return createHash("sha256").update(raw).digest("hex");
 }
 
-export default {
-  id: "__email__",
-  pattern: /^imaps?:\/\//,
-  priority: 0,
-  refreshInterval: "30min",
-  async fetchItems(sourceId, ctx) {
+export async function fetchItems(sourceId, ctx) {
     const { deps } = ctx;
     const { host, port, secure, user, pass, folder, limit } = parseImapUrl(sourceId);
     const client = new deps.ImapFlow({
@@ -88,5 +88,5 @@ export default {
       }
     }
     return items.sort((a, b) => b.pubDate.getTime() - a.pubDate.getTime());
-  },
-};
+  }
+

@@ -143,7 +143,7 @@ async function generateAndCache(
 
 
 /** 根据 list URL 获取条目列表：按 cron 或 refresh 策略生成时间窗口 key 用于去重，每次均重新抓取 */
-export async function getItems(listUrl: string, config: FeederConfig = {}): Promise<{ items: FeedItem[]; fromCache: boolean }> {
+export async function crawlSource(listUrl: string, config: FeederConfig = {}): Promise<{ items: FeedItem[] }> {
   const source = getSource(listUrl);
   const proxy = await getEffectiveProxyForListUrl(listUrl, source);
   const headless = resolveHeadlessForFeeder(config);
@@ -170,6 +170,11 @@ export async function getItems(listUrl: string, config: FeederConfig = {}): Prom
     if (!config.force) generatingKeys.set(key, task);
   }
   const { items } = await task;
+  return { items };
+}
+
+export async function getItems(listUrl: string, config: FeederConfig = {}): Promise<{ items: FeedItem[]; fromCache: boolean }> {
+  const { items } = await crawlSource(listUrl, config);
   return { items, fromCache: false };
 }
 

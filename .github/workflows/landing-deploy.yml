@@ -58,20 +58,14 @@ jobs:
       - name: Restore deploy config
         env:
           DEPLOY_ENV: ${{ secrets.DEPLOY_ENV }}
-          LANDING_ENV: ${{ secrets.LANDING_ENV }}
         run: |
           set -euo pipefail
           if [ -z "$DEPLOY_ENV" ]; then
             echo "DEPLOY_ENV secret is missing. Sync local .env.deploy with: gh secret set DEPLOY_ENV < .env.deploy" >&2
             exit 1
           fi
-          if [ -z "$LANDING_ENV" ]; then
-            echo "LANDING_ENV secret is missing. Sync local .env.landing with: gh secret set LANDING_ENV < .env.landing" >&2
-            exit 1
-          fi
           printf '%s\n' "$DEPLOY_ENV" > .env.deploy
-          printf '%s\n' "$LANDING_ENV" > .env.landing
-          chmod 600 .env.deploy .env.landing
+          chmod 600 .env.deploy
 
       - name: Resolve image tag
         id: image

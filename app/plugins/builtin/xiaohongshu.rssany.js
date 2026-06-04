@@ -1,3 +1,7 @@
+export const id = "xiaohongshu";
+export const name = "Xiaohongshu";
+export const listUrlPattern = /^https:\/\/(www\.)?xiaohongshu\.com\/user\/profile\/[^/?#]+\/?(?:[?#].*)?$/i;
+
 let _deps;
 
 // 小红书站点插件：用户主页列表抓取、笔记详情提取、认证流程
@@ -5,6 +9,41 @@ let _deps;
 
 
 const XHS_ORIGIN = "https://www.xiaohongshu.com";
+const XHS_NOTE_PATH_RE = /^\/(?:explore|discovery\/item)\/([0-9a-f]{24})\/?$/i;
+const XHS_NOTE_ID_RE = /^[0-9a-f]{24}$/i;
+const XHS_NOTE_ID_IN_IMG_RE = /xhscdn\.com\/\d+\/([0-9a-f]{24})/i;
+const XHS_PROFILE_USER_RE = /\/user\/profile\/([0-9a-f]{24})/i;
+
+
+function hashNoteGuid(noteId) {
+  return _deps.createHash("sha256").update(`xhs:note:${noteId}`).digest("hex");
+}
+
+
+function extractProfileUserId(url) {
+  const m = String(url).match(XHS_PROFILE_USER_RE);
+  return m?.[1]?.toLowerCase() ?? null;
+}
+
+
+function buildExploreLink(noteId, origin) {
+  return `${origin.replace(/\/$/, "")}/explore/${noteId}`;
+}
+
+
+function extractNoteIdFromSection(section, profileUserId) {
+  for (const img of section.querySelectorAll('img[src*="xhscdn"]')) {
+    const src = img.getAttribute("src")?.trim() ?? "";
+    const fromImg = src.match(XHS_NOTE_ID_IN_IMG_RE);
+    if (fromImg?.[1] && fromImg[1] !== profileUserId) return fromImg[1].toLowerCase();
+  }
+  const html = section.outerHTML ?? "";
+  for (const match of html.match(/[0-9a-f]{24}/gi) ?? []) {
+    const id = match.toLowerCase();
+    if (id !== profileUserId && XHS_NOTE_ID_RE.test(id)) return id;
+  }
+  return null;
+}
 
 
 function getOrigin(url) {
@@ -16,57 +55,99 @@ function getOrigin(url) {
 }
 
 
-function buildExploreLinkWithXsec(profileHref, origin) {
+function normalizeXhsUrl(href, origin) {
   try {
-    const fullUrl = new URL(profileHref.replace(/&amp;/g, "&"), origin);
-    const pathSegs = fullUrl.pathname.split("/").filter(Boolean);
-    const noteId = pathSegs[pathSegs.length - 1];
-    if (!noteId || !/^[0-9a-f]+$/i.test(noteId)) return null;
-    const token = fullUrl.searchParams.get("xsec_token");
-    const source = fullUrl.searchParams.get("xsec_source") ?? "pc_user";
-    if (!token) return null;
-    const explore = new URL(`/explore/${noteId}`, origin);
-    explore.searchParams.set("xsec_token", token);
-    explore.searchParams.set("xsec_source", source);
-    return explore.href;
+    const url = new URL(href.replace(/&amp;/g, "&"), origin);
+    url.hash = "";
+    return url;
   } catch {
     return null;
   }
 }
 
 
+function normalizeXhsItemLink(href, origin) {
+  const url = normalizeXhsUrl(href, origin);
+  if (!url) return null;
+
+  try {
+    if (!/(^|\.)xiaohongshu\.com$/i.test(url.hostname)) return null;
+    const m = url.pathname.match(XHS_NOTE_PATH_RE);
+    if (!m?.[1]) return null;
+    return buildExploreLink(m[1].toLowerCase(), url.origin);
+  } catch {
+    return null;
+  }
+}
+
+
+function extractRedirectItemLink(href, origin) {
+  const wrapper = normalizeXhsUrl(href, origin);
+  if (!wrapper) return null;
+  if (!/\/website-login\/error\/?$/i.test(wrapper.pathname)) return null;
+
+  const redirectPath = wrapper.searchParams.get("redirectPath");
+  if (!redirectPath) return null;
+  return normalizeXhsItemLink(redirectPath, origin);
+}
+
+
+function extractListItemLink(section, origin, profileUserId) {
+  const noteId = extractNoteIdFromSection(section, profileUserId);
+  if (noteId) return buildExploreLink(noteId, origin);
+
+  const anchors = section.querySelectorAll("a[href]");
+  const candidates = [];
+  for (const anchor of anchors) {
+    const href = anchor.getAttribute("href")?.trim();
+    if (!href) continue;
+
+    const direct = normalizeXhsItemLink(href, origin);
+    if (direct) candidates.push(direct);
+
+    const redirected = extractRedirectItemLink(href, origin);
+    if (redirected) candidates.push(redirected);
+  }
+  return candidates[0] ?? null;
+}
+
+
 function parseListHtml(html, url) {
   const root = _deps.parseHtml(html);
   const origin = getOrigin(url);
+  const profileUserId = extractProfileUserId(url);
   const feed = root.querySelector("#userPostedFeeds");
   if (!feed) return [];
-  const sections = feed.querySelectorAll("section[data-v-79abd645][data-index]");
+  const sections = feed.querySelectorAll("section[data-index]");
   const items = [];
+  const seenNoteIds = new Set();
   for (const section of sections) {
-    const profileWithToken = section.querySelector('a[href*="xsec_token="]');
-    const profileHref = profileWithToken?.getAttribute("href")?.trim();
-    let link;
-    if (profileHref && profileHref.includes("/user/profile/")) {
-      const withXsec = buildExploreLinkWithXsec(profileHref, origin);
-      if (withXsec) link = withXsec;
-      else link = new URL(profileHref.replace(/&amp;/g, "&"), origin).href;
-    } else {
-      const linkEl = section.querySelector('a[href^="/explore/"]');
-      const href = linkEl?.getAttribute("href")?.trim();
-      if (!href) continue;
-      link = new URL(href, origin).href;
-    }
-    const titleEl = section.querySelector("span[data-v-51ec0135]");
-    const title = (titleEl?.textContent ?? "").trim() || "笔记";
-    const authorEl = section.querySelector('a[aria-current="page"] span');
+    const noteId = extractNoteIdFromSection(section, profileUserId);
+    const link = noteId
+      ? buildExploreLink(noteId, origin)
+      : extractListItemLink(section, origin, profileUserId);
+    if (!link) continue;
+    const dedupeKey = noteId ?? link;
+    if (seenNoteIds.has(dedupeKey)) continue;
+    seenNoteIds.add(dedupeKey);
+    const titleEl = section.querySelector("span[data-v-51ec0135]") ?? section.querySelector(".title span") ?? section.querySelector("span");
+    const title = (titleEl?.textContent ?? "").trim() || "Note";
+    const authorEl = section.querySelector('a[aria-current="page"] .name') ?? section.querySelector('a[aria-current="page"] span');
     const author = (authorEl?.textContent ?? "").trim() || undefined;
+    const imageEl = section.querySelector("img[data-xhs-img], img");
+    const image = imageEl?.getAttribute("src")?.trim() || undefined;
+    const summary = image ? undefined : title;
+    const guid = noteId ? hashNoteGuid(noteId) : _deps.createHash("sha256").update(link).digest("hex");
     items.push({
-      guid: _deps.createHash("sha256").update(link).digest("hex"),
+      guid,
       title,
       link,
       pubDate: new Date(),
       author,
-      summary: title,
+      summary,
+      imageUrl: image,
+      coverImg: image,
+      cover_img: image,
     });
   }
   return items;
@@ -240,9 +321,14 @@ function extractDetailHtml(html) {
 }
 
 
-async function fetchItems(sourceId, ctx) {
+export async function fetchItems(sourceId, ctx) {
   _deps = ctx.deps;
-  const { html, finalUrl } = await ctx.fetchHtml(sourceId);
+  const { html, finalUrl } = await ctx.fetchHtml(sourceId, {
+    waitMs: 3000,
+    waitForSelector: "#userPostedFeeds",
+    waitForSelectorTimeoutMs: 15000,
+    scrollBeforeSnapshot: { selector: "#userPostedFeeds", rounds: 8, pauseMs: 900 },
+  });
   return parseListHtml(html, finalUrl);
 }
 
@@ -258,26 +344,3 @@ async function enrichItem(item, ctx) {
     pubDate: detail.pubDate ?? item.pubDate,
   };
 }
-
-
-async function checkAuth(page, _url) {
-  try {
-    const loginButton = await page.$(".reds-button-new.login-btn.large.primary");
-    return loginButton == null;
-  } catch {
-    return false;
-  }
-}
-
-
-export default {
-  id: "xiaohongshu",
-  listUrlPattern: "https://xiaohongshu.com/user/profile/{userId}",
-  fetchItems,
-  enrichItem,
-  checkAuth,
-  loginUrl: "https://www.xiaohongshu.com/",
-  domain: "xiaohongshu.com",
-  loginTimeoutMs: 30 * 1000,
-  pollIntervalMs: 2000,
-};

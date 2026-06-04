@@ -1,3 +1,7 @@
+export const id = "google-research";
+export const name = "Google Research";
+export const listUrlPattern = /^https:\/\/research\.google\/?(?:\?.*)?$/i;
+
 let _deps;
 
 // Google Research 首页插件：抓取 research.google 首页中的最新博客/论文条目（不做 enrich）
@@ -59,7 +63,7 @@ function toAbsoluteHttpUrl(rawHref, pageUrl) {
   if (!href || href.startsWith("#") || href.startsWith("javascript:")) return null;
   try {
     const url = new URL(href, pageUrl);
-    if (!/^https?:$/i.test(url.protocol)) return null;
+    if (!/^https:$/i.test(url.protocol)) return null;
     return url;
   } catch {
     return null;
@@ -201,7 +205,7 @@ function parseItemsFromHome(html, pageUrl) {
 }
 
 
-async function fetchItems(sourceId, ctx) {
+export async function fetchItems(sourceId, ctx) {
   _deps = ctx.deps;
   const { html, finalUrl } = await ctx.fetchHtml(sourceId, { waitMs: 4000 });
   const pageUrl = new URL(finalUrl);
@@ -212,9 +216,3 @@ async function fetchItems(sourceId, ctx) {
   return items;
 }
 
-
-export default {
-  id: "google-research",
-  listUrlPattern: /^https?:\/\/research\.google\/?(?:\?.*)?$/i,
-  fetchItems,
-};

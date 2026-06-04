@@ -197,15 +197,41 @@ function isFrameDetachedError(e: unknown): boolean {
 }
 
 
-/**
- * 启动新的 Chrome 实例（不缓存、不复用）。调用方须在 `finally` 中 `await browser.close()`。
- */
-export async function launchBrowser(config: {
+type BrowserLaunchConfig = {
   headless?: boolean;
   cacheDir?: string;
   proxy?: string;
   chromeExecutablePath?: string;
-}): Promise<Browser> {
+};
+
+type SharedBrowserSlot = {
+  browser?: Browser;
+  promise?: Promise<Browser>;
+};
+
+const sharedBrowsers = new Map<string, SharedBrowserSlot>();
+
+function browserKey(config: BrowserLaunchConfig): string {
+  const wantHeadless = config.headless !== false;
+  const executablePath = config.chromeExecutablePath ?? process.env.CHROME_PATH ?? findChromeExecutable() ?? "";
+  const userDataDir = getUserDataDir(config.cacheDir);
+  const proxy = resolveProxy(config) ?? "";
+  return JSON.stringify({
+    headless: wantHeadless,
+    userDataDir: userDataDir ? resolve(userDataDir) : "",
+    proxy,
+    executablePath,
+  });
+}
+
+function isBrowserConnected(browser: Browser | undefined): browser is Browser {
+  return !!browser && browser.connected !== false;
+}
+
+/**
+ * 启动新的 Chrome 实例（不缓存、不复用）。调用方须在 `finally` 中 `await browser.close()`。
+ */
+export async function launchBrowser(config: BrowserLaunchConfig): Promise<Browser> {
   const wantHeadless = config.headless !== false;
   const executablePath = config.chromeExecutablePath ?? process.env.CHROME_PATH ?? findChromeExecutable();
   if (!executablePath) {
@@ -250,8 +276,43 @@ export async function launchBrowser(config: {
 }
 
 
-/** @deprecated 使用 `launchBrowser`；行为与单发启动一致，不再复用全局实例 */
-export const getOrCreateBrowser = launchBrowser;
+/**
+ * Get a reusable browser for crawler requests.
+ *
+ * Proxy is a Chrome launch option, so reuse is bucketed by headless/userDataDir/proxy/executablePath.
+ * Requests with the same launch config share one browser and only create/close their own pages.
+ */
+export async function getOrCreateBrowser(config: BrowserLaunchConfig): Promise<Browser> {
+  const key = browserKey(config);
+  const current = sharedBrowsers.get(key);
+  if (isBrowserConnected(current?.browser)) {
+    return current.browser;
+  }
+  if (current?.promise) {
+    return current.promise;
+  }
+
+  const slot: SharedBrowserSlot = {};
+  const promise = launchBrowser({ ...config, proxy: resolveProxy(config) }).then((browser) => {
+    slot.browser = browser;
+    slot.promise = undefined;
+    browser.once("disconnected", () => {
+      if (sharedBrowsers.get(key)?.browser === browser) {
+        sharedBrowsers.delete(key);
+      }
+    });
+    return browser;
+  }).catch((err) => {
+    if (sharedBrowsers.get(key) === slot) {
+      sharedBrowsers.delete(key);
+    }
+    throw err;
+  });
+
+  slot.promise = promise;
+  sharedBrowsers.set(key, slot);
+  return promise;
+}
 
 
 // ─── 对外 API ─────────────────────────────────────────────────────────────────
@@ -265,24 +326,20 @@ export async function preCheckAuth(
   const { checkAuth, loginUrl, domain } = authFlow;
   if (domain == null || !cacheDir) return true;
   const isHeadless = opts?.headless !== false;
-  const browser = await launchBrowser({
+  const browser = await getOrCreateBrowser({
     headless: isHeadless,
     cacheDir,
     proxy: resolveProxy(opts),
   });
+  const page = await browser.newPage();
   try {
-    const page = await browser.newPage();
-    try {
       await setupPage(page, isHeadless);
       await applyProxyAuthToPage(page, opts);
       await page.goto(loginUrl, { waitUntil: "domcontentloaded", timeout: 60000 });
       await new Promise((resolve) => setTimeout(resolve, 3000));
       return await checkAuth(page, page.url());
-    } finally {
-      await page.close().catch(() => {});
-    }
   } finally {
-    await browser.close().catch(() => {});
+    await page.close().catch(() => {});
   }
 }
 
@@ -335,10 +392,11 @@ export async function fetchHtml(url: string, config: RequestConfig = {}): Promis
     waitAfterLoadMs,
     waitForSelector,
     waitForSelectorTimeoutMs,
+    scrollBeforeSnapshot,
     useHttpResponseBody,
   } = config;
   const isHeadless = headless !== false;
-  const browser = await launchBrowser({
+  const browser = await getOrCreateBrowser({
     headless: isHeadless,
     cacheDir,
     proxy: resolveProxy(config),
@@ -348,10 +406,9 @@ export async function fetchHtml(url: string, config: RequestConfig = {}): Promis
   const maxAttempts = 2;
   let lastError: unknown;
 
-  try {
-    for (let attempt = 0; attempt < maxAttempts; attempt++) {
-      const page = await browser.newPage();
-      const isRetry = attempt === 1;
+  for (let attempt = 0; attempt < maxAttempts; attempt++) {
+    const page = await browser.newPage();
+    const isRetry = attempt === 1;
       // 重试时用 domcontentloaded 尽快取 HTML，减少 SPA 客户端跳转在取 content 前发生的概率
       const waitUntil = isRetry ? "domcontentloaded" : "load";
       const extraWaitMs = isRetry ? Math.min(500, Math.max(0, waitAfterLoadMs ?? 2000)) : Math.max(0, waitAfterLoadMs ?? 2000);
@@ -382,6 +439,32 @@ export async function fetchHtml(url: string, config: RequestConfig = {}): Promis
         if (waitForSelector != null && waitForSelector !== "" && !isRetry) {
           const selectorTimeout = waitForSelectorTimeoutMs ?? 20000;
           await page.waitForSelector(waitForSelector, { timeout: selectorTimeout });
+        }
+        if (scrollBeforeSnapshot && !isRetry) {
+          const scrollSelector = scrollBeforeSnapshot.selector ?? null;
+          const rounds = scrollBeforeSnapshot.rounds ?? 6;
+          const pauseMs = scrollBeforeSnapshot.pauseMs ?? 800;
+          for (let i = 0; i < rounds; i++) {
+            const before = await page.evaluate((sel) => {
+              const target = sel ? document.querySelector(sel) : null;
+              const el = target ?? document.scrollingElement ?? document.documentElement;
+              return el?.scrollHeight ?? 0;
+            }, scrollSelector);
+            await page.evaluate((sel) => {
+              const target = sel ? document.querySelector(sel) : null;
+              const el = target ?? document.scrollingElement ?? document.documentElement;
+              if (!el) return;
+              el.scrollTop = el.scrollHeight;
+              window.scrollBy(0, window.innerHeight);
+            }, scrollSelector);
+            await new Promise((resolve) => setTimeout(resolve, pauseMs));
+            const after = await page.evaluate((sel) => {
+              const target = sel ? document.querySelector(sel) : null;
+              const el = target ?? document.scrollingElement ?? document.documentElement;
+              return el?.scrollHeight ?? 0;
+            }, scrollSelector);
+            if (after <= before && i >= 2) break;
+          }
         }
         if (checkAuth != null || authFlow != null) {
           const authCheck = checkAuth ?? authFlow?.checkAuth;
@@ -420,8 +503,5 @@ export async function fetchHtml(url: string, config: RequestConfig = {}): Promis
         await new Promise((r) => setTimeout(r, 800));
       }
     }
-    throw lastError;
-  } finally {
-    await browser.close().catch(() => {});
-  }
+  throw lastError;
 }

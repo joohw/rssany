@@ -1,4 +1,4 @@
-// 解析 npm 包根或仓库根（含 app/plugins/builtin/、statics/、webui/build/）；开发时来自 app/，打包后为 dist/ 的上一级
+// 解析 npm 包根或仓库根（含 app/plugins/、app/statics/、app/webui/build/）；开发时来自 app/，打包后为 dist/ 的上一级
 
 import { basename, dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";

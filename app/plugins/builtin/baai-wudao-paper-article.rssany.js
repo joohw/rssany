@@ -1,7 +1,11 @@
+export const id = "baai-wudao-paper-article";
+export const name = "BAAI Wudao Paper Article";
+export const listUrlPattern = /^https:\/\/(www\.)?github\.com\/BAAI-WuDao\/Paper-Article\/?(?:\?.*)?$/i;
+
 let _deps;
 
 
-const SITE_ID = "baai-wudao-paper-article";
+const SITE_ID = id;
 const OWNER = "BAAI-WuDao";
 const REPO = "Paper-Article";
 const README_PATH = "README.md";
@@ -22,7 +26,7 @@ function cleanUrl(raw) {
   const text = normalizeText(raw).replace(/[)>.,;!?]+$/g, "");
   try {
     const url = new URL(text);
-    if (!/^https?:$/i.test(url.protocol)) return null;
+    if (!/^https:$/i.test(url.protocol)) return null;
     return url.href;
   } catch {
     return null;
@@ -99,9 +103,9 @@ function parseTitleLine(line) {
 function parseLinkLine(line) {
   const text = normalizeText(line);
   if (!text) return null;
-  const directMatch = text.match(/链接[:：]\s*(https?:\/\/\S+)/i);
+  const directMatch = text.match(/链接[:：]\s*(https:\/\/\S+)/i);
   if (directMatch) return cleanUrl(directMatch[1]);
-  const urlMatch = text.match(/(https?:\/\/\S+)/i);
+  const urlMatch = text.match(/(https:\/\/\S+)/i);
   if (urlMatch) return cleanUrl(urlMatch[1]);
   return null;
 }
@@ -154,7 +158,7 @@ function parseItemsFromReadme(markdown, baseDate) {
   return items;
 }
 
-async function fetchItems(sourceId, _ctx) {
+export async function fetchItems(sourceId, _ctx) {
   _deps = _ctx.deps;
   let sourceUrl;
   try {
@@ -178,8 +182,3 @@ async function fetchItems(sourceId, _ctx) {
   return items;
 }
 
-export default {
-  id: SITE_ID,
-  listUrlPattern: /^https?:\/\/(www\.)?github\.com\/BAAI-WuDao\/Paper-Article\/?(?:\?.*)?$/i,
-  fetchItems,
-};

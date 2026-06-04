@@ -5,7 +5,7 @@ import { streamSSE } from "hono/streaming";
 import { onFeedUpdated } from "../../../core/events/index.js";
 import { getAllSources, getAllSubscriptionRefs, resolveRef } from "../../../scraper/subscription/index.js";
 import { getEffectiveItemFields, type ItemTranslationFields } from "../../../types/feedItem.js";
-import { queryFeedItems } from "../../../db/index.js";
+import { queryItems } from "../../../db/index.js";
 
 export function registerFeedRoutes(app: Hono): void {
   app.get("/api/feed", async (c) => {
@@ -31,8 +31,27 @@ export function registerFeedRoutes(app: Hono): void {
       label: s.label ?? resolveRef(s),
     }));
 
-    const dateOpts = since || until ? { since: since ?? undefined, until: until ?? undefined } : undefined;
-    const { items: dbItems, hasMore } = await queryFeedItems(sourceRefs, limit, offset, dateOpts);
+    const parseDateBound = (value: string | undefined, endExclusive: boolean): Date | undefined => {
+      if (!value) return undefined;
+      if (value.length === 10) {
+        const d = new Date(endExclusive ? `${value}T12:00:00Z` : `${value}T00:00:00.000Z`);
+        if (endExclusive) d.setUTCDate(d.getUTCDate() + 1);
+        return d;
+      }
+      const d = new Date(value);
+      return Number.isNaN(d.getTime()) ? undefined : d;
+    };
+    const result = sourceRefs.length > 0
+      ? await queryItems({
+          sourceUrls: sourceRefs,
+          limit: limit + 1,
+          offset,
+          since: parseDateBound(since ?? undefined, false),
+          until: parseDateBound(until ?? undefined, true),
+        })
+      : { items: [], total: 0 };
+    const hasMore = result.items.length > limit;
+    const dbItems = hasMore ? result.items.slice(0, limit) : result.items;
     const items = dbItems.map((item) => {
       const refKey = item.source_url ?? "";
       const base = {

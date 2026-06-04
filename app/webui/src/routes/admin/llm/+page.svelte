@@ -199,9 +199,6 @@
     line-height: 1.5;
     font-size: 0.875rem;
   }
-  .intro code {
-    font-size: 0.8125rem;
-  }
   .section-title {
     font-size: 0.8125rem;
     font-weight: 600;

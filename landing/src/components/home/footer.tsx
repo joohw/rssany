@@ -2,21 +2,21 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
+import { GITHUB_URL, PUBLIC_SITE_URL } from "@/lib/site";
 
 export function HomeFooter() {
   const { t } = useTranslation();
   const [clientOrigin, setClientOrigin] = useState("");
 
   const publicSiteUrl = useMemo(
-    () => (process.env.NEXT_PUBLIC_SITE_URL || "").trim().replace(/\/+$/, "") || clientOrigin || "/",
+    () =>
+      process.env.NODE_ENV === "production" ? PUBLIC_SITE_URL : clientOrigin || "/",
     [clientOrigin],
   );
 
   useEffect(() => {
     setClientOrigin(window.location.origin);
   }, []);
-
-  const githubUrl = (process.env.NEXT_PUBLIC_GITHUB_URL || "https://github.com/joohw/rssany").trim();
 
   return (
     <footer className="relative z-[1] border-t border-border/40 px-5 py-10 sm:px-6">
@@ -46,7 +46,7 @@ export function HomeFooter() {
           <a href="/#faq" className="text-muted-foreground hover:text-foreground">
             FAQ
           </a>
-          <a href={githubUrl} target="_blank" rel="noopener noreferrer" className="text-muted-foreground hover:text-foreground">
+          <a href={GITHUB_URL} target="_blank" rel="noopener noreferrer" className="text-muted-foreground hover:text-foreground">
             GitHub
           </a>
           <a

@@ -1,3 +1,7 @@
+export const id = "opendatalab";
+export const name = "Opendatalab";
+export const listUrlPattern = /^https:\/\/(www\.)?opendatalab\.(org\.cn|com)\/?(?:datasets\/?)?(?:\?.*)?$/i;
+
 let _deps;
 
 
@@ -72,7 +76,7 @@ function parsePaginationFromSourceId(sourceId) {
   }
 }
 
-async function fetchItems(sourceId, ctx) {
+export async function fetchItems(sourceId, ctx) {
   _deps = ctx.deps;
   const { pageNo, pageSize } = parsePaginationFromSourceId(sourceId);
   const response = await fetch(OPENDATALAB_LIST_API, {
@@ -102,8 +106,3 @@ async function fetchItems(sourceId, ctx) {
   return items;
 }
 
-export default {
-  id: "opendatalab",
-  listUrlPattern: /^https?:\/\/(www\.)?opendatalab\.(org\.cn|com)\/?(?:datasets\/?)?(?:\?.*)?$/i,
-  fetchItems,
-};

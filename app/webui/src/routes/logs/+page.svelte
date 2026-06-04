@@ -1,10 +1,16 @@
 <script lang="ts">
   import { onDestroy, onMount } from 'svelte';
+  import { Select } from 'bits-ui';
+  import ChevronDown from 'lucide-svelte/icons/chevron-down';
   import { PRODUCT_NAME } from '$lib/brand';
   import { adminFetch } from '$lib/adminAuth';
   import { showToast } from '$lib/toastStore.js';
 
   const LEVELS = ['error', 'warn', 'info', 'debug'] as const;
+  const LEVEL_OPTIONS = [
+    { value: '', label: '全部' },
+    ...LEVELS.map((level) => ({ value: level, label: level })),
+  ];
   const FILTER_DEBOUNCE_MS = 350;
 
   interface LogItem {
@@ -47,10 +53,13 @@
     }, FILTER_DEBOUNCE_MS);
   }
 
-  function onLevelChange() {
+  function onLevelChange(value: string) {
+    filterLevelInput = value;
     offset = 0;
     load();
   }
+
+  $: selectedLevelLabel = LEVEL_OPTIONS.find((option) => option.value === filterLevelInput)?.label ?? '全部';
 
   onMount(() => {
     load();
@@ -152,16 +161,6 @@
     }
   }
 
-  /** 表格「详情」列：单行展示 payload（JSON 压成一行，否则空白折叠） */
-  function detailOneLine(payload: string | null): string {
-    if (payload == null || payload.trim() === '') return '—';
-    try {
-      return JSON.stringify(JSON.parse(payload));
-    } catch {
-      return payload.replace(/\s+/g, ' ').trim();
-    }
-  }
-
 </script>
 
 <svelte:head>
@@ -171,11 +170,15 @@
 <div class="feed-wrap">
   <div class="feed-col">
     <div class="feed-toolbar-block">
-      <div class="feed-header">
-        <div class="header-left">
+      <div class="admin-feed-header">
+        <div class="admin-feed-header__left">
+          <h2>日志</h2>
+          <p class="admin-feed-header__desc">查看运行日志、筛选分类与级别</p>
+        </div>
+        <div class="admin-feed-header__actions">
           <input
             type="search"
-            class="filter-input"
+            class="admin-toolbar-input log-filter-input"
             placeholder="过滤…"
             bind:value={filterCategoryInput}
             on:input={onFilterInput}
@@ -183,19 +186,32 @@
             spellcheck="false"
             aria-label="分类"
           />
-        </div>
-        <div class="header-right">
-          <select
-            class="filter-input filter-input--level"
-            bind:value={filterLevelInput}
-            on:change={onLevelChange}
-            aria-label="级别"
+          <Select.Root
+            type="single"
+            value={filterLevelInput}
+            onValueChange={onLevelChange}
+            items={LEVEL_OPTIONS}
           >
-            <option value="">全部</option>
-            {#each LEVELS as lv (lv)}
-              <option value={lv}>{lv}</option>
-            {/each}
-          </select>
+            <Select.Trigger class="log-level-trigger" aria-label="级别">
+              <span>{selectedLevelLabel}</span>
+              <ChevronDown size={14} aria-hidden="true" />
+            </Select.Trigger>
+            <Select.Portal>
+              <Select.Content class="log-level-content" sideOffset={4}>
+                <Select.Viewport class="log-level-viewport">
+                  {#each LEVEL_OPTIONS as option (option.value)}
+                    <Select.Item
+                      class="log-level-item"
+                      value={option.value}
+                      label={option.label}
+                    >
+                      {option.label}
+                    </Select.Item>
+                  {/each}
+                </Select.Viewport>
+              </Select.Content>
+            </Select.Portal>
+          </Select.Root>
           <button
             class="admin-toolbar-btn admin-toolbar-btn--danger"
             type="button"
@@ -225,7 +241,6 @@
                 <th class="th-level">级别</th>
                 <th class="th-cat">分类</th>
                 <th class="th-msg">消息</th>
-                <th class="th-detail">详情</th>
               </tr>
             </thead>
             <tbody>
@@ -243,11 +258,10 @@
                   </td>
                   <td class="td-cat">{log.category}</td>
                   <td class="td-msg">{log.message}</td>
-                  <td class="td-detail" title={log.payload ?? undefined}>{detailOneLine(log.payload)}</td>
                 </tr>
                 {#if expandedId === log.id && log.payload}
                   <tr class="payload-row">
-                    <td colspan="5">
+                    <td colspan="4">
                       <pre class="payload-content">{tryFormatPayload(log.payload)}</pre>
                     </td>
                   </tr>
@@ -303,62 +317,79 @@
     padding-bottom: var(--feed-sticky-gap-after);
   }
 
-  .feed-header {
-    display: flex;
+  .feed-toolbar-block :global(.admin-feed-header) {
+    min-height: 4.1rem;
+  }
+  .log-filter-input {
+    width: min(16rem, 34vw);
+  }
+  .log-level-trigger {
+    width: 7rem;
+    min-width: 7rem;
+    height: 2rem;
+    min-height: 2rem;
+    box-sizing: border-box;
+    display: inline-flex;
     align-items: center;
     justify-content: space-between;
-    gap: 1rem;
-    padding: 0.75rem 0;
-    flex-shrink: 0;
-    border-bottom: 1px solid var(--color-border-muted);
-  }
-  .header-left {
-    display: flex;
-    align-items: center;
-    gap: 0.75rem;
-    flex: 1;
-    min-width: 0;
-  }
-  /** 与首页 `SourcesList` 的 `.filter-input` 一致 */
-  .header-left .filter-input {
-    flex: 1;
-    min-width: 7rem;
-    max-width: 18rem;
-    width: auto;
-  }
-  .header-right {
-    display: flex;
-    align-items: center;
-    gap: 0.5rem;
-    flex-shrink: 0;
-  }
-  .filter-input {
-    box-sizing: border-box;
-    padding: 0.35rem 0.6rem;
+    gap: 0.4rem;
+    padding: 0.35rem 0.55rem 0.35rem 0.6rem;
     font-size: 0.8125rem;
     font-family: inherit;
+    color: var(--color-foreground);
+    background: var(--color-card-elevated);
     border: 1px solid var(--color-input);
     border-radius: var(--radius-sm);
-    outline: none;
-    background: var(--color-card-elevated);
-    color: var(--color-foreground);
-    transition:
-      border-color 0.15s,
-      background 0.15s;
-  }
-  .filter-input:focus {
-    border-color: var(--color-primary);
-    background: var(--color-card);
-  }
-  .filter-input::placeholder {
-    color: var(--color-muted-foreground-soft);
-  }
-  .filter-input--level {
-    width: auto;
-    min-width: 7rem;
     flex-shrink: 0;
     cursor: pointer;
     font-variant-numeric: tabular-nums;
+  }
+  .log-level-trigger:hover {
+    background: var(--color-card);
+    border-color: var(--color-border);
+  }
+  .log-level-trigger:focus-visible {
+    outline: none;
+    border-color: var(--color-primary);
+  }
+  .log-level-trigger :global(svg) {
+    flex-shrink: 0;
+    color: var(--color-muted-foreground);
+  }
+
+  :global(.log-level-content) {
+    z-index: 120;
+    min-width: 7rem;
+    padding: 0.25rem;
+    background: var(--color-card-elevated);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-md);
+    box-shadow: var(--shadow-panel);
+  }
+  :global(.log-level-viewport) {
+    display: flex;
+    flex-direction: column;
+    gap: 0.05rem;
+  }
+  :global(.log-level-item) {
+    display: flex;
+    align-items: center;
+    min-height: 1.85rem;
+    padding: 0.35rem 0.55rem;
+    font-size: 0.8125rem;
+    line-height: 1.25;
+    color: var(--color-foreground);
+    border-radius: var(--radius-sm);
+    outline: none;
+    cursor: pointer;
+    font-variant-numeric: tabular-nums;
+  }
+  :global(.log-level-item[data-highlighted]) {
+    background: var(--color-muted);
+  }
+  :global(.log-level-item[data-selected]) {
+    color: var(--color-primary);
+    background: var(--color-primary-light);
   }
 
   .log-body-scroll {
@@ -477,10 +508,6 @@
   .th-msg {
     min-width: 0;
   }
-  .th-detail {
-    width: 32%;
-  }
-
   .log-row {
     cursor: pointer;
   }
@@ -531,15 +558,6 @@
     word-break: break-word;
     max-width: 320px;
   }
-  .td-detail {
-    color: var(--color-muted-foreground-soft);
-    font-family: 'Menlo', 'Monaco', 'Consolas', monospace;
-    font-size: 0.75rem;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
-  }
-
   .payload-row td {
     padding: 0.25rem 0.75rem 0.65rem;
     background: transparent;
@@ -567,7 +585,7 @@
     display: flex;
     align-items: center;
     justify-content: space-between;
-    padding: 0.65rem 0 0;
+    padding: 0.65rem 0 0.85rem;
     flex-shrink: 0;
   }
 
@@ -607,7 +625,7 @@
     .payload-row td {
       padding-left: 0.5rem;
     }
-    .payload-row td[colspan='5'] {
+    .payload-row td[colspan='4'] {
       padding-left: 0.5rem;
     }
   }

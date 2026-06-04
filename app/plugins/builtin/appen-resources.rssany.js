@@ -1,3 +1,7 @@
+export const id = "appen-resources";
+export const name = "Appen Resources";
+export const listUrlPattern = /^https:\/\/(www\.)?appen\.com\/resources\/?(\?.*)?$/i;
+
 let _deps;
 
 
@@ -26,7 +30,7 @@ function resolveHttpUrl(href, baseUrl) {
   if (!raw || raw.startsWith("#") || raw.startsWith("javascript:")) return null;
   try {
     const url = new URL(raw, baseUrl);
-    if (!/^https?:$/i.test(url.protocol)) return null;
+    if (!/^https:$/i.test(url.protocol)) return null;
     return url;
   } catch {
     return null;
@@ -108,7 +112,7 @@ function upsertItem(itemsByLink, candidate) {
   }
 }
 
-async function fetchItems(sourceId, ctx) {
+export async function fetchItems(sourceId, ctx) {
   _deps = ctx.deps;
   const { html, finalUrl } = await ctx.fetchHtml(sourceId, { waitMs: 4500 });
   const root = _deps.parseHtml(html);
@@ -148,8 +152,3 @@ async function fetchItems(sourceId, ctx) {
   return items;
 }
 
-export default {
-  id: "appen-resources",
-  listUrlPattern: /^https?:\/\/(www\.)?appen\.com\/resources\/?(\?.*)?$/i,
-  fetchItems,
-};

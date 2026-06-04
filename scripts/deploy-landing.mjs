@@ -79,7 +79,6 @@ function printHelp() {
 
 Options:
   --config <path>       Deploy config file (default: .env.deploy)
-  --env-file <path>     Runtime env file sent to remote docker (default: .env.landing)
   --tag <tag>           Image tag (default: latest or DOCKER_IMAGE_TAG)
   --image <name>        Image name without registry (default: rssany-landing or DOCKER_IMAGE_NAME)
   --container <name>    Remote container name (default: rssany-landing)
@@ -178,7 +177,6 @@ async function main() {
   const noImageUpdate = hasFlag("--no-image-update");
   const repoRoot = process.cwd();
   const configPath = path.resolve(repoRoot, getArgValue("--config") || ".env.deploy");
-  const envFilePath = path.resolve(repoRoot, getArgValue("--env-file") || ".env.landing");
   const landingRoot = path.resolve(repoRoot, "landing");
   const dockerfilePath = path.resolve(landingRoot, "Dockerfile.frontend");
 
@@ -187,7 +185,6 @@ async function main() {
   }
 
   const { env: deployEnv } = parseEnvFile(configPath);
-  const { raw: runtimeEnvRaw } = parseEnvFile(envFilePath);
 
   const registry = deployEnv.DOCKER_REGISTRY || "";
   const dockerUsername = deployEnv.DOCKER_USERNAME || "";
@@ -232,7 +229,7 @@ async function main() {
     "set -e",
     remoteImagePrepare,
     `(docker rm -f ${shEscape(containerName)} >/dev/null 2>&1 || true)`,
-    `docker run -d --name ${shEscape(containerName)} --restart unless-stopped -p ${shEscape(`${frontendHostPort}:3000`)} --env-file /dev/stdin ${shEscape(imageRef)}`,
+    `docker run -d --name ${shEscape(containerName)} --restart unless-stopped -p ${shEscape(`${frontendHostPort}:3000`)} ${shEscape(imageRef)}`,
   ].join(" && ");
 
   console.log("Deploy plan:");
@@ -242,7 +239,6 @@ async function main() {
   console.log(`- remote: ${sshUser}@${sshHost}:${sshPort}`);
   console.log(`- container: ${containerName}`);
   console.log(`- ports: frontend ${frontendHostPort}->3000`);
-  console.log(`- env file: ${path.relative(repoRoot, envFilePath)}`);
   console.log(`- docker platform: ${dockerPlatform}`);
   console.log(`- image update: ${skipImageUpdate ? "disabled" : "enabled"}`);
   if (!skipImageUpdate) {
@@ -278,14 +274,13 @@ async function main() {
     console.log("\n[1-3/6] Image update disabled; skip local build/login/push.");
   }
 
-  console.log("\n[4-6/6] SSH to server, pull image, and run container with runtime env...");
+  console.log("\n[4-6/6] SSH to server, pull image, and run container...");
   await runRemoteWithStdin({
     sshHost,
     sshPort,
     sshUser,
     sshPassword,
     remoteCommand,
-    stdinContent: runtimeEnvRaw.endsWith("\n") ? runtimeEnvRaw : `${runtimeEnvRaw}\n`,
   });
 
   console.log("\nDeploy completed.");

@@ -14,7 +14,7 @@ export function getWebUiBuildDir(): string {
     if (w.startsWith("/") || /^[A-Za-z]:[\\/]/.test(w)) return w;
     return join(process.cwd(), w);
   }
-  return join(PACKAGE_ROOT, "webui/build");
+  return join(PACKAGE_ROOT, "app/webui/build");
 }
 
 /** 仅后端接口路径，不走静态/SPA；注意 /admin 为前端路由，仅 /admin/parse、/admin/extractor 为后端 */
@@ -39,11 +39,10 @@ export function registerWebUiRoutes(app: Hono): void {
   const absRoot = getWebUiBuildDir();
   if (!existsSync(absRoot)) {
     console.warn(
-      "未找到 WebUI 构建目录，跳过根路径静态托管:",
+      "未找到 WebUI 构建目录，静态路由已注册，等待前端 watch 构建:",
       absRoot,
-      "（构建前端：pnpm run webui:build）",
+      "（开发模式：npm run dev；单独构建：npm run webui:build）",
     );
-    return;
   }
 
   const relRoot = relative(process.cwd(), absRoot).replace(/\\/g, "/");

@@ -1,12 +1,14 @@
+export const id = "theinformation";
+export const name = "Theinformation";
+export const listUrlPattern = /^https:\/\/(www\.)?theinformation\.com\/(briefings|features\/[^/]+)\/?(\?.*)?$/i;
+export const refreshInterval = "1h";
+
 let _deps;
 
 // The Information — AI Agenda 和 Briefings 列表页
 // 当前结构：.article.feed-item，标题 h3.title a，分类 .category-content a，作者 .authors，摘要 .recent-excerpt .long-excerpt
 
 const ORIGIN = "https://www.theinformation.com";
-const LIST_URL_RE =
-  /^https?:\/\/(www\.)?theinformation\.com\/(briefings|features\/[^/]+)\/?(\?.*)?$/i;
-
 
 function normalizeText(text) {
   return (text ?? "").replace(/\s+/g, " ").trim();
@@ -24,7 +26,7 @@ function toAbsoluteHttpUrl(rawHref, baseUrl) {
   if (!href || href.startsWith("#") || href.startsWith("javascript:")) return null;
   try {
     const url = new URL(href, baseUrl);
-    if (!/^https?:$/i.test(url.protocol)) return null;
+    if (!/^https:$/i.test(url.protocol)) return null;
     return url.href;
   } catch {
     return null;
@@ -119,7 +121,7 @@ function parseFeedItems(html, pageUrl) {
 }
 
 
-async function fetchItems(sourceId, ctx) {
+export async function fetchItems(sourceId, ctx) {
   _deps = ctx.deps;
   const { html, finalUrl, status } = await ctx.fetchHtml(sourceId, {
     waitMs: 5000,
@@ -140,11 +142,3 @@ async function fetchItems(sourceId, ctx) {
   items.sort((a, b) => b.pubDate.getTime() - a.pubDate.getTime());
   return items;
 }
-
-
-export default {
-  id: "theinformation",
-  listUrlPattern: LIST_URL_RE,
-  refreshInterval: "1h",
-  fetchItems,
-};

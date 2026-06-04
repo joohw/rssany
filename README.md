@@ -43,40 +43,40 @@
 
 ```bash
 npm install -g rssany   # 与 npm i -g rssany 相同
-rssany
+rssany start
 ```
 
-安装包内已包含构建好的后端与 Web 界面；启动后用浏览器打开终端里提示的地址（默认 **`http://127.0.0.1:18473/`**，端口可在**运行命令时当前目录**下的 `.env` 里设置 `PORT`）。
+安装包内已包含构建好的后端与 Web 界面；用 **`rssany start`** 后台启动并直接返回访问地址（默认 **`http://127.0.0.1:18473/`**，端口可在**运行命令时当前目录**下的 `.env` 里设置 `PORT`）；用 **`rssany stop`** 关闭后台服务并输出执行状态。
 
 - **数据目录**：首次运行会在 **`~/.rssany/`**（Windows：`%USERPROFILE%\.rssany\`）自动从包内 **`init/`** 生成 `sources.json`、`config.json` 等（已存在则不会覆盖）。
-- **可选配置**：在启动 `rssany` 时的**当前目录**放置 `.env`（可参考仓库里的 `.env.example`），用于 JWT、OAuth、SMTP、LLM（如 `OPENAI_API_KEY` / `OPENAI_BASE_URL` / `OPENAI_MODEL`）等。
+- **可选配置**：在启动 `rssany start` 时的**当前目录**放置 `.env`（可参考仓库里的 `.env.example`），用于 JWT、OAuth、SMTP、LLM（如 `OPENAI_API_KEY` / `OPENAI_BASE_URL` / `OPENAI_MODEL`）等。
 - **重置全部本地数据**（结束占用 `PORT` 的进程并删除用户目录，慎用）：执行 **`rssany reset`**；在含 `.env` 的目录下运行可读取 `PORT` / `RSSANY_USER_DIR`，或事先在环境里导出这些变量。
 
-等价于在项目里执行 `node node_modules/rssany/dist/index.js`；CLI 名为 **`rssany`**。
+CLI 名为 **`rssany`**；裸 `rssany` 只显示用法，不再直接进入服务运行状态。
 
 ### 从源码运行（开发 / 贡献）
 
-需要 **pnpm**：
+需要 **npm**：
 
 ```bash
-pnpm install
-pnpm run webui:install
+npm install
+npm run webui:install
 cp .env.example .env   # 按需修改
 ```
 
-**开发**（后端托管 `webui` 构建目录；改前端可 watch）：
+**开发**（单一后端地址；前端静态构建自动 watch）：
 
 ```bash
-pnpm run dev:all
+npm run dev
 ```
 
-或分步：`pnpm run webui:build` 后 `pnpm dev`。
+该命令会先启动 `webui` 静态构建 watch，等首轮 HTML 构建完成后再启动后端服务；浏览器只访问后端地址（默认 `http://127.0.0.1:3999/`），不再单独启动前端开发服务器。
 
-**仅调试 WebUI 热更新**（可选）：`cd webui && pnpm dev`（Vite 代理到本机后端，见 `webui/vite.config.ts`）。
+或分步：一个终端运行 `npm run webui:watch`，另一个终端运行 `npm run dev:backend`。
 
-**生产**（本仓库）：`pnpm run webui:build && pnpm start`。
+**生产**（本仓库）：`npm run webui:build && npm start`。
 
-**重置本地数据**（与全局安装的 `rssany reset` 逻辑相同）：`pnpm reset`。
+**重置本地数据**（与全局安装的 `rssany reset` 逻辑相同）：`npm run reset`。
 
 发布到 npm 时 `prepublishOnly` 会执行 `build:all`（后端 `vite build` + `webui:build`）。
 

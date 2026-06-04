@@ -1,3 +1,7 @@
+export const id = "brightdata-blog";
+export const name = "Brightdata Blog";
+export const listUrlPattern = /^https:\/\/(?:www\.)?brightdata\.com\/blog(?:\/(?:page\/\d+|[a-z0-9-]+(?:\/page\/\d+)?)?)?\/?(?:\?.*)?$/i;
+
 let _deps;
 
 // Bright Data 博客插件：优先解析站点 RSS feed，失败时回退解析列表页（不做正文 enrich）
@@ -5,8 +9,6 @@ let _deps;
 
 
 const BRIGHTDATA_ORIGIN = "https://brightdata.com";
-const LIST_URL_RE =
-  /^https?:\/\/(?:www\.)?brightdata\.com\/blog(?:\/(?:page\/\d+|[a-z0-9-]+(?:\/page\/\d+)?)?)?\/?(?:\?.*)?$/i;
 const ARTICLE_PATH_RE = /^\/blog\/([^/?#/]+)\/([^/?#/]+)\/?$/i;
 const MIN_READ_RE = /^\d+\s*min\s*read$/i;
 
@@ -27,7 +29,7 @@ function toAbsoluteHttpUrl(rawHref, baseUrl) {
   if (!href || href.startsWith("#") || href.startsWith("javascript:")) return null;
   try {
     const url = new URL(href, baseUrl);
-    if (!/^https?:$/i.test(url.protocol)) return null;
+    if (!/^https:$/i.test(url.protocol)) return null;
     return url.href;
   } catch {
     return null;
@@ -268,7 +270,7 @@ function parseHtmlItems(root, baseUrl) {
 }
 
 
-async function fetchItems(sourceId, ctx) {
+export async function fetchItems(sourceId, ctx) {
   _deps = ctx.deps;
   const { html, finalUrl } = await ctx.fetchHtml(sourceId, { waitMs: 3500 });
   const root = _deps.parseHtml(html);
@@ -292,10 +294,3 @@ async function fetchItems(sourceId, ctx) {
   }
   return fromHtml;
 }
-
-
-export default {
-  id: "brightdata-blog",
-  listUrlPattern: LIST_URL_RE,
-  fetchItems,
-};

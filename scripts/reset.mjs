@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 /**
  * 停止占用 HTTP 服务端口的进程，并删除用户数据目录（与 app 中 PORT / RSSANY_USER_DIR 约定一致）。
- * 用法：pnpm reset  或  PORT=3000 pnpm reset
+ * 用法：npm run reset  或  PORT=3000 npm run reset
  */
 
 import { execFileSync } from "node:child_process";

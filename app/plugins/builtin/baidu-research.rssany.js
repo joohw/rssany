@@ -1,3 +1,7 @@
+export const id = "baidu-research";
+export const name = "Baidu Research";
+export const listUrlPattern = /^https?:\/\/research\.baidu\.com\/(?:(?:Index|Blog)\/?)?(?:\?.*)?$/i;
+
 let _deps;
 
 // Baidu Research 插件：抓取 Blog 列表条目（不做正文 enrich）
@@ -193,7 +197,7 @@ function mergeByLink(itemsA, itemsB) {
 }
 
 
-async function fetchItems(sourceId, ctx) {
+export async function fetchItems(sourceId, ctx) {
   _deps = ctx.deps;
   const primary = await ctx.fetchHtml(sourceId, { waitMs: 4500 });
   let items = parseBlogItems(primary.html, primary.finalUrl || sourceId);
@@ -213,10 +217,3 @@ async function fetchItems(sourceId, ctx) {
 
   return items;
 }
-
-
-export default {
-  id: "baidu-research",
-  listUrlPattern: /^https?:\/\/research\.baidu\.com\/(?:(?:Index|Blog)\/?)?(?:\?.*)?$/i,
-  fetchItems,
-};

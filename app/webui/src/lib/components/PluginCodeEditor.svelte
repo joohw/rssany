@@ -27,8 +27,8 @@
         oneDark,
         EditorView.theme({
           '&': {
-            height: 'min(70vh, 560px)',
-            minHeight: '320px',
+            height: '100%',
+            minHeight: '0',
             fontSize: '0.8125rem',
             lineHeight: '1.5',
           },
@@ -55,11 +55,18 @@
 <style>
   .cm-root {
     width: 100%;
+    flex: 1;
+    min-height: 0;
     overflow: hidden;
     background: var(--color-card);
+    border-radius: var(--radius-sm, 6px);
   }
   .cm-root :global(.cm-editor) {
     height: 100%;
+    border-radius: inherit;
+  }
+  .cm-root :global(.cm-scroller) {
+    border-radius: inherit;
   }
   .cm-root :global(.cm-editor.cm-focused) {
     outline: none;

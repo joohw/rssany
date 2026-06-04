@@ -4,9 +4,9 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "dev": "vite dev",
+    "dev": "vite build --watch --clearScreen false",
     "build": "vite build",
-    "build:watch": "vite build --watch",
+    "build:watch": "vite build --watch --clearScreen false",
     "preview": "vite preview"
   },
   "dependencies": {

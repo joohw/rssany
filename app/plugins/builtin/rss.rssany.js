@@ -1,5 +1,11 @@
 // 内置 RSS/Atom/JSON Feed：通过浏览器（Puppeteer）拉取 Feed URL，再用 rss-parser 解析；
 // 与站点插件一致走 Chrome，便于应对需浏览器环境或代理的场景；XML 使用 HTTP 响应原文（useHttpResponseBody）。
+export const id = "__rss__";
+export const name = "RSS Feed";
+export const pattern = /^https:\/\//;
+export const match = looksLikeFeed;
+export const priority = 20;
+export const refreshInterval = "1h";
 
 const UA = "RssAny/1.0 (+https://github.com/joohw/rssany)";
 
@@ -76,7 +82,7 @@ function extractItemImageUrl(item) {
     firstImgSrcFromHtml(item.summary) ||
     firstImgSrcFromHtml(item["content:encoded"]) ||
     firstImgSrcFromHtml(item.contentSnippet);
-  if (fromHtml && /^https?:\/\//i.test(fromHtml)) {
+  if (fromHtml && /^https:\/\//i.test(fromHtml)) {
     return fromHtml;
   }
 
@@ -102,13 +108,7 @@ async function fetchFeedXml(url, ctx) {
   return html;
 }
 
-export default {
-  id: "__rss__",
-  pattern: /^https?:\/\//,
-  match: looksLikeFeed,
-  priority: 20,
-  refreshInterval: "1h",
-  async fetchItems(sourceId, ctx) {
+export async function fetchItems(sourceId, ctx) {
     const { deps } = ctx;
     const xml = await fetchFeedXml(sourceId, ctx);
     const parser = new deps.RssParser({
@@ -155,8 +155,7 @@ export default {
       if (!imageUrl) return base;
       return { ...base, imageUrl, cover_img: imageUrl };
     });
-  },
-};
+  }
 
 function looksLikeFeed(url) {
   const lower = url.toLowerCase();

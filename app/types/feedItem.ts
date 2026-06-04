@@ -81,6 +81,8 @@ export interface FeedItem {
     content?: string;
     /** 条目配图 URL，输出为 RSS 2.0 <enclosure type="image/..."> */
     imageUrl?: string;
+    /** Frontend-compatible cover field; equivalent to imageUrl / cover_img. */
+    coverImg?: string;
     /**
      * 封面图：支持 http(s) URL、data URL，或裸 base64（可规范为 data:image/jpeg;base64,...）。
      * Gateway JSON 字段名 `cover_img`。

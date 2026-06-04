@@ -8,7 +8,10 @@
 //   lingowhale://articles?app_id=xxx&app_secret=yyy
 // 也可通过环境变量提供（优先级低于 URL 参数）：
 //   LINGOWHALE_APP_ID / LINGOWHALE_APP_SECRET
-
+export const id = "lingowhale";
+export const name = "Lingowhale";
+export const listUrlPattern = /^lingowhale:\/\//;
+export const refreshInterval = "1h";
 
 const BASE_URL = "https://open.lingowhale.com/open-api/v1";
 
@@ -104,16 +107,11 @@ async function fetchTodayArticles(appId, appSecret) {
 }
 
 
-export default {
-  id: "lingowhale",
-  listUrlPattern: /^lingowhale:\/\//,
-  refreshInterval: "1h",
-
-  async fetchItems(sourceId, _ctx) {
+export async function fetchItems(sourceId, _ctx) {
     const { appId, appSecret } = resolveCredentials(sourceId);
     const endpoint = resolveEndpoint(sourceId);
     const maxPages = resolveMaxPages(sourceId);
     if (endpoint === "today") return fetchTodayArticles(appId, appSecret);
     return fetchArticles(appId, appSecret, maxPages);
-  },
-};
+  }
+

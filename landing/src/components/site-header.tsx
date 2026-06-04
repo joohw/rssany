@@ -4,6 +4,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useEffect, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
+import { GITHUB_URL } from "@/lib/site";
 import { applyThemeMode, initThemeMode, persistThemeMode, type ThemeMode } from "@/lib/theme";
 import { cn } from "@/lib/utils";
 
@@ -42,7 +43,6 @@ export function SiteHeader() {
     ];
   }, [t]);
 
-  const githubUrl = (process.env.NEXT_PUBLIC_GITHUB_URL || "https://github.com/joohw/rssany").trim();
   const isEnglish = i18n.resolvedLanguage?.toLowerCase().startsWith("en");
 
   function toggleTheme() {
@@ -82,7 +82,7 @@ export function SiteHeader() {
             aria-label={t("header.backHome")}
           >
             {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img src={theme === "dark" ? "/rssany.svg" : "/rssany-light.svg"} alt="" className="h-[1.35rem] w-[1.35rem]" />
+            <img src={theme === "dark" ? "/rssany-light.svg" : "/rssany.svg"} alt="" className="h-[1.35rem] w-[1.35rem]" />
           </Link>
           <nav className="flex min-w-0 flex-1 items-center justify-start gap-1 overflow-x-auto whitespace-nowrap">
             {headerLinks.map((link) =>
@@ -106,7 +106,7 @@ export function SiteHeader() {
         </div>
         <div className="relative inline-flex items-center gap-2">
           <a
-            href={githubUrl}
+            href={GITHUB_URL}
             target="_blank"
             rel="noopener noreferrer"
             aria-label={t("header.github")}

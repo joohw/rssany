@@ -21,14 +21,15 @@
     ".env.example",
     "README.md",
     "init",
-    "scripts/reset.mjs"
+    "scripts/reset.mjs",
+    "scripts/dev.mjs"
   ],
   "engines": {
     "node": ">=20 <24"
   },
   "scripts": {
     "build": "vite build",
-"dev": "concurrently -k \"npm run dev:backend\" \"npm run webui:dev\"",
+    "dev": "node scripts/dev.mjs",
     "dev:backend": "cross-env PORT=3999 tsx app/index.ts",
     "start": "node dist/index.js",
     "serve:route": "node scripts/serve-route.mjs",
@@ -40,11 +41,11 @@
     "typecheck": "tsc --noEmit",
     "reset": "node scripts/reset.mjs",
     "proxy-browser": "tsx scripts/proxy-browser.ts",
-    "webui:install": "cd webui && npm install",
-    "webui:dev": "cd webui && npm run dev",
-    "webui:build": "cd webui && npm run build",
-    "webui:watch": "cd webui && npm run build:watch",
-    "dev:all": "concurrently -k \"npm run dev\" \"npm run webui:dev\"",
+    "webui:install": "cd app/webui && npm install",
+    "webui:dev": "cd app/webui && npm run build:watch",
+    "webui:build": "cd app/webui && npm run build",
+    "webui:watch": "cd app/webui && npm run build:watch",
+    "dev:all": "npm run dev",
     "build:all": "npm run build && npm run webui:build",
     "prepublishOnly": "npm run build:all",
     "docker:build": "bash scripts/docker-build.sh",
