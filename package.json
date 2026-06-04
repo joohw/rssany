@@ -35,7 +35,7 @@
     "serve:route": "node scripts/serve-route.mjs",
     "serve:app": "npx tsx app/index.ts",
     "test": "vitest",
-    "test:run": "vitest run",
+    "test:run": "vitest run --passWithNoTests",
     "lint": "eslint .",
     "lint:fix": "eslint . --fix",
     "typecheck": "tsc --noEmit",
@@ -79,8 +79,8 @@
     "tsx": "^4.19.0",
     "typescript": "~5.6.0",
     "typescript-eslint": "^8.15.0",
-    "vite": "^6.4.2",
-    "vitest": "^2.1.0"
+    "vite": "^6.4.3",
+    "vitest": "^4.1.8"
   },
   "dependencies": {
     "@hono/node-server": "^1.19.10",

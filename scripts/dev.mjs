@@ -73,7 +73,11 @@ function waitForInitialWebuiBuild(child) {
     }, 500);
     child.stdout?.on("data", (chunk) => {
       const text = chunk.toString();
-      if (text.includes('Wrote site to "build"') || text.includes("Wrote site to 'build'")) {
+      if (
+        text.includes('Wrote site to "build"') ||
+        text.includes("Wrote site to 'build'") ||
+        text.includes("[webui:watch] build complete")
+      ) {
         finish();
       }
     });

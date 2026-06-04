@@ -1,5 +1,6 @@
 <script lang="ts">
   import { getAvatarBySourceRef } from '$lib/sourceAvatar';
+  import { coverImageSrc } from '$lib/coverImageSrc';
 
   interface Props {
     title?: string;
@@ -14,7 +15,7 @@
     authorHref?: string | undefined;
     authors?: { name: string; href: string }[] | undefined;
     guid?: string | undefined;
-    /** http(s)、data URL 或裸 base64 规范化后的地址；有则显示在卡片右侧方图 */
+    /** http(s)、data URL；显示在标题/摘要下方 */
     coverImg?: string | undefined;
     rawItem?: unknown;
     onDelete?: ((id: string) => void) | undefined;
@@ -109,6 +110,7 @@
   const avatarBg = $derived(avatar.avatarBg);
   const bodyRaw = $derived((content?.trim() || summary?.trim() || '').trim());
   const effectiveCoverImg = $derived(coverImg?.trim() || extractInlineImage(bodyRaw));
+  const resolvedCoverSrc = $derived(coverImageSrc(effectiveCoverImg));
   const summaryDisplay = $derived(bodyRaw ? stripHtml(removeInlineImages(bodyRaw)) : '');
   const hasTitle = $derived(!!title?.trim());
   const summaryIsLink = $derived(!!(link && !hasTitle && summaryDisplay));
@@ -205,7 +207,7 @@
     {/if}
   </div>
 
-  <!-- 右侧：作者+日期 → 标题 → 摘要 -->
+  <!-- 作者 → 标题 → 摘要 → 配图 -->
   <div class="feed-card-main">
     <div class="feed-card-author-line">
       <span class="feed-card-author">
@@ -256,7 +258,7 @@
       <a class="feed-card-open-original" href={link} target="_blank" rel="noopener noreferrer">查看原文</a>
     {/if}
 
-    {#if effectiveCoverImg}
+    {#if resolvedCoverSrc}
       <div class="feed-card-media">
         {#if link}
           <a
@@ -266,10 +268,24 @@
             rel="noopener noreferrer"
             title="打开原文"
           >
-            <img src={effectiveCoverImg} alt="" class="feed-card-media-img" loading="lazy" decoding="async" />
+            <img
+              src={resolvedCoverSrc}
+              alt=""
+              class="feed-card-media-img"
+              loading="lazy"
+              decoding="async"
+              referrerpolicy="no-referrer"
+            />
           </a>
         {:else}
-          <img src={effectiveCoverImg} alt="" class="feed-card-media-img" loading="lazy" decoding="async" />
+          <img
+            src={resolvedCoverSrc}
+            alt=""
+            class="feed-card-media-img"
+            loading="lazy"
+            decoding="async"
+            referrerpolicy="no-referrer"
+          />
         {/if}
       </div>
     {/if}
@@ -476,7 +492,7 @@
     text-decoration: underline;
   }
 
-  /** 条目配图：高度不超过 300px，宽度随比例、不超出主栏 */
+  /** 条目配图：标题/摘要下方，高度不超过 300px */
   .feed-card-media {
     margin-top: 0.5rem;
     max-width: 100%;

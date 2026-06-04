@@ -134,8 +134,7 @@ function parseListHtml(html, url) {
     const title = (titleEl?.textContent ?? "").trim() || "Note";
     const authorEl = section.querySelector('a[aria-current="page"] .name') ?? section.querySelector('a[aria-current="page"] span');
     const author = (authorEl?.textContent ?? "").trim() || undefined;
-    const imageEl = section.querySelector("img[data-xhs-img], img");
-    const image = imageEl?.getAttribute("src")?.trim() || undefined;
+    const image = pickSectionImage(section);
     const summary = image ? undefined : title;
     const guid = noteId ? hashNoteGuid(noteId) : _deps.createHash("sha256").update(link).digest("hex");
     items.push({
@@ -197,6 +196,59 @@ function extractUrl(val) {
     return url || null;
   }
   return null;
+}
+
+
+function isUsableImageUrl(url) {
+  const u = (url ?? "").trim();
+  if (!u) return false;
+  if (u.startsWith("data:")) return false;
+  if (/^blob:/i.test(u)) return false;
+  return u.startsWith("http://") || u.startsWith("https://") || u.startsWith("//");
+}
+
+
+function normalizeImageUrl(url) {
+  const u = (url ?? "").trim();
+  if (!isUsableImageUrl(u)) return undefined;
+  return u.startsWith("//") ? `https:${u}` : u;
+}
+
+
+function pickImageFromSrcset(srcset) {
+  const raw = (srcset ?? "").trim();
+  if (!raw) return undefined;
+  const parts = raw.split(",").map((p) => p.trim()).filter(Boolean);
+  for (let i = parts.length - 1; i >= 0; i -= 1) {
+    const candidate = parts[i]?.split(/\s+/)[0];
+    const normalized = normalizeImageUrl(candidate);
+    if (normalized) return normalized;
+  }
+  return undefined;
+}
+
+
+function pickSectionImage(section) {
+  const imageEl = section.querySelector("img[data-xhs-img], img");
+  if (imageEl) {
+    const candidates = [
+      imageEl.getAttribute("src"),
+      imageEl.getAttribute("data-src"),
+      imageEl.getAttribute("data-lazy-src"),
+      imageEl.getAttribute("data-original"),
+      pickImageFromSrcset(imageEl.getAttribute("srcset")),
+    ];
+    for (const candidate of candidates) {
+      const normalized = normalizeImageUrl(candidate);
+      if (normalized) return normalized;
+    }
+  }
+  for (const el of section.querySelectorAll("[style*='background-image']")) {
+    const url = extractUrl(el.getAttribute("style") ?? "");
+    const normalized = normalizeImageUrl(url);
+    if (normalized && (normalized.includes("xhscdn") || normalized.includes("sns-webpic"))) return normalized;
+  }
+  return undefined;
 }
 
 
@@ -336,11 +388,16 @@ export async function fetchItems(sourceId, ctx) {
 async function enrichItem(item, ctx) {
   const { html } = await ctx.fetchHtml(item.link);
   const detail = extractDetailHtml(html);
+  const imgUrls = collectNoteImages(_deps.parseHtml(html));
+  const imageUrl = item.imageUrl ?? imgUrls[0];
   return {
     ...item,
     author: detail.author ?? item.author,
     title: detail.title ?? item.title,
     content: detail.content ? `<p>${detail.content.replace(/\n\n/g, "</p><p>")}</p>` : undefined,
     pubDate: detail.pubDate ?? item.pubDate,
+    imageUrl,
+    coverImg: imageUrl,
+    cover_img: imageUrl,
   };
 }

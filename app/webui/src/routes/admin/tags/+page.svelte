@@ -182,6 +182,9 @@
                 {@const stat = getStat(tag)}
                 <div
                   class="tag-badge"
+                  role="button"
+                  tabindex="0"
+                  aria-label={`标签 ${tag}，右键打开菜单`}
                   on:contextmenu={(e) => showContextMenu(e, tag)}
                 >
                   <span class="tag-name">{tag}</span>
@@ -210,6 +213,9 @@
               {#each suggestedTags as s}
                 <div
                   class="tag-badge suggested"
+                  role="button"
+                  tabindex="0"
+                  aria-label={`建议标签 ${s.name}，右键打开菜单`}
                   on:contextmenu={(e) => showContextMenu(e, s.name)}
                 >
                   <span class="tag-name">{s.name}</span>

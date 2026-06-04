@@ -4,9 +4,9 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "dev": "vite build --watch --clearScreen false",
+    "dev": "node scripts/watch-build.mjs",
     "build": "vite build",
-    "build:watch": "vite build --watch --clearScreen false",
+    "build:watch": "node scripts/watch-build.mjs",
     "preview": "vite preview"
   },
   "dependencies": {

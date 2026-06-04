@@ -17,10 +17,12 @@ import { registerLlmRoutes } from "./llm.js";
 import { registerProxySettingsRoutes } from "./proxy.js";
 import { registerTasksRoutes } from "./tasks.js";
 import { registerFeedFaviconRoutes } from "./feed-favicon.js";
+import { registerCoverImgRoutes } from "./cover-img.js";
 
 export function registerApiRoutes(app: Hono): void {
   registerServerRoutes(app);
   registerFeedFaviconRoutes(app);
+  registerCoverImgRoutes(app);
   registerRssApiRoutes(app);
   registerSchedulerRoutes(app);
   registerPluginsRoutes(app);
