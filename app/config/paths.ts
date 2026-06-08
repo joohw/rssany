@@ -1,15 +1,13 @@
 // 路径配置：集中管理所有运行时路径，区分项目文件与用户数据
 
 import { mkdir, rename, access, copyFile, writeFile } from "node:fs/promises";
-import { homedir } from "node:os";
 import { join } from "node:path";
 import { logger } from "../core/logger/index.js";
 import { PACKAGE_ROOT } from "../packageRoot.js";
+import { getLegacyHomeUserDir, resolveDefaultUserDir } from "./userDir.js";
 
-const envUserDir = process.env.RSSANY_USER_DIR?.trim();
-
-/** 用户数据根目录：~/.rssany/（或 RSSANY_USER_DIR）；不纳入版本管理 */
-export const USER_DIR = envUserDir && envUserDir.length > 0 ? envUserDir : join(homedir(), ".rssany");
+/** 用户数据根目录：全局安装时为 {npm prefix}/var/rssany；开发时为 {repo}/.rssany */
+export const USER_DIR = resolveDefaultUserDir(PACKAGE_ROOT);
 
 /** SQLite 数据库目录：.rssany/data/ */
 export const DATA_DIR = join(USER_DIR, "data");
@@ -110,8 +108,26 @@ async function ensureUserDirPackageJsonForPlugins(): Promise<void> {
   }
 }
 
+async function migrateLegacyHomeUserDir(): Promise<void> {
+  const legacy = getLegacyHomeUserDir();
+  if (USER_DIR === legacy) return;
+  if (await pathExists(USER_DIR)) return;
+  if (!(await pathExists(legacy))) return;
+  try {
+    await rename(legacy, USER_DIR);
+    logger.info("config", "已从 ~/.rssany 迁移用户数据", { from: legacy, to: USER_DIR });
+  } catch (err) {
+    logger.warn("config", "从 ~/.rssany 迁移失败", {
+      from: legacy,
+      to: USER_DIR,
+      err: err instanceof Error ? err.message : String(err),
+    });
+  }
+}
+
 /** 初始化用户数据目录；若缺少 sources.json / config.json 则从包内示例复制 */
 export async function initUserDir(): Promise<void> {
+  await migrateLegacyHomeUserDir();
   await mkdir(USER_DIR, { recursive: true });
   await mkdir(DATA_DIR, { recursive: true });
   await mkdir(CACHE_DIR, { recursive: true });

@@ -3,14 +3,15 @@ import { spawn } from "node:child_process";
 import { closeSync, openSync } from "node:fs";
 import { access, mkdir, readFile, rm, writeFile } from "node:fs/promises";
 import http from "node:http";
-import { homedir, networkInterfaces } from "node:os";
+import { networkInterfaces } from "node:os";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
+import { resolveDefaultUserDir } from "../scripts/user-dir.mjs";
 
 const command = process.argv[2];
 const binDir = dirname(fileURLToPath(import.meta.url));
 const packageRoot = join(binDir, "..");
-const userDir = process.env.RSSANY_USER_DIR?.trim() || join(homedir(), ".rssany");
+const userDir = resolveDefaultUserDir(packageRoot);
 const pidPath = join(userDir, "rssany.pid");
 const logPath = join(userDir, "rssany.log");
 const port = Number(process.env.PORT) || 18473;
@@ -58,11 +59,12 @@ function printAddress(prefix = "RssAny 已启动") {
 }
 
 function printUsage() {
-  console.log("用法: rssany <start|stop|reset|crawl>");
+  console.log("用法: rssany <start|stop|reset|crawl|update>");
   console.log("  rssany start  后台启动服务并输出访问地址");
   console.log("  rssany stop   关闭后台服务并输出执行状态");
   console.log("  rssany reset  重置本地数据");
   console.log("  rssany crawl <ref>  按内部抓取链路拉取指定信源");
+  console.log("  rssany update  更新到最新 npm 包；若服务正在运行则自动停止并重启");
 }
 
 async function canConnectToServer() {
@@ -212,6 +214,54 @@ async function crawl() {
   }
 }
 
+async function runCommand(commandName, args) {
+  return new Promise((resolve, reject) => {
+    const child = spawn(commandName, args, {
+      cwd: process.cwd(),
+      env: process.env,
+      shell: process.platform === "win32",
+      stdio: "inherit",
+    });
+    child.on("error", reject);
+    child.on("close", (code) => {
+      if (code === 0) {
+        resolve();
+        return;
+      }
+      reject(new Error(commandName + " " + args.join(" ") + " 失败，退出码 " + (code ?? "unknown")));
+    });
+  });
+}
+
+async function update() {
+  await mkdir(userDir, { recursive: true });
+  const pid = await readPid();
+  const shouldRestart = pid != null && isProcessRunning(pid);
+
+  if (shouldRestart) {
+    console.log("RssAny 正在运行 (pid " + pid + ")，先停止服务...");
+    await stop();
+  } else if (pid != null) {
+    await rm(pidPath, { force: true });
+  }
+
+  const npmCommand = process.env.RSSANY_UPDATE_NPM_CMD?.trim() || (process.platform === "win32" ? "npm.cmd" : "npm");
+  console.log("正在更新 RssAny: npm install -g rssany@latest");
+  try {
+    await runCommand(npmCommand, ["install", "-g", "rssany@latest"]);
+  } catch (err) {
+    console.error(err instanceof Error ? err.message : String(err));
+    process.exitCode = 1;
+    return;
+  }
+
+  console.log("RssAny 更新完成。");
+  if (shouldRestart) {
+    console.log("重新启动 RssAny...");
+    await start();
+  }
+}
+
 if (command === "reset") {
   await import(new URL("../scripts/reset.mjs", import.meta.url));
 } else if (command === "start") {
@@ -220,6 +270,8 @@ if (command === "reset") {
   await stop();
 } else if (command === "crawl") {
   await crawl();
+} else if (command === "update") {
+  await update();
 } else {
   printUsage();
   if (command) process.exitCode = 1;

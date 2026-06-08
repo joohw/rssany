@@ -193,7 +193,7 @@
             items={LEVEL_OPTIONS}
           >
             <Select.Trigger class="log-level-trigger" aria-label="级别">
-              <span>{selectedLevelLabel}</span>
+              <span class="log-level-label">{selectedLevelLabel}</span>
               <ChevronDown size={14} aria-hidden="true" />
             </Select.Trigger>
             <Select.Portal>
@@ -324,33 +324,41 @@
     width: min(16rem, 34vw);
   }
   .log-level-trigger {
-    width: 7rem;
-    min-width: 7rem;
-    height: 2rem;
-    min-height: 2rem;
+    width: 7.25rem;
+    min-width: 7.25rem;
+    height: 2.25rem;
     box-sizing: border-box;
     display: inline-flex;
     align-items: center;
     justify-content: space-between;
-    gap: 0.4rem;
-    padding: 0.35rem 0.55rem 0.35rem 0.6rem;
+    gap: 0.5rem;
+    padding: 0.45rem 0.65rem;
     font-size: 0.8125rem;
     font-family: inherit;
     color: var(--color-foreground);
     background: var(--color-card-elevated);
     border: 1px solid var(--color-input);
-    border-radius: var(--radius-sm);
+    border-radius: 6px;
     flex-shrink: 0;
     cursor: pointer;
     font-variant-numeric: tabular-nums;
+    transition:
+      border-color 0.15s,
+      background 0.15s,
+      box-shadow 0.15s;
   }
   .log-level-trigger:hover {
-    background: var(--color-card);
     border-color: var(--color-border);
   }
   .log-level-trigger:focus-visible {
     outline: none;
     border-color: var(--color-primary);
+    box-shadow: 0 0 0 3px var(--color-primary-light);
+  }
+  .log-level-label {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
   }
   .log-level-trigger :global(svg) {
     flex-shrink: 0;

@@ -31,9 +31,7 @@
 | --- | ------------------------------------------------------------ |
 | 运行时 | Node.js **20–23**（见 `package.json` `engines`）                |
 | 后端  | Hono、`tsx` 开发入口                                              |
-| 数据  | **SQLite**（Node.js 内置 `node:sqlite`，Node.js 20+），默认 **`~/.rssany/data/rssany.db`**（Windows：`%USERPROFILE%\.rssany\data\rssany.db`） |
-
----
+| 数据  | **SQLite**（Node.js 内置 `node:sqlite`，Node.js 20+），全局安装默认 **`{npm prefix}/var/rssany/data/rssany.db`** |
 
 ## 快速开始
 
@@ -46,9 +44,20 @@ npm install -g rssany   # 与 npm i -g rssany 相同
 rssany start
 ```
 
+**macOS / Linux（系统自带 Node）** 若 `npm install -g` 报 `EACCES`，先一次性配置 npm 使用用户目录（仍是 npm 命令，无需 sudo）：
+
+```bash
+npm config set prefix "$HOME/.local"
+export PATH="$HOME/.local/bin:$PATH"   # 可写入 ~/.zshrc 或 ~/.bashrc
+npm install -g rssany
+```
+
+使用 **nvm / fnm** 安装的 Node 通常可直接 `npm install -g rssany`，无需上述配置。
+
 安装包内已包含构建好的后端与 Web 界面；用 **`rssany start`** 后台启动并直接返回访问地址（默认 **`http://127.0.0.1:18473/`**，端口可在**运行命令时当前目录**下的 `.env` 里设置 `PORT`）；用 **`rssany stop`** 关闭后台服务并输出执行状态。
 
-- **数据目录**：首次运行会在 **`~/.rssany/`**（Windows：`%USERPROFILE%\.rssany\`）自动从包内 **`init/`** 生成 `sources.json`、`config.json` 等（已存在则不会覆盖）。
+- **数据目录**：全局安装时落在 **npm prefix 下的 `var/rssany/`**（例如 `~/.local/var/rssany/` 或 nvm 的 `.../node/v22.x/var/rssany/`），与 `lib/node_modules/rssany` 同级，升级 npm 包不会覆盖配置与数据库。源码开发时使用仓库内 **`.rssany/`**。仍可用 **`RSSANY_USER_DIR`** 覆盖。
+- **从 `~/.rssany` 迁移**：若新目录尚不存在且旧目录有数据，首次启动会自动迁移。
 - **可选配置**：在启动 `rssany start` 时的**当前目录**放置 `.env`（可参考仓库里的 `.env.example`），用于 JWT、OAuth、SMTP、LLM（如 `OPENAI_API_KEY` / `OPENAI_BASE_URL` / `OPENAI_MODEL`）等。
 - **重置全部本地数据**（结束占用 `PORT` 的进程并删除用户目录，慎用）：执行 **`rssany reset`**；在含 `.env` 的目录下运行可读取 `PORT` / `RSSANY_USER_DIR`，或事先在环境里导出这些变量。
 

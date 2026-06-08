@@ -1,11 +1,39 @@
 <script lang="ts">
   import { PRODUCT_NAME } from '$lib/brand';
   import BackToParentRoute from '$lib/BackToParentRoute.svelte';
+  import { onMount } from 'svelte';
+  import { Select } from 'bits-ui';
+  import ChevronDown from 'lucide-svelte/icons/chevron-down';
+  import { adminFetchJson } from '$lib/adminAuth';
   let urlInput = '';
   let proxyInput = '';
+  let proxyOptions: string[] = [];
   let loading = false;
   let errorText = '';
   let resultText = '';
+
+  $: proxyNotInOptions = proxyInput.trim() && !proxyOptions.includes(proxyInput.trim());
+  $: proxySelectItems = [
+    { value: '', label: '使用默认代理' },
+    ...(proxyNotInOptions ? [{ value: proxyInput, label: `${proxyInput}（当前配置，未在代理列表中）` }] : []),
+    ...proxyOptions.map((proxy) => ({ value: proxy, label: proxy })),
+  ];
+  $: selectedProxyLabel = proxySelectItems.find((item) => item.value === proxyInput)?.label ?? '使用默认代理';
+
+  function onProxyChange(value: string) {
+    proxyInput = value;
+  }
+
+  async function loadProxyOptions() {
+    try {
+      const data = await adminFetchJson<{ proxyList?: unknown }>('/api/proxy');
+      proxyOptions = Array.isArray(data.proxyList)
+        ? data.proxyList.filter((v): v is string => typeof v === 'string' && v.trim().length > 0)
+        : [];
+    } catch {
+      proxyOptions = [];
+    }
+  }
 
   async function go() {
     if (!urlInput.trim()) return;
@@ -37,6 +65,8 @@
       loading = false;
     }
   }
+
+  onMount(loadProxyOptions);
 </script>
 
 <svelte:head>
@@ -61,16 +91,40 @@
             required
             autocomplete="url"
           />
-          <button type="submit" disabled={loading}>{loading ? '解析中…' : '解析'}</button>
         </div>
         <div class="proxy-row">
-          <input
-            type="text"
-            bind:value={proxyInput}
-            placeholder="代理（可选），如 http://127.0.0.1:7890 — 覆盖信源与 HTTP_PROXY"
-            autocomplete="off"
-            spellcheck="false"
-          />
+          <Select.Root
+            type="single"
+            value={proxyInput}
+            onValueChange={onProxyChange}
+            items={proxySelectItems}
+          >
+            <Select.Trigger class="proxy-select-trigger" aria-label="代理">
+              <span>{selectedProxyLabel}</span>
+              <ChevronDown size={14} aria-hidden="true" />
+            </Select.Trigger>
+            <Select.Portal>
+              <Select.Content class="proxy-select-content" sideOffset={4}>
+                <Select.Viewport class="proxy-select-viewport">
+                  {#each proxySelectItems as option (option.value)}
+                    <Select.Item
+                      class="proxy-select-item"
+                      value={option.value}
+                      label={option.label}
+                    >
+                      {option.label}
+                    </Select.Item>
+                  {/each}
+                </Select.Viewport>
+              </Select.Content>
+            </Select.Portal>
+          </Select.Root>
+          {#if proxyOptions.length === 0}
+            <p class="field-hint">暂无代理列表，可在后台「代理」中添加。</p>
+          {/if}
+        </div>
+        <div class="action-row">
+          <button type="submit" disabled={loading}>{loading ? '解析中…' : '解析'}</button>
         </div>
       </form>
 
@@ -83,15 +137,6 @@
           <pre class="result-json">{resultText}</pre>
         </div>
       {/if}
-
-      <div class="info-box">
-        <p>
-          抓取在<strong>服务端</strong>执行，默认<strong>有头</strong> Chrome（与信源同一套 Puppeteer），会弹出可见窗口；本页 <code>fetch</code> 仅用于展示 JSON。需要无头时在 URL 加 <code>?headless=true</code>。
-        </p>
-        <p class="info-note">
-          返回中的 <code>effectiveProxy</code> 为本次抓取实际选用的代理。若需在看得到的窗口里验证出口 IP，请在该 Puppeteer 窗口内打开 <code>api.ipify.org</code> 等（勿用本机普通浏览器标签测代理）。
-        </p>
-      </div>
     </div>
   </div>
 </div>
@@ -106,7 +151,7 @@
     padding: 0;
   }
   .feed-header {
-    padding: 0.875rem 0;
+    padding: var(--main-padding-top) 0 0.875rem;
     flex-shrink: 0;
     border-bottom: 1px solid var(--color-border-muted);
   }
@@ -152,7 +197,12 @@
     border-color: var(--color-primary);
     box-shadow: 0 0 0 3px var(--color-primary-light);
   }
-  .url-row button {
+  .action-row {
+    display: flex;
+    justify-content: flex-start;
+    margin-bottom: 0.75rem;
+  }
+  .action-row button {
     padding: 0.65rem 1.375rem;
     background: var(--color-primary);
     color: var(--color-primary-foreground);
@@ -164,10 +214,10 @@
     white-space: nowrap;
     transition: background 0.15s;
   }
-  .url-row button:hover:not(:disabled) {
+  .action-row button:hover:not(:disabled) {
     background: var(--color-primary-hover);
   }
-  .url-row button:disabled {
+  .action-row button:disabled {
     opacity: 0.65;
     cursor: not-allowed;
   }
@@ -209,7 +259,11 @@
   .proxy-row {
     margin-bottom: 0.75rem;
   }
-  .proxy-row input {
+  :global(.proxy-select-trigger) {
+    display: inline-flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.5rem;
     width: 100%;
     box-sizing: border-box;
     padding: 0.55rem 1rem;
@@ -222,39 +276,60 @@
       box-shadow 0.15s;
     background: var(--color-card-elevated);
     color: var(--color-foreground);
-    font-family: ui-monospace, monospace;
+    font-family: inherit;
+    cursor: pointer;
   }
-  .proxy-row input:focus {
+  :global(.proxy-select-trigger:focus-visible) {
     border-color: var(--color-primary);
     box-shadow: 0 0 0 3px var(--color-primary-light);
   }
-
-  .info-box {
-    margin-top: 2rem;
-    width: 100%;
-    background: var(--color-primary-light);
-    border: 1px solid color-mix(in srgb, var(--color-primary) 38%, transparent);
+  :global(.proxy-select-trigger span) {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  :global(.proxy-select-content) {
+    z-index: 140;
+    width: var(--bits-select-anchor-width);
+    max-width: min(42rem, calc(100vw - 2rem));
+    padding: 0.25rem;
+    background: var(--color-card-elevated);
+    border: 1px solid var(--color-border);
     border-radius: var(--radius-md);
-    padding: 0.875rem 1.125rem;
-    font-size: 0.8rem;
-    color: var(--color-muted-foreground-strong);
-    line-height: 1.7;
+    box-shadow: var(--shadow-panel);
   }
-  .info-box p {
-    margin: 0 0 0.65rem;
+  :global(.proxy-select-viewport) {
+    display: flex;
+    flex-direction: column;
+    gap: 0.05rem;
+    max-height: 16rem;
+    overflow: auto;
   }
-  .info-box p:last-child {
-    margin-bottom: 0;
+  :global(.proxy-select-item) {
+    display: flex;
+    align-items: center;
+    min-height: 2rem;
+    padding: 0.4rem 0.6rem;
+    font-size: 0.8125rem;
+    line-height: 1.25;
+    color: var(--color-foreground);
+    border-radius: var(--radius-sm);
+    outline: none;
+    cursor: pointer;
+    word-break: break-all;
   }
-  .info-note {
-    color: var(--color-muted-foreground);
-    font-size: 0.78rem;
-  }
-  .info-box code {
+  :global(.proxy-select-item[data-highlighted]) {
     background: var(--color-muted);
-    padding: 0.1rem 0.35rem;
-    border-radius: 3px;
-    font-family: monospace;
+  }
+  :global(.proxy-select-item[data-selected]) {
+    color: var(--color-primary);
+    background: var(--color-primary-light);
+  }
+  .field-hint {
+    margin: 0.4rem 0 0;
+    font-size: 0.75rem;
+    color: var(--color-muted-foreground-soft);
+    line-height: 1.4;
   }
 
   @media (max-width: 600px) {

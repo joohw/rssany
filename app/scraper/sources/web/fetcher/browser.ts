@@ -1,6 +1,7 @@
 // 使用无头浏览器（Puppeteer）拉取页面，缓存逻辑在 cacher 中
 
 import { exec } from "node:child_process";
+import { createHash } from "node:crypto";
 import { platform } from "node:os";
 import { join, resolve } from "node:path";
 import { promisify } from "node:util";
@@ -66,10 +67,16 @@ function launchArgs(config?: { proxy?: string; headless?: boolean }): string[] {
 }
 
 
-/** 获取 userDataDir：统一使用 main 目录，所有站点共享同一浏览器 profile */
-function getUserDataDir(cacheDir?: string): string | undefined {
+/** 获取 userDataDir：默认共享 main；不同代理使用独立 profile，避免 Chrome profile 锁冲突。 */
+function proxyProfileName(proxy?: string): string {
+  if (!proxy) return "main";
+  const hash = createHash("sha1").update(proxy).digest("hex").slice(0, 12);
+  return `main_proxy_${hash}`;
+}
+
+function getUserDataDir(cacheDir?: string, proxy?: string): string | undefined {
   if (!cacheDir) return undefined;
-  return join(cacheDir, "browser_data", "main");
+  return join(cacheDir, "browser_data", proxyProfileName(proxy));
 }
 
 
@@ -187,8 +194,8 @@ async function setupPage(page: Page, headless = true): Promise<void> {
 }
 
 
-// ─── 浏览器：单发模式 ─────────────────────────────────────────────────────────
-// 每次任务独立启动 Chrome，用毕在调用方 `browser.close()`；不保留全局单例，不跨请求复用 Tab。
+// ─── 浏览器：共享实例模式 ─────────────────────────────────────────────────────
+// 同一 launch 桶复用 Chrome 进程；每次请求只创建并关闭自己的 Tab。
 
 /** 是否为「frame 已分离」类错误（页面发生客户端导航/重定向导致主 frame 失效） */
 function isFrameDetachedError(e: unknown): boolean {
@@ -207,17 +214,149 @@ type BrowserLaunchConfig = {
 type SharedBrowserSlot = {
   browser?: Browser;
   promise?: Promise<Browser>;
+  headless?: boolean;
 };
 
 const sharedBrowsers = new Map<string, SharedBrowserSlot>();
+const managedBrowsers = new WeakSet<Browser>();
+const infoPagePromises = new WeakMap<Browser, Promise<void>>();
+
+const RSSANY_INFO_PAGE_PREFIX = "data:text/html;charset=utf-8,";
+
+function rssAnyInfoPageUrl(): string {
+  const html = `<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>RssAny 浏览器</title>
+  <style>
+    :root {
+      color-scheme: light dark;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      background: #f7f7f5;
+      color: #202124;
+    }
+    body {
+      margin: 0;
+      min-height: 100vh;
+      display: grid;
+      place-items: center;
+      padding: 32px;
+      box-sizing: border-box;
+    }
+    main {
+      max-width: 680px;
+      border: 1px solid #d7d7d1;
+      border-radius: 8px;
+      background: #ffffff;
+      padding: 28px 32px;
+      box-shadow: 0 8px 24px rgba(0, 0, 0, 0.08);
+    }
+    h1 {
+      margin: 0 0 12px;
+      font-size: 24px;
+      line-height: 1.25;
+    }
+    p {
+      margin: 10px 0 0;
+      font-size: 15px;
+      line-height: 1.7;
+    }
+    code {
+      font-family: ui-monospace, SFMono-Regular, Consolas, "Liberation Mono", monospace;
+      font-size: 13px;
+      background: #f0f0ec;
+      padding: 2px 6px;
+      border-radius: 4px;
+    }
+    @media (prefers-color-scheme: dark) {
+      :root {
+        background: #181a1b;
+        color: #f1f1ed;
+      }
+      main {
+        background: #202325;
+        border-color: #3a3d3f;
+        box-shadow: none;
+      }
+      code {
+        background: #303335;
+      }
+    }
+  </style>
+</head>
+<body>
+  <main>
+    <h1>这是 RssAny 创建的浏览器</h1>
+    <p>RssAny 会复用这个浏览器执行订阅抓取、站点登录、页面解析和调试打开等任务。</p>
+    <p>抓取任务会临时打开自己的标签页，完成后自动关闭。请保留此页面，以便区分 RssAny 管理的浏览器窗口。</p>
+    <p>用户数据与 cookies 保存在 <code>.rssany/cache/browser_data</code> 对应的浏览器 profile 中。</p>
+  </main>
+</body>
+</html>`;
+  return `${RSSANY_INFO_PAGE_PREFIX}${encodeURIComponent(html)}`;
+}
+
+function isRssAnyInfoPage(page: Page): boolean {
+  return page.url().startsWith(RSSANY_INFO_PAGE_PREFIX);
+}
+
+function isBlankPage(page: Page): boolean {
+  const url = page.url();
+  return url === "about:blank" || url === "" || url.startsWith("chrome://newtab");
+}
+
+async function cleanupExtraBlankPages(browser: Browser): Promise<void> {
+  if (!isBrowserConnected(browser)) return;
+  const pages = await browser.pages().catch(() => []);
+  for (const page of pages) {
+    if (page.isClosed() || isRssAnyInfoPage(page) || !isBlankPage(page)) continue;
+    if (pages.length <= 1) continue;
+    await page.close().catch(() => {});
+  }
+}
+
+async function ensureRssAnyInfoPage(browser: Browser): Promise<void> {
+  if (!isBrowserConnected(browser)) return;
+  const current = infoPagePromises.get(browser);
+  if (current) return current;
+  const promise = (async () => {
+    const pages = await browser.pages().catch(() => []);
+    if (pages.some((page) => !page.isClosed() && isRssAnyInfoPage(page))) {
+      await cleanupExtraBlankPages(browser);
+      return;
+    }
+    const page = await browser.newPage();
+    await page.goto(rssAnyInfoPageUrl(), { waitUntil: "domcontentloaded", timeout: 10_000 }).catch(() => {});
+    await cleanupExtraBlankPages(browser);
+  })().finally(() => {
+    infoPagePromises.delete(browser);
+  });
+  infoPagePromises.set(browser, promise);
+  return promise;
+}
+
+function setupRssAnyBrowserLifecycle(browser: Browser, headless: boolean): void {
+  if (headless || managedBrowsers.has(browser)) return;
+  managedBrowsers.add(browser);
+  browser.on("targetcreated", () => {
+    setTimeout(() => {
+      cleanupExtraBlankPages(browser).catch(() => {});
+    }, 2500);
+  });
+  browser.on("targetdestroyed", () => {
+    setTimeout(() => {
+      ensureRssAnyInfoPage(browser).catch(() => {});
+    }, 300);
+  });
+}
 
 function browserKey(config: BrowserLaunchConfig): string {
-  const wantHeadless = config.headless !== false;
   const executablePath = config.chromeExecutablePath ?? process.env.CHROME_PATH ?? findChromeExecutable() ?? "";
-  const userDataDir = getUserDataDir(config.cacheDir);
   const proxy = resolveProxy(config) ?? "";
+  const userDataDir = getUserDataDir(config.cacheDir, proxy);
   return JSON.stringify({
-    headless: wantHeadless,
     userDataDir: userDataDir ? resolve(userDataDir) : "",
     proxy,
     executablePath,
@@ -237,7 +376,8 @@ export async function launchBrowser(config: BrowserLaunchConfig): Promise<Browse
   if (!executablePath) {
     throw new Error("未找到 Chrome 可执行文件，请安装 Google Chrome 或设置 CHROME_PATH 环境变量");
   }
-  const userDataDir = getUserDataDir(config.cacheDir);
+  const proxy = resolveProxy(config);
+  const userDataDir = getUserDataDir(config.cacheDir, proxy);
   const maxRetries = 2;
   let lastErr: unknown;
   for (let attempt = 0; attempt <= maxRetries; attempt++) {
@@ -253,7 +393,7 @@ export async function launchBrowser(config: BrowserLaunchConfig): Promise<Browse
       }
       return await puppeteerCore.launch({
         headless: wantHeadless,
-        args: launchArgs({ proxy: config.proxy, headless: wantHeadless }),
+        args: launchArgs({ proxy, headless: wantHeadless }),
         userDataDir,
         executablePath,
         ignoreDefaultArgs: ["--enable-automation"],
@@ -266,7 +406,7 @@ export async function launchBrowser(config: BrowserLaunchConfig): Promise<Browse
       if (isAlreadyRunningError(e)) {
         const dir = userDataDir ?? "browser_data/main";
         throw new Error(
-          `Chrome 的 profile 目录已被占用（${dir}）。通常是因为上次未正常退出或同时运行了多个本服务实例。请关闭占用该目录的 Chrome 进程后重试，或设置环境变量 CACHE_DIR 使用不同缓存目录。`
+          `Chrome 的 profile 目录已被占用（${dir}）。通常是因为上次未正常退出，或另一个服务实例正在使用同一个缓存目录。请关闭占用该目录的 Chrome 进程后重试，或设置环境变量 CACHE_DIR 使用不同缓存目录。`
         );
       }
       throw e;
@@ -279,29 +419,56 @@ export async function launchBrowser(config: BrowserLaunchConfig): Promise<Browse
 /**
  * Get a reusable browser for crawler requests.
  *
- * Proxy is a Chrome launch option, so reuse is bucketed by headless/userDataDir/proxy/executablePath.
- * Requests with the same launch config share one browser and only create/close their own pages.
+ * Proxy is a Chrome launch option, so reuse is bucketed by userDataDir/proxy/executablePath.
+ * Requests in the same bucket share one browser and only create/close their own pages.
  */
 export async function getOrCreateBrowser(config: BrowserLaunchConfig): Promise<Browser> {
-  const key = browserKey(config);
+  const normalizedConfig = { ...config, proxy: resolveProxy(config) };
+  const key = browserKey(normalizedConfig);
+  const wantHeadless = normalizedConfig.headless !== false;
   const current = sharedBrowsers.get(key);
-  if (isBrowserConnected(current?.browser)) {
-    return current.browser;
-  }
   if (current?.promise) {
-    return current.promise;
+    const browser = await current.promise;
+    if (isBrowserConnected(browser) && (wantHeadless || current.headless === false)) {
+      if (!wantHeadless) {
+        await ensureRssAnyInfoPage(browser);
+      }
+      return browser;
+    }
+    if (isBrowserConnected(browser)) {
+      await browser.close().catch(() => {});
+    }
+    if (sharedBrowsers.get(key) === current) {
+      sharedBrowsers.delete(key);
+    }
+  } else if (isBrowserConnected(current?.browser)) {
+    if (wantHeadless || current.headless === false) {
+      if (!wantHeadless) {
+        await ensureRssAnyInfoPage(current.browser);
+      }
+      return current.browser;
+    }
+    await current.browser.close().catch(() => {});
+    if (sharedBrowsers.get(key) === current) {
+      sharedBrowsers.delete(key);
+    }
   }
 
   const slot: SharedBrowserSlot = {};
-  const promise = launchBrowser({ ...config, proxy: resolveProxy(config) }).then((browser) => {
+  const promise = launchBrowser(normalizedConfig).then((browser) => {
     slot.browser = browser;
     slot.promise = undefined;
+    slot.headless = wantHeadless;
+    setupRssAnyBrowserLifecycle(browser, wantHeadless);
     browser.once("disconnected", () => {
       if (sharedBrowsers.get(key)?.browser === browser) {
         sharedBrowsers.delete(key);
       }
     });
-    return browser;
+    if (wantHeadless) {
+      return browser;
+    }
+    return ensureRssAnyInfoPage(browser).then(() => browser);
   }).catch((err) => {
     if (sharedBrowsers.get(key) === slot) {
       sharedBrowsers.delete(key);
@@ -351,10 +518,9 @@ export async function ensureAuth(
   opts?: { proxy?: string }
 ): Promise<void> {
   const { checkAuth, loginUrl, loginTimeoutMs = 60 * 1000, pollIntervalMs = 2000 } = authFlow;
-  const browser = await launchBrowser({ headless: false, cacheDir, proxy: resolveProxy(opts) });
+  const browser = await getOrCreateBrowser({ headless: false, cacheDir, proxy: resolveProxy(opts) });
+  const page = await browser.newPage();
   try {
-    const page = await browser.newPage();
-    try {
       await setupPage(page, false);
       await applyProxyAuthToPage(page, opts);
       await page.goto(loginUrl, { waitUntil: "domcontentloaded", timeout: 60000 });
@@ -368,17 +534,38 @@ export async function ensureAuth(
         if (authenticated) return;
       }
       throw new Error(`登录超时（${loginTimeoutMs}ms）`);
-    } finally {
-      await page.close().catch(() => {});
-    }
   } finally {
-    await browser.close().catch(() => {});
+    await page.close().catch(() => {});
   }
 }
 
 
-// 单发浏览器：本次任务内最多开两个 Tab（frame 分离时重试一次），结束后关闭 Chrome
-// 若发生「Navigating frame was detached」等 frame 分离错误（常见于 SPA 客户端跳转），会换新 Tab 重试一次，并用 domcontentloaded 尽快取 HTML
+/**
+ * Open a user-visible page in the same shared browser pool used by crawlers.
+ *
+ * The page stays open for manual debugging/login. If opening fails, only this
+ * page is closed; the shared browser remains available for later crawler work.
+ */
+export async function openBrowserPage(
+  url: string,
+  cacheDir: string,
+  opts?: { proxy?: string }
+): Promise<Page> {
+  const browser = await getOrCreateBrowser({ headless: false, cacheDir, proxy: resolveProxy(opts) });
+  const page = await browser.newPage();
+  try {
+    await setupPage(page, false);
+    await applyProxyAuthToPage(page, opts);
+    await page.goto(url, { waitUntil: "domcontentloaded", timeout: 60_000 });
+    return page;
+  } catch (err) {
+    await page.close().catch(() => {});
+    throw err;
+  }
+}
+
+// 共享浏览器：本次任务内最多开两个 Tab（frame 分离时重试一次），任务结束后关闭自己的 Page。
+// 若发生「Navigating frame was detached」等 frame 分离错误（常见于 SPA 客户端跳转），会换新 Tab 重试一次，并用 domcontentloaded 尽快取 HTML。
 export async function fetchHtml(url: string, config: RequestConfig = {}): Promise<StructuredHtmlResult> {
   const {
     timeoutMs,

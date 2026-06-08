@@ -2,7 +2,7 @@
 
 import type { Hono } from "hono";
 import { getWebSite, getBestSite, toAuthFlow } from "../../scraper/sources/web/index.js";
-import { applyProxyAuthToPage, ensureAuth, preCheckAuth, launchBrowser, resolveProxy } from "../../scraper/sources/web/fetcher/index.js";
+import { ensureAuth, preCheckAuth, openBrowserPage, resolveProxy } from "../../scraper/sources/web/fetcher/index.js";
 import { CACHE_DIR } from "../../config/paths.js";
 import { resolveProxyForSite } from "../../config/globalProxy.js";
 
@@ -36,21 +36,7 @@ export function registerAuthRoutes(app: Hono): void {
     if (!authFlow) return c.json({ ok: false, message: "该站点无需登录" }, 400);
     const { loginUrl } = authFlow;
     const proxy = await resolveProxyForSite(site);
-    void launchBrowser({ headless: false, cacheDir: CACHE_DIR, proxy: resolveProxy({ proxy }) }).then(async (browser) => {
-      try {
-        const page = await browser.newPage();
-        await applyProxyAuthToPage(page, { proxy });
-        const realUserAgent = "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36";
-        await page.setUserAgent(realUserAgent);
-        await page.setViewport({ width: 1366, height: 960 });
-        await page.goto(loginUrl, { waitUntil: "domcontentloaded", timeout: 60000 });
-        page.once("close", () => {
-          void browser.close().catch(() => {});
-        });
-      } catch {
-        await browser.close().catch(() => {});
-      }
-    }).catch(() => {});
+    void openBrowserPage(loginUrl, CACHE_DIR, { proxy: resolveProxy({ proxy }) }).catch(() => {});
     return c.json({ ok: true, message: "已打开登录页面" });
   });
 

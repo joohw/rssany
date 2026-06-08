@@ -14,6 +14,7 @@
   "files": [
     "dist",
     "bin",
+    "scripts/user-dir.mjs",
     "app/plugins/builtin",
     "app/plugins/site.rssany.js",
     "statics",
@@ -22,6 +23,8 @@
     "README.md",
     "init",
     "scripts/reset.mjs",
+    "scripts/postinstall.mjs",
+    "scripts/user-dir.mjs",
     "scripts/dev.mjs"
   ],
   "engines": {
@@ -40,6 +43,7 @@
     "lint:fix": "eslint . --fix",
     "typecheck": "tsc --noEmit",
     "reset": "node scripts/reset.mjs",
+    "postinstall": "node scripts/postinstall.mjs",
     "proxy-browser": "tsx scripts/proxy-browser.ts",
     "webui:install": "cd app/webui && npm install",
     "webui:dev": "cd app/webui && npm run build:watch",

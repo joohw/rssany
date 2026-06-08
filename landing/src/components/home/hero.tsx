@@ -12,7 +12,7 @@ import styles from "@/app/page.module.css";
 
 const WORKFLOW_LINES = [
   { prompt: true, text: "npm install -g rssany" },
-  { prompt: true, text: "rssany" },
+  { prompt: true, text: "rssany start" },
   { prompt: false, text: "# open http://127.0.0.1:18473/" },
 ] as const;
 

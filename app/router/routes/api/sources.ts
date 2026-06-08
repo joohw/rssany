@@ -5,7 +5,7 @@ import { getSourceStats } from "../../../db/index.js";
 import { getSource } from "../../../scraper/sources/index.js";
 import { getPluginSites } from "../../../scraper/sources/web/index.js";
 import { getSourcesRaw, saveSourcesFile, getEffectiveProxyForListUrl } from "../../../scraper/subscription/index.js";
-import { launchBrowser, applyProxyAuthToPage, resolveProxy } from "../../../scraper/sources/web/fetcher/index.js";
+import { openBrowserPage, resolveProxy } from "../../../scraper/sources/web/fetcher/index.js";
 import { CACHE_DIR } from "../../../config/paths.js";
 import type { SourceType } from "../../../scraper/subscription/types.js";
 import type { RefreshInterval } from "../../../utils/refreshInterval.js";
@@ -52,24 +52,7 @@ export function registerSourcesRoutes(app: Hono): void {
       const source = getSource(url);
       const merged = await getEffectiveProxyForListUrl(url, source);
       const proxy = resolveProxy({ proxy: merged });
-      void launchBrowser({ headless: false, cacheDir: CACHE_DIR, proxy })
-        .then(async (browser) => {
-          try {
-            const page = await browser.newPage();
-            await applyProxyAuthToPage(page, { proxy: merged });
-            const realUserAgent =
-              "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36";
-            await page.setUserAgent(realUserAgent);
-            await page.setViewport({ width: 1366, height: 960 });
-            await page.goto(url, { waitUntil: "domcontentloaded", timeout: 60_000 });
-            page.once("close", () => {
-              void browser.close().catch(() => {});
-            });
-          } catch {
-            await browser.close().catch(() => {});
-          }
-        })
-        .catch(() => {});
+      void openBrowserPage(url, CACHE_DIR, { proxy }).catch(() => {});
       return c.json({ ok: true, message: "已在爬虫浏览器中打开" });
     } catch {
       return c.json({ ok: false, message: "请求体无效" }, 400);

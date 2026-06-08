@@ -1,41 +1,82 @@
-// 全局 HTTP(S) 代理：读写 .rssany/config.json 的 globalProxy；与单源代理合并见 subscription/getEffectiveProxyForListUrl
+// Global HTTP(S) proxy settings: read/write .rssany/config.json.
 
 import { readFile, writeFile } from "node:fs/promises";
 import { CONFIG_PATH } from "./paths.js";
 
-export async function readGlobalProxyFromConfig(): Promise<string | undefined> {
-  try {
-    const raw = await readFile(CONFIG_PATH, "utf-8");
-    const j = JSON.parse(raw) as { globalProxy?: unknown };
-    if (typeof j.globalProxy === "string") {
-      const t = j.globalProxy.trim();
-      return t.length > 0 ? t : undefined;
-    }
-  } catch {
-    /* 无文件或解析失败 */
+export type ProxySettings = {
+  globalProxy: string;
+  proxyList: string[];
+};
+
+function normalizeProxyList(raw: unknown): string[] {
+  if (!Array.isArray(raw)) return [];
+  const seen = new Set<string>();
+  const out: string[] = [];
+  for (const v of raw) {
+    if (typeof v !== "string") continue;
+    const t = v.trim();
+    if (!t || seen.has(t)) continue;
+    seen.add(t);
+    out.push(t);
   }
-  return undefined;
+  return out;
 }
 
-/** 写入或清空（空串则删除键） */
-export async function saveGlobalProxyToConfig(proxy: string): Promise<void> {
-  let root: Record<string, unknown> = {};
+async function readConfigRoot(): Promise<Record<string, unknown>> {
   try {
     const raw = await readFile(CONFIG_PATH, "utf-8");
-    root = JSON.parse(raw) as Record<string, unknown>;
+    return JSON.parse(raw) as Record<string, unknown>;
   } catch {
-    //
+    return {};
   }
-  const t = proxy.trim();
-  if (t.length === 0) {
-    delete root.globalProxy;
+}
+
+export async function readProxySettingsFromConfig(): Promise<ProxySettings> {
+  const root = await readConfigRoot();
+  const globalProxy = typeof root.globalProxy === "string" ? root.globalProxy.trim() : "";
+  return {
+    globalProxy,
+    proxyList: normalizeProxyList(root.proxyList),
+  };
+}
+
+export async function readGlobalProxyFromConfig(): Promise<string | undefined> {
+  const { globalProxy } = await readProxySettingsFromConfig();
+  return globalProxy.length > 0 ? globalProxy : undefined;
+}
+
+export async function readProxyListFromConfig(): Promise<string[]> {
+  const { proxyList } = await readProxySettingsFromConfig();
+  return proxyList;
+}
+
+export async function saveProxySettingsToConfig(settings: ProxySettings): Promise<void> {
+  const root = await readConfigRoot();
+  const globalProxy = settings.globalProxy.trim();
+  const proxyList = normalizeProxyList(settings.proxyList);
+
+  if (globalProxy) {
+    root.globalProxy = globalProxy;
   } else {
-    root.globalProxy = t;
+    delete root.globalProxy;
   }
+
+  if (proxyList.length > 0) {
+    root.proxyList = proxyList;
+  } else {
+    delete root.proxyList;
+  }
+
   await writeFile(CONFIG_PATH, JSON.stringify(root, null, 2) + "\n", "utf-8");
 }
 
-/** 插件 Site 声明的 proxy 优先于 config 全局代理 */
+/** Write or clear globalProxy while preserving proxyList. */
+export async function saveGlobalProxyToConfig(proxy: string): Promise<void> {
+  const current = await readProxySettingsFromConfig();
+  await saveProxySettingsToConfig({ ...current, globalProxy: proxy });
+}
+
+/** Plugin Site.proxy takes precedence over config globalProxy. */
 export async function resolveProxyForSite(site: { proxy?: string }): Promise<string | undefined> {
   const s = site.proxy?.trim();
   if (s) return s;

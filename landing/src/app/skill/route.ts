@@ -11,12 +11,12 @@ const SKILL_MARKDOWN = `# RssAny Agent Skill
 
 ## 安装与启动
 
-推荐全局安装：
-
 \`\`\`bash
 npm install -g rssany
 rssany start
 \`\`\`
+
+macOS 系统 Node 若遇 \`EACCES\`，先 \`npm config set prefix "$HOME/.local"\` 并将 \`$HOME/.local/bin\` 加入 PATH，再执行上述命令。用户数据默认在 npm prefix 下的 \`var/rssany/\`。
 
 默认服务地址是：
 

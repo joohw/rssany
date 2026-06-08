@@ -164,7 +164,7 @@
     padding: 0;
   }
   .feed-header {
-    padding: 0.875rem 0;
+    padding: var(--main-padding-top) 0 0.875rem;
     flex-shrink: 0;
     border-bottom: 1px solid var(--color-border-muted);
   }

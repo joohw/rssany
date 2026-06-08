@@ -5,6 +5,7 @@ export {
   preCheckAuth,
   launchBrowser,
   getOrCreateBrowser,
+  openBrowserPage,
   resolveProxy,
   applyProxyAuthToPage,
 } from "./browser.js";

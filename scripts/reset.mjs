@@ -6,17 +6,19 @@
 
 import { execFileSync } from "node:child_process";
 import { existsSync, rmSync } from "node:fs";
-import { homedir } from "node:os";
-import { join } from "node:path";
+import { join, dirname } from "node:path";
+import { fileURLToPath } from "node:url";
 import { config } from "dotenv";
+import { resolveDefaultUserDir } from "./user-dir.mjs";
 
 config({ path: join(process.cwd(), ".env") });
 
+const scriptDir = dirname(fileURLToPath(import.meta.url));
+const packageRoot = join(scriptDir, "..");
+
 const DEFAULT_PORT = 18473;
 const port = Number(process.env.PORT) || DEFAULT_PORT;
-const userDirRaw = process.env.RSSANY_USER_DIR?.trim();
-const userDir =
-  userDirRaw && userDirRaw.length > 0 ? userDirRaw : join(homedir(), ".rssany");
+const userDir = resolveDefaultUserDir(packageRoot);
 
 function pidsListeningWin32(p) {
   const cmd = `Get-NetTCPConnection -LocalPort ${p} -State Listen -ErrorAction SilentlyContinue | ForEach-Object { $_.OwningProcess } | Sort-Object -Unique`;

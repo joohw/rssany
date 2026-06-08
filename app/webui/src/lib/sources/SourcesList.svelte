@@ -15,8 +15,9 @@
   import Trash from 'lucide-svelte/icons/trash';
   import Copy from 'lucide-svelte/icons/copy';
   import Mail from 'lucide-svelte/icons/mail';
+  import ChevronDown from 'lucide-svelte/icons/chevron-down';
   import { page } from '$app/stores';
-  import { Dialog, Popover } from 'bits-ui';
+  import { Dialog, Popover, Select } from 'bits-ui';
   import { showToast } from '$lib/toastStore.js';
   import { refToTaskId, setPulling, clearPulling } from '$lib/sourcePullStore.js';
   import { adminFetch } from '$lib/adminAuth';
@@ -94,6 +95,7 @@
   // ── 列表状态 ──────────────────────────────────────────
   let rawSources: SubscriptionSource[] = [];
   let cards: SourceCard[] = [];
+  let proxyOptions: string[] = [];
   let loading = true;
   let loadError = '';
   let filterQuery = '';
@@ -131,6 +133,22 @@
   let formWeight = 0;
   let formRefresh = DEFAULT_SOURCE_REFRESH;
   let formProxy = '';
+  $: formProxyNotInOptions = formProxy.trim() && !proxyOptions.includes(formProxy.trim());
+  $: formProxyItems = [
+    { value: '', label: '使用默认代理' },
+    ...(formProxyNotInOptions ? [{ value: formProxy, label: `${formProxy}（当前配置，未在代理列表中）` }] : []),
+    ...proxyOptions.map((proxy) => ({ value: proxy, label: proxy })),
+  ];
+  $: selectedFormProxyLabel = formProxyItems.find((item) => item.value === formProxy)?.label ?? '使用默认代理';
+  $: selectedRefreshLabel = REFRESH_OPTIONS.find((item) => item.value === formRefresh)?.label ?? '1 天';
+
+  function onFormProxyChange(value: string) {
+    formProxy = value;
+  }
+
+  function onRefreshChange(value: string) {
+    formRefresh = value;
+  }
   /** 添加/编辑时，当前 Ref 匹配到的插件 id（仅提示用） */
   let formRefPluginId: string | null = null;
   let _pluginMatchTimeout: ReturnType<typeof setTimeout> | null = null;
@@ -324,13 +342,22 @@
     if (!silent) loading = true;
     loadError = '';
     try {
-      const [sourcesRes, statsRes] = await Promise.all([
+      const [sourcesRes, statsRes, proxyRes] = await Promise.all([
         adminFetch('/api/sources/raw'),
         adminFetch('/api/sources/stats'),
+        adminFetch('/api/proxy'),
       ]);
       const raw = await sourcesRes.text();
       const data = JSON.parse(raw || '{}') as { sources?: SubscriptionSource[] };
       rawSources = Array.isArray(data.sources) ? data.sources : [];
+      if (proxyRes.ok) {
+        const proxyData = (await proxyRes.json()) as { proxyList?: unknown };
+        proxyOptions = Array.isArray(proxyData.proxyList)
+          ? proxyData.proxyList.filter((v): v is string => typeof v === 'string' && v.trim().length > 0)
+          : [];
+      } else {
+        proxyOptions = [];
+      }
 
       const statsArr = statsRes.ok
         ? (await statsRes.json() as {
@@ -809,21 +836,65 @@
           </div>
           <div class="field">
             <span class="field-label">刷新间隔</span>
-            <select class="field-input" bind:value={formRefresh}>
-              {#each REFRESH_OPTIONS as opt}
-                <option value={opt.value}>{opt.label}</option>
-              {/each}
-            </select>
+            <Select.Root
+              type="single"
+              value={formRefresh}
+              onValueChange={onRefreshChange}
+              items={REFRESH_OPTIONS}
+            >
+              <Select.Trigger class="source-modal-select-trigger" aria-label="刷新间隔">
+                <span>{selectedRefreshLabel}</span>
+                <ChevronDown size={14} aria-hidden="true" />
+              </Select.Trigger>
+              <Select.Portal>
+                <Select.Content class="source-modal-select-content" sideOffset={4}>
+                  <Select.Viewport class="source-modal-select-viewport">
+                    {#each REFRESH_OPTIONS as option (option.value)}
+                      <Select.Item
+                        class="source-modal-select-item"
+                        value={option.value}
+                        label={option.label}
+                      >
+                        {option.label}
+                      </Select.Item>
+                    {/each}
+                  </Select.Viewport>
+                </Select.Content>
+              </Select.Portal>
+            </Select.Root>
           </div>
         </div>
         <div class="field">
           <span class="field-label">代理</span>
-          <input
-            class="field-input"
-            type="text"
-            placeholder="http://127.0.0.1:7890"
-            bind:value={formProxy}
-          />
+          <Select.Root
+            type="single"
+            value={formProxy}
+            onValueChange={onFormProxyChange}
+            items={formProxyItems}
+          >
+            <Select.Trigger class="source-modal-select-trigger" aria-label="代理">
+              <span>{selectedFormProxyLabel}</span>
+              <ChevronDown size={14} aria-hidden="true" />
+            </Select.Trigger>
+            <Select.Portal>
+              <Select.Content class="source-modal-select-content" sideOffset={4}>
+                <Select.Viewport class="source-modal-select-viewport">
+                  {#each formProxyItems as option (option.value)}
+                    <Select.Item
+                      class="source-modal-select-item"
+                      value={option.value}
+                      label={option.label}
+                    >
+                      {option.label}
+                    </Select.Item>
+                  {/each}
+                </Select.Viewport>
+              </Select.Content>
+            </Select.Portal>
+          </Select.Root>
+          {#if proxyOptions.length === 0}
+            <p class="field-hint">暂无代理列表，可在后台「代理」中添加。</p>
+          {/if}
         </div>
         {#if saveError}
           <p class="save-error">{saveError}</p>
@@ -1616,6 +1687,76 @@
   .field-input:focus {
     border-color: var(--color-primary);
     background: var(--color-card-elevated);
+  }
+  :global(.source-modal-select-trigger) {
+    display: inline-flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.5rem;
+    width: 100%;
+    padding: 0.4rem 0.65rem;
+    font-size: 0.875rem;
+    border: 1px solid var(--color-input);
+    border-radius: var(--radius-sm);
+    outline: none;
+    background: var(--color-card);
+    color: var(--color-foreground);
+    font-family: inherit;
+    cursor: pointer;
+    transition: border-color 0.15s, background 0.15s;
+  }
+  :global(.source-modal-select-trigger:focus-visible) {
+    border-color: var(--color-primary);
+    background: var(--color-card-elevated);
+    box-shadow: 0 0 0 3px var(--color-primary-light);
+  }
+  :global(.source-modal-select-trigger span) {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  :global(.source-modal-select-content) {
+    z-index: 140;
+    width: var(--bits-select-anchor-width);
+    max-width: min(34rem, calc(100vw - 2rem));
+    padding: 0.25rem;
+    background: var(--color-card-elevated);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-md);
+    box-shadow: var(--shadow-panel);
+  }
+  :global(.source-modal-select-viewport) {
+    display: flex;
+    flex-direction: column;
+    gap: 0.05rem;
+    max-height: 16rem;
+    overflow: auto;
+  }
+  :global(.source-modal-select-item) {
+    display: flex;
+    align-items: center;
+    min-height: 2rem;
+    padding: 0.4rem 0.6rem;
+    font-size: 0.8125rem;
+    line-height: 1.25;
+    color: var(--color-foreground);
+    border-radius: var(--radius-sm);
+    outline: none;
+    cursor: pointer;
+    word-break: break-all;
+  }
+  :global(.source-modal-select-item[data-highlighted]) {
+    background: var(--color-muted);
+  }
+  :global(.source-modal-select-item[data-selected]) {
+    color: var(--color-primary);
+    background: var(--color-primary-light);
+  }
+  .field-hint {
+    margin: 0;
+    font-size: 0.75rem;
+    color: var(--color-muted-foreground-soft);
+    line-height: 1.4;
   }
   /* 仅数字输入，不显示 type=number 的 ± 步进按钮 */
   .field-input--weight {

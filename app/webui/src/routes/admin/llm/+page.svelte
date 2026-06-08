@@ -191,7 +191,7 @@
   }
   .body {
     overflow: visible;
-    padding: 1rem 0;
+    padding: var(--main-padding-top) 0 1rem;
   }
   .intro {
     color: var(--color-muted-foreground-strong);

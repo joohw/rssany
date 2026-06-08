@@ -46,7 +46,7 @@
       title: '集成',
       links: [
         { href: '/admin/llm', label: 'LLM', desc: 'OpenAI 兼容 API（解析、Pipeline、标签与翻译）；可替代 .env 中的 OPENAI_*' },
-        { href: '/admin/proxy', label: '代理', desc: '全局 HTTP(S) 代理；单源在 sources.json 或插件中配置的代理优先' },
+        { href: '/admin/proxy', label: '代理', desc: '维护代理列表，并选择全局默认代理；信源可从列表中单独选择' },
         {
           href: '/admin/deliver',
           label: '投递',

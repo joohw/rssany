@@ -1,9 +1,9 @@
 /**
  * 信源 ref 入库与查询统一键（规范化存储）：
- * - http(s)：scheme、host（含端口）小写；pathname 小写并去掉非根路径末尾 `/`；query、hash 保持原样（避免破坏带大小写的查询参数）。
+ * - http(s)：scheme、host（含端口）小写；pathname、query、hash 保持原样；可通过 lowerPathCase 兼容旧的 path 小写键。
  * - 非 http(s)：trim 后全串小写。
  */
-export function canonicalHttpSourceRef(ref: string): string {
+export function canonicalHttpSourceRef(ref: string, opts: { lowerPathCase?: boolean } = {}): string {
   const t = ref.trim();
   if (!t) return t;
   if (!/^https?:\/\//i.test(t)) return t.toLowerCase();
@@ -15,7 +15,7 @@ export function canonicalHttpSourceRef(ref: string): string {
     if (path.length > 1 && path.endsWith("/")) {
       path = path.slice(0, -1);
     }
-    path = path.toLowerCase();
+    if (opts.lowerPathCase) path = path.toLowerCase();
     return `${protocol}//${host}${path}${u.search}${u.hash}`;
   } catch {
     return t.toLowerCase();
