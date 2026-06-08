@@ -45,6 +45,10 @@ jobs:
         if: ${{ steps.npm_gate.outputs.publish == 'true' }}
         run: npm ci
 
+      - name: Install WebUI dependencies
+        if: ${{ steps.npm_gate.outputs.publish == 'true' }}
+        run: npm run webui:install
+
       - name: Sync package version from tag
         if: ${{ steps.npm_gate.outputs.publish == 'true' && startsWith(github.ref, 'refs/tags/v') }}
         run: |
