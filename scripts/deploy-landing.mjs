@@ -237,6 +237,7 @@ async function main() {
     : [
         remoteRetryShellFunction,
         `REG_PASS="$(printf %s ${shEscape(dockerPasswordB64)} | base64 -d)"`,
+        "export REG_PASS",
         `retry_shell ${shEscape(`printf '%s' "$REG_PASS" | docker login ${shEscape(registryLoginHost)} -u ${shEscape(dockerUsername)} --password-stdin`)}`,
         "unset REG_PASS",
         `retry_shell ${shEscape(`docker pull ${shEscape(imageRef)}`)}`,
