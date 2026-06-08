@@ -217,14 +217,29 @@ async function main() {
   const imageRef = registry ? `${registry}/${imageName}:${imageTag}` : `${imageName}:${imageTag}`;
   const registryLoginHost = parseRegistryLoginHost(registry);
   const dockerPasswordB64 = Buffer.from(dockerPassword, "utf8").toString("base64");
+  const remoteRetryFunction = [
+    "retry() {",
+    "  attempt=1",
+    "  while [ \"$attempt\" -le 5 ]; do",
+    "    \"$@\" && return 0",
+    "    code=$?",
+    "    if [ \"$attempt\" -ge 5 ]; then return \"$code\"; fi",
+    "    wait_seconds=$((attempt * 5))",
+    "    echo \"remote command failed with $code; retrying in ${wait_seconds}s...\" >&2",
+    "    sleep \"$wait_seconds\"",
+    "    attempt=$((attempt + 1))",
+    "  done",
+    "}",
+  ].join("\n");
   const remoteImagePrepare = skipImageUpdate
     ? "echo 'skip image update: use existing remote image'"
     : [
+        remoteRetryFunction,
         `REG_PASS="$(printf %s ${shEscape(dockerPasswordB64)} | base64 -d)"`,
-        `printf '%s' "$REG_PASS" | docker login ${shEscape(registryLoginHost)} -u ${shEscape(dockerUsername)} --password-stdin`,
+        `printf '%s' "$REG_PASS" | retry docker login ${shEscape(registryLoginHost)} -u ${shEscape(dockerUsername)} --password-stdin`,
         "unset REG_PASS",
-        `docker pull ${shEscape(imageRef)}`,
-      ].join(" && ");
+        `retry docker pull ${shEscape(imageRef)}`,
+      ].join("\n");
   const remoteCommand = [
     "set -e",
     remoteImagePrepare,
