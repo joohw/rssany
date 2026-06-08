@@ -9,7 +9,7 @@ on:
       - "scripts/deploy-landing.mjs"
       - ".github/workflows/landing-deploy.yml"
       - "package.json"
-      - "pnpm-lock.yaml"
+      - "package-lock.json"
   workflow_dispatch:
     inputs:
       tag:
@@ -46,14 +46,8 @@ jobs:
         with:
           node-version: "22"
 
-      - name: Setup pnpm
-        uses: pnpm/action-setup@v4
-        with:
-          version: 10
-          run_install: false
-
       - name: Install deploy dependencies
-        run: pnpm install --frozen-lockfile
+        run: npm ci
 
       - name: Restore deploy config
         env:
@@ -93,4 +87,4 @@ jobs:
           if [ "$PULL_BASE" = "true" ]; then
             args+=(--pull-base)
           fi
-          pnpm run deploy:landing -- "${args[@]}"
+          npm run deploy:landing -- "${args[@]}"
