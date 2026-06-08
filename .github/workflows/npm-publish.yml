@@ -28,12 +28,11 @@ jobs:
         env:
           NPM_TOKEN: ${{ secrets.NPM_TOKEN }}
         run: |
-          if [ -n "$NPM_TOKEN" ]; then
-            echo "publish=true" >> "$GITHUB_OUTPUT"
-          else
-            echo "publish=false" >> "$GITHUB_OUTPUT"
-            echo "NPM_TOKEN is not configured; skipping npm publish."
+          if [ -z "$NPM_TOKEN" ]; then
+            echo "NPM_TOKEN is not configured. Add it in GitHub repository secrets before publishing." >&2
+            exit 1
           fi
+          echo "publish=true" >> "$GITHUB_OUTPUT"
 
       - name: Setup Node
         if: ${{ steps.npm_gate.outputs.publish == 'true' }}
