@@ -386,6 +386,31 @@
         }
       }
 
+      const buildCards = (pluginMap: Record<string, string | null> = {}) =>
+        rawSources
+          .filter((s) => s?.ref?.trim())
+          .map((s) => {
+            const ref = s.ref.trim();
+            const stat = statsMap.get(canonicalHttpSourceRef(ref)) ?? { count: 0, weekCount: 0, latestAt: null };
+            const pid = pluginMap[ref] ?? null;
+            const proxy = s.proxy?.trim();
+            return {
+              ref,
+              displayLabel: (s.label && s.label.trim()) || ref,
+              description: s.description?.trim(),
+              count: stat?.count ?? 0,
+              weekCount: stat?.weekCount ?? 0,
+              latestAt: stat?.latestAt ?? null,
+              pluginId: pid,
+              weight: s.weight ?? 0,
+              ...(proxy ? { proxy } : {}),
+              parseHint: computeParseHint(ref, pid),
+            };
+          });
+
+      cards = buildCards();
+      if (!silent) loading = false;
+
       const refs = rawSources.filter((s) => s?.ref?.trim()).map((s) => s.ref.trim());
       let pluginMap: Record<string, string | null> = {};
       if (refs.length > 0) {
@@ -398,27 +423,7 @@
           if (matchRes.ok) pluginMap = (await matchRes.json()) as Record<string, string | null>;
         } catch { /* ignore */ }
       }
-
-      cards = rawSources
-        .filter((s) => s?.ref?.trim())
-        .map((s) => {
-          const ref = s.ref.trim();
-          const stat = statsMap.get(canonicalHttpSourceRef(ref)) ?? { count: 0, weekCount: 0, latestAt: null };
-          const pid = pluginMap[ref] ?? null;
-          const proxy = s.proxy?.trim();
-          return {
-            ref,
-            displayLabel: (s.label && s.label.trim()) || ref,
-            description: s.description?.trim(),
-            count: stat?.count ?? 0,
-            weekCount: stat?.weekCount ?? 0,
-            latestAt: stat?.latestAt ?? null,
-            pluginId: pid,
-            weight: s.weight ?? 0,
-            ...(proxy ? { proxy } : {}),
-            parseHint: computeParseHint(ref, pid),
-          };
-        });
+      cards = buildCards(pluginMap);
     } catch (e) {
       loadError = e instanceof Error ? e.message : String(e);
       if (!silent) cards = [];
