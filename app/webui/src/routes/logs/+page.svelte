@@ -7,8 +7,9 @@
   import { showToast } from '$lib/toastStore.js';
 
   const LEVELS = ['error', 'warn', 'info', 'debug'] as const;
+  const ALL_LEVEL_VALUE = '__all__';
   const LEVEL_OPTIONS = [
-    { value: '', label: '全部' },
+    { value: ALL_LEVEL_VALUE, label: '全部' },
     ...LEVELS.map((level) => ({ value: level, label: level })),
   ];
   const FILTER_DEBOUNCE_MS = 350;
@@ -54,12 +55,13 @@
   }
 
   function onLevelChange(value: string) {
-    filterLevelInput = value;
+    filterLevelInput = value === ALL_LEVEL_VALUE ? '' : value;
     offset = 0;
     load();
   }
 
-  $: selectedLevelLabel = LEVEL_OPTIONS.find((option) => option.value === filterLevelInput)?.label ?? '全部';
+  $: selectedLevelValue = filterLevelInput || ALL_LEVEL_VALUE;
+  $: selectedLevelLabel = LEVEL_OPTIONS.find((option) => option.value === selectedLevelValue)?.label ?? '全部';
 
   onMount(() => {
     load();
@@ -188,7 +190,7 @@
           />
           <Select.Root
             type="single"
-            value={filterLevelInput}
+            value={selectedLevelValue}
             onValueChange={onLevelChange}
             items={LEVEL_OPTIONS}
           >
@@ -323,7 +325,7 @@
   .log-filter-input {
     width: min(16rem, 34vw);
   }
-  .log-level-trigger {
+  :global(.log-level-trigger) {
     width: 7.25rem;
     min-width: 7.25rem;
     height: 2.25rem;
@@ -347,20 +349,20 @@
       background 0.15s,
       box-shadow 0.15s;
   }
-  .log-level-trigger:hover {
+  :global(.log-level-trigger:hover) {
     border-color: var(--color-border);
   }
-  .log-level-trigger:focus-visible {
+  :global(.log-level-trigger:focus-visible) {
     outline: none;
     border-color: var(--color-primary);
     box-shadow: 0 0 0 3px var(--color-primary-light);
   }
-  .log-level-label {
+  :global(.log-level-label) {
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
   }
-  .log-level-trigger :global(svg) {
+  :global(.log-level-trigger svg) {
     flex-shrink: 0;
     color: var(--color-muted-foreground);
   }
