@@ -5,6 +5,7 @@
   import Rss from 'lucide-svelte/icons/rss';
   import ScrollText from 'lucide-svelte/icons/scroll-text';
   import Puzzle from 'lucide-svelte/icons/puzzle';
+  import Bot from 'lucide-svelte/icons/bot';
   import Settings from 'lucide-svelte/icons/settings';
   import { PRODUCT_NAME, GITHUB_REPO_URL } from '$lib/brand';
   import Toast from '$lib/components/ui/Toast.svelte';
@@ -21,7 +22,8 @@
       pathname === '/admin/sources' ||
       pathname === '/admin/tags' ||
       pathname === '/plugins' ||
-      pathname === '/logs'
+      pathname === '/logs' ||
+      pathname === '/skill'
     ) {
       return true;
     }
@@ -39,6 +41,7 @@
     sources: pathname === '/' || pathname === '/admin/sources',
     logs: pathname === '/logs' || pathname.startsWith('/logs/'),
     plugins: pathname.startsWith('/plugins'),
+    skill: pathname === '/skill',
     settings: pathname === '/admin' || pathname.startsWith('/admin/'),
   } as const;
 </script>
@@ -79,6 +82,15 @@
               aria-label="插件"
             >
               <Puzzle size={navIconSize} />
+            </a>
+            <a
+              href="/skill"
+              class="nav-rail-link"
+              class:active={navActive.skill}
+              title="Skill"
+              aria-label="Skill"
+            >
+              <Bot size={navIconSize} />
             </a>
             <a
               href="/admin"
