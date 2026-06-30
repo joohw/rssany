@@ -12,7 +12,15 @@ import { refreshIntervalToCron } from "../../utils/refreshInterval.js";
 import * as scheduler from "../../scheduler/index.js";
 
 const DEFAULT_REFRESH: RefreshInterval = "1day";
-const SOURCES_CONCURRENCY = 1;
+
+function readSourcesConcurrency(): number {
+  const raw = process.env.RSSANY_SOURCES_CONCURRENCY?.trim();
+  const parsed = raw ? Number(raw) : 4;
+  if (!Number.isFinite(parsed)) return 4;
+  return Math.max(1, Math.min(12, Math.floor(parsed)));
+}
+
+const SOURCES_CONCURRENCY = readSourcesConcurrency();
 
 function createPullTask(ref: string, cacheDir: string, cronExpr: string): scheduler.ScheduledTask {
   return async () => {

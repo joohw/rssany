@@ -48,6 +48,20 @@ function isAuxStatusSubpath(href) {
  * 主帖路径：优先取时间戳旁 permalink（与 UI 一致），避免首条任意 /status/ 链到引用帖或图集子链。
  */
 function extractPrimaryStatusPath(article) {
+  const tweetId = article.getAttribute?.("data-tweet-id");
+  if (tweetId) {
+    for (const a of article.querySelectorAll(`a[href*="/status/${tweetId}"]`)) {
+      const href = a.getAttribute("href") || "";
+      if (isAuxStatusSubpath(href)) continue;
+      const p = statusPathFromHref(href);
+      if (p) return p;
+    }
+    const dataHref = article.closest?.("[data-href]")?.getAttribute("data-href") || article.getAttribute?.("data-href") || "";
+    if (dataHref && dataHref.includes(`/status/${tweetId}`) && !isAuxStatusSubpath(dataHref)) {
+      const p = statusPathFromHref(dataHref);
+      if (p) return p;
+    }
+  }
   const timeEl = article.querySelector("time[datetime]");
   if (timeEl) {
     const a = timeEl.closest("a[href*='/status/']");
@@ -74,6 +88,7 @@ function isNestedTweetArticle(article) {
   let p = article.parentElement;
   while (p) {
     if (p.matches?.("article[data-testid='tweet']")) return true;
+    if (p.matches?.("article[data-tweet-id]")) return true;
     p = p.parentElement;
   }
   return false;
@@ -218,6 +233,30 @@ function extractTweetText(article) {
     body = extractLinkCardSummary(article);
   }
   if (!body) {
+    const modernTextNodes = article.querySelectorAll('div[dir="auto"][class*="text-text"], span[dir="auto"][class*="text-text"]');
+    for (const node of modernTextNodes) {
+      if (node.closest?.("article[data-tweet-id]") !== article) continue;
+      const className = node.getAttribute("class") || "";
+      if (className.includes("line-clamp")) continue;
+      const t = normalizeText(node.textContent);
+      if (t) {
+        body = t;
+        break;
+      }
+    }
+  }
+  if (!body) {
+    const plainTextNodes = article.querySelectorAll('div[dir="auto"], span[dir="auto"]');
+    for (const node of plainTextNodes) {
+      if (node.closest?.("article[data-tweet-id]") !== article) continue;
+      const t = normalizeText(node.textContent);
+      if (t && t.length > 1 && !/^@\w{1,32}$/.test(t)) {
+        body = t;
+        break;
+      }
+    }
+  }
+  if (!body) {
     body = hasShowMore ? "推文内容较长，请打开原文查看" : "";
   } else if (hasShowMore) {
     body = `${body} ...`;
@@ -229,11 +268,41 @@ function extractTweetText(article) {
   return normalizeText(body);
 }
 
+function parseVisibleDate(text) {
+  const t = normalizeText(text);
+  if (!t) return undefined;
+  let m = t.match(/^(\d{4})年(\d{1,2})月(\d{1,2})日$/);
+  if (m) {
+    const y = Number(m[1]);
+    const month = Number(m[2]);
+    const day = Number(m[3]);
+    return new Date(Date.UTC(y, month - 1, day)).toISOString();
+  }
+  const parsed = new Date(t);
+  return Number.isNaN(parsed.getTime()) ? undefined : parsed.toISOString();
+}
+
+function extractPubDate(article, statusPath) {
+  const datetime = article.querySelector("time[datetime]")?.getAttribute("datetime");
+  if (datetime) return datetime;
+  if (statusPath) {
+    for (const a of article.querySelectorAll('a[href*="/status/"]')) {
+      const href = a.getAttribute("href") || "";
+      if (isAuxStatusSubpath(href)) continue;
+      const p = statusPathFromHref(href);
+      if (p !== statusPath) continue;
+      const parsed = parseVisibleDate(a.textContent);
+      if (parsed) return parsed;
+    }
+  }
+  return undefined;
+}
+
 
 function parseArticles(root, origin) {
   const entries = [];
   const seen = new Set();
-  let articles = root.querySelectorAll('article[data-testid="tweet"]');
+  let articles = root.querySelectorAll('article[data-testid="tweet"], article[data-tweet-id]');
   if (articles.length === 0) {
     articles = root.querySelectorAll('article[role="article"]');
   }
@@ -245,7 +314,7 @@ function parseArticles(root, origin) {
     const link = new URL(statusPath, origin).href;
     const text = extractTweetText(article);
     const author = extractAuthor(article, statusPath);
-    const pubDate = article.querySelector("time[datetime]")?.getAttribute("datetime") || undefined;
+    const pubDate = extractPubDate(article, statusPath);
     const imageUrl = extractMediaUrl(article);
     const isRepost = isRepostArticle(article);
     entries.push({ link, text, author, pubDate, imageUrl, isRepost });
@@ -323,4 +392,3 @@ export async function fetchItems(sourceId, ctx) {
     : "未解析到推文条目，可能被风控或需登录";
   throw new Error(`[X] ${message}`);
 }
-
