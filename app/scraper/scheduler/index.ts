@@ -33,17 +33,21 @@ function createPullTask(ref: string, cacheDir: string, cronExpr: string): schedu
 
 export const SOURCES_GROUP = "sources";
 
-/** config.json 变更且 config.deliver.gateway 非空时，向 {gateway}/sources POST 当前信源 JSON */
+/** config.json 变更且 config.deliver.gateways 非空时，向每个 {gateway}/sources POST 当前信源 JSON */
 async function deliverSourcesConfigIfConfigured(): Promise<void> {
-  const { gateway, token } = await getDeliverConfig();
-  if (!gateway.trim()) return;
+  const { gateways, token } = await getDeliverConfig();
+  if (gateways.length === 0) return;
   let raw: string;
   try {
     raw = await getSourcesRaw();
   } catch {
     return;
   }
-  await postDeliverSourcesSafe(joinGatewayPath(gateway, "sources"), raw, { bearerToken: token || undefined });
+  await Promise.all(
+    gateways.map((gateway) =>
+      postDeliverSourcesSafe(joinGatewayPath(gateway, "sources"), raw, { bearerToken: token || undefined }),
+    ),
+  );
 }
 
 async function rescheduleSources(cacheDir: string, runNow: boolean): Promise<void> {

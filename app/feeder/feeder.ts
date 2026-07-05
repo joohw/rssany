@@ -101,7 +101,7 @@ async function generateAndCache(
   generatingKeys.delete(key);
   logger.info("scraper", "抓取成功", { source_url: listUrl, count: items.length });
 
-  const { gateway: deliverGateway, token: deliverToken } = await getDeliverConfig();
+  const { gateways: deliverGateways, token: deliverToken } = await getDeliverConfig();
 
   let newCount = 0;
   let newIds = new Set<string>();
@@ -134,10 +134,14 @@ async function generateAndCache(
     emitFeedUpdated({ sourceUrl: sourceRefStored, newCount: newCount - pipelineDroppedNew });
   }
   const out = items.filter((i) => !isPipelineDroppedItem(i));
-  if (deliverGateway.trim() && out.length > 0) {
-    await postDeliverItemsSafe(joinGatewayPath(deliverGateway, "items"), sourceRefStored, out, {
-      bearerToken: deliverToken || undefined,
-    });
+  if (deliverGateways.length > 0 && out.length > 0) {
+    await Promise.all(
+      deliverGateways.map((gateway) =>
+        postDeliverItemsSafe(joinGatewayPath(gateway, "items"), sourceRefStored, out, {
+          bearerToken: deliverToken || undefined,
+        }),
+      ),
+    );
   }
   return { items: out };
 }

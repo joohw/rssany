@@ -367,6 +367,7 @@
   },
   "deliver": {
     "gateway": "",
+    "gateways": [],
     "token": ""
   },
   "update": {

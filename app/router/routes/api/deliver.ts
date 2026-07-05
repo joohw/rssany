@@ -3,44 +3,54 @@
 import type { Hono } from "hono";
 import type { FeedItem } from "../../../types/feedItem.js";
 import { requireAdmin } from "../../../auth/middleware.js";
-import { getDeliverConfig, saveDeliverConfig } from "../../../config/deliver.js";
+import { getDeliverConfig, normalizeDeliverGateways, saveDeliverConfig } from "../../../config/deliver.js";
 import { getSourcesRaw } from "../../../scraper/subscription/index.js";
 import { feedItemsToPayload, postDeliverGatewayTest } from "../../../deliver/post.js";
 
+type DeliverRequestBody = {
+  gateway?: string;
+  gateways?: unknown;
+  token?: string;
+  /** 旧版：完整 …/items URL，将迁移为 gateway 基址 */
+  url?: string;
+  urls?: unknown;
+};
+
+function unknownArray(value: unknown): unknown[] {
+  return Array.isArray(value) ? value : [];
+}
+
 export function registerDeliverRoutes(app: Hono): void {
   app.get("/api/deliver", requireAdmin(), async (c) => {
-    const { gateway, token } = await getDeliverConfig();
-    return c.json({ gateway, token });
+    const { gateway, gateways, token } = await getDeliverConfig();
+    return c.json({ gateway, gateways, token });
   });
 
   app.put("/api/deliver", requireAdmin(), async (c) => {
     try {
-      const body = await c.req.json<{
-        gateway?: string;
-        token?: string;
-        /** 旧版：完整 …/items URL，将迁移为 gateway 基址 */
-        url?: string;
-      }>();
+      const body = await c.req.json<DeliverRequestBody>();
       const prev = await getDeliverConfig();
+      const explicitGateways = body != null && "gateways" in body;
       const explicitGateway = body != null && "gateway" in body;
       const explicitUrl = body != null && "url" in body;
+      const explicitUrls = body != null && "urls" in body;
       const explicitToken = body != null && "token" in body;
-      let gateway = typeof body?.gateway === "string" ? body.gateway.trim() : "";
-      if (!gateway && typeof body?.url === "string") {
-        gateway = body.url
-          .trim()
-          .replace(/\/items\/?$/i, "")
-          .replace(/\/+$/, "");
-      }
-      if (!explicitGateway && !explicitUrl) {
-        gateway = prev.gateway;
-      }
+
+      const gateways =
+        explicitGateways || explicitGateway || explicitUrl || explicitUrls
+          ? normalizeDeliverGateways([
+              ...unknownArray(body?.gateways),
+              body?.gateway,
+              ...unknownArray(body?.urls),
+              body?.url,
+            ])
+          : prev.gateways;
       let token = typeof body?.token === "string" ? body.token.trim() : "";
       if (!explicitToken) {
         token = prev.token;
       }
-      await saveDeliverConfig({ gateway, token });
-      return c.json({ ok: true, gateway, token });
+      await saveDeliverConfig({ gateway: gateways[0] ?? "", gateways, token });
+      return c.json({ ok: true, gateway: gateways[0] ?? "", gateways, token });
     } catch (err) {
       return c.json({ ok: false, message: err instanceof Error ? err.message : String(err) }, 400);
     }
@@ -49,23 +59,24 @@ export function registerDeliverRoutes(app: Hono): void {
   /** 合并测试：仅 POST 到 {gateway}/test，体含示例 items 批次与当前 sources 文档 */
   app.post("/api/deliver/test", requireAdmin(), async (c) => {
     try {
-      const body = await c.req.json<{
-        gateway?: string;
-        token?: string;
-        url?: string;
-      }>();
+      const body = await c.req.json<DeliverRequestBody>();
       const prev = await getDeliverConfig();
-      let gateway = typeof body?.gateway === "string" ? body.gateway.trim() : "";
-      if (!gateway && typeof body?.url === "string") {
-        gateway = body.url
-          .trim()
-          .replace(/\/items\/?$/i, "")
-          .replace(/\/+$/, "");
-      }
-      if (!gateway) gateway = prev.gateway;
+      const explicitGateways = body != null && "gateways" in body;
+      const explicitGateway = body != null && "gateway" in body;
+      const explicitUrl = body != null && "url" in body;
+      const explicitUrls = body != null && "urls" in body;
+      const gateways =
+        explicitGateways || explicitGateway || explicitUrl || explicitUrls
+          ? normalizeDeliverGateways([
+              ...unknownArray(body?.gateways),
+              body?.gateway,
+              ...unknownArray(body?.urls),
+              body?.url,
+            ])
+          : prev.gateways;
       const token =
         typeof body?.token === "string" ? body.token.trim() : prev.token;
-      if (!gateway.trim()) return c.json({ ok: false, message: "gateway 不能为空" }, 400);
+      if (gateways.length === 0) return c.json({ ok: false, message: "gateway 不能为空" }, 400);
 
       const now = Date.now();
       const sample: FeedItem = {
@@ -92,8 +103,30 @@ export function registerDeliverRoutes(app: Hono): void {
         },
         sources: sourcesDoc,
       };
-      await postDeliverGatewayTest(gateway.trim(), payload, { bearerToken: token || undefined });
-      return c.json({ ok: true });
+
+      const results = await Promise.all(
+        gateways.map(async (gateway) => {
+          try {
+            await postDeliverGatewayTest(gateway, payload, { bearerToken: token || undefined });
+            return { gateway, ok: true };
+          } catch (err) {
+            return {
+              gateway,
+              ok: false,
+              message: err instanceof Error ? err.message : String(err),
+            };
+          }
+        }),
+      );
+      const failed = results.filter((result) => !result.ok);
+      if (failed.length > 0) {
+        return c.json({
+          ok: false,
+          message: `${failed.length}/${gateways.length} 个 Gateway 测试失败`,
+          results,
+        }, 400);
+      }
+      return c.json({ ok: true, results });
     } catch (err) {
       return c.json({ ok: false, message: err instanceof Error ? err.message : String(err) }, 400);
     }

@@ -65,6 +65,7 @@ export async function postDeliverItemsSafe(
     await postDeliverItems(url, sourceRef, items, options);
   } catch (err) {
     logger.warn("deliver", "投递失败", {
+      url,
       sourceRef,
       count: items.length,
       err: err instanceof Error ? err.message : String(err),
@@ -105,6 +106,7 @@ export async function postDeliverSourcesSafe(
     await postDeliverSources(url, sourcesJson, options);
   } catch (err) {
     logger.warn("deliver", "信源配置投递失败", {
+      url,
       err: err instanceof Error ? err.message : String(err),
     });
   }
