@@ -330,6 +330,7 @@ export function GET() {
     headers: {
       "Content-Type": "text/markdown; charset=utf-8",
       "Cache-Control": "public, max-age=300",
+      "X-Robots-Tag": "noindex, nofollow",
     },
   });
 }

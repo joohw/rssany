@@ -1,19 +1,20 @@
 "use client";
 
 import Link from "next/link";
-import { usePathname } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
 import { useEffect, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { GITHUB_URL } from "@/lib/site";
+import { localizedPath, switchLocalizedPath } from "@/i18n/config";
 import { applyThemeMode, initThemeMode, persistThemeMode, type ThemeMode } from "@/lib/theme";
 import { cn } from "@/lib/utils";
 
 type HeaderLink = { text: string; to: string; hash?: string };
 
 function normalizePath(path: string) {
-  if (!path) return "/";
-  if (path.length > 1 && path.endsWith("/")) return path.slice(0, -1);
-  return path;
+  const pathname = path.split("#")[0] || "/";
+  if (pathname.length > 1 && pathname.endsWith("/")) return pathname.slice(0, -1);
+  return pathname;
 }
 
 function isNavActive(currentPath: string, href: string): boolean {
@@ -25,6 +26,7 @@ function isNavActive(currentPath: string, href: string): boolean {
 
 export function SiteHeader() {
   const pathname = usePathname();
+  const router = useRouter();
   const { t, i18n } = useTranslation();
   const [theme, setTheme] = useState<ThemeMode>("light");
 
@@ -32,18 +34,18 @@ export function SiteHeader() {
     setTheme(initThemeMode());
   }, []);
 
+  const isEnglish = i18n.resolvedLanguage?.toLowerCase().startsWith("en");
+
   const headerLinks = useMemo<HeaderLink[]>(() => {
     return [
-      { text: t("header.home"), to: "/" },
-      { text: t("header.features"), to: "/#features" },
-      { text: t("header.pipeline"), to: "/#pipeline" },
-      { text: t("header.blog"), to: "/blog" },
+      { text: t("header.home"), to: localizedPath(isEnglish ? "en" : "zh-CN") },
+      { text: t("header.features"), to: `${localizedPath(isEnglish ? "en" : "zh-CN")}#features` },
+      { text: t("header.pipeline"), to: `${localizedPath(isEnglish ? "en" : "zh-CN")}#pipeline` },
+      { text: t("header.blog"), to: localizedPath(isEnglish ? "en" : "zh-CN", "/blog") },
       { text: t("header.skill"), to: "/skill" },
       { text: t("header.docs"), to: "https://github.com/joohw/rssany#readme" },
     ];
-  }, [t]);
-
-  const isEnglish = i18n.resolvedLanguage?.toLowerCase().startsWith("en");
+  }, [isEnglish, t]);
 
   function toggleTheme() {
     const nextTheme: ThemeMode = theme === "dark" ? "light" : "dark";
@@ -52,8 +54,9 @@ export function SiteHeader() {
     setTheme(nextTheme);
   }
 
-  async function toggleLanguage() {
-    await i18n.changeLanguage(isEnglish ? "zh-CN" : "en");
+  function toggleLanguage() {
+    const nextLanguage = isEnglish ? "zh-CN" : "en";
+    router.push(switchLocalizedPath(pathname, nextLanguage));
   }
 
   function navLinkClass(active: boolean) {
@@ -77,7 +80,7 @@ export function SiteHeader() {
       <div className="flex w-full items-center justify-between gap-3 px-4 py-3 sm:px-6">
         <div className="flex min-w-0 flex-1 items-center gap-5 sm:gap-6">
           <Link
-            href="/"
+            href={localizedPath(isEnglish ? "en" : "zh-CN")}
             className="inline-flex items-center rounded-md opacity-[0.72] motion-safe:transition-[opacity,transform] motion-safe:duration-300 motion-safe:ease-out hover:opacity-100 hover:scale-[1.06] active:scale-[1.02] motion-reduce:transition-none focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/45 focus-visible:ring-offset-2 focus-visible:ring-offset-background"
             aria-label={t("header.backHome")}
           >
@@ -120,7 +123,7 @@ export function SiteHeader() {
           <button
             type="button"
             className="inline-flex h-8 items-center justify-center rounded-md border border-border bg-card px-2 text-xs font-medium transition-colors hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/60"
-            onClick={() => void toggleLanguage()}
+            onClick={toggleLanguage}
             aria-label={t("header.language")}
             title={isEnglish ? t("header.switchToZh") : t("header.switchToEn")}
           >

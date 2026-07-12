@@ -1,6 +1,7 @@
 import type { AppLanguage } from "@/i18n/config";
+import { localizedPath, SUPPORTED_LANGUAGES } from "@/i18n/config";
 import { BLOG_POSTS, blogPathname } from "@/lib/blog-data";
-import { GITHUB_URL, NPM_URL, normalizePath, SITE_NAME } from "@/lib/site";
+import { GITHUB_URL, NPM_URL, SITE_NAME } from "@/lib/site";
 
 export type SeoPageKey = "home" | "blog";
 
@@ -85,20 +86,8 @@ export const SEO_COPY: Record<AppLanguage, Record<SeoPageKey, SeoCopy>> = {
   },
 };
 
-export function hreflangUrl(siteUrl: string, pathname: string, language: AppLanguage): string {
-  const path = normalizePath(pathname);
-  const separator = path.includes("?") ? "&" : "?";
-  return `${siteUrl}${path}${separator}lang=${encodeURIComponent(language)}`;
-}
-
 export function resolvePageCopy(page: SeoPageKey, language: AppLanguage): SeoCopy {
   return SEO_COPY[language][page];
-}
-
-export function pathnameForPage(page: SeoPageKey, slugArg?: string): string {
-  if (page === "home") return "/";
-  if (page === "blog") return slugArg ? `/blog/${slugArg}` : "/blog";
-  return "/";
 }
 
 export type FaqItem = { question: string; answer: string };
@@ -160,13 +149,12 @@ export const FAQ_ITEMS: Record<AppLanguage, FaqItem[]> = {
   ],
 };
 
-export function buildBaseJsonLdGraph(options: {
+export function buildSiteJsonLdGraph(options: {
   siteUrl: string;
   language: AppLanguage;
 }): Record<string, unknown> {
   const { siteUrl, language } = options;
   const copy = SEO_COPY[language].home;
-  const faqItems = FAQ_ITEMS[language];
 
   return {
     "@context": "https://schema.org",
@@ -194,19 +182,32 @@ export function buildBaseJsonLdGraph(options: {
         publisher: { "@id": `${siteUrl}/#organization` },
         inLanguage: ["zh-CN", "en"],
       },
+    ],
+  };
+}
+
+export function buildHomeJsonLdGraph(options: {
+  siteUrl: string;
+  language: AppLanguage;
+}): Record<string, unknown> {
+  const { siteUrl, language } = options;
+  const copy = SEO_COPY[language].home;
+  const pageUrl = `${siteUrl}${localizedPath(language)}`;
+  const faqItems = FAQ_ITEMS[language];
+
+  return {
+    "@context": "https://schema.org",
+    "@graph": [
       {
         "@type": "WebPage",
-        "@id": `${siteUrl}/#webpage`,
-        url: siteUrl,
+        "@id": `${pageUrl}#webpage`,
+        url: pageUrl,
         name: copy.title,
         description: copy.description,
         isPartOf: { "@id": `${siteUrl}/#website` },
         about: { "@id": `${siteUrl}/#software` },
         inLanguage: language,
-        primaryImageOfPage: {
-          "@type": "ImageObject",
-          url: `${siteUrl}${copy.ogImage}`,
-        },
+        primaryImageOfPage: { "@type": "ImageObject", url: `${siteUrl}${copy.ogImage}` },
       },
       {
         "@type": "SoftwareApplication",
@@ -218,7 +219,7 @@ export function buildBaseJsonLdGraph(options: {
         operatingSystem: "Windows, macOS, Linux",
         offers: { "@type": "Offer", price: "0", priceCurrency: "USD" },
         description: copy.description,
-        url: siteUrl,
+        url: pageUrl,
         downloadUrl: NPM_URL,
         softwareHelp: `${GITHUB_URL}#readme`,
         featureList: [
@@ -232,8 +233,8 @@ export function buildBaseJsonLdGraph(options: {
       },
       {
         "@type": "FAQPage",
-        "@id": `${siteUrl}/#faq`,
-        isPartOf: { "@id": `${siteUrl}/#webpage` },
+        "@id": `${pageUrl}#faq`,
+        isPartOf: { "@id": `${pageUrl}#webpage` },
         inLanguage: language,
         mainEntity: faqItems.map((item) => ({
           "@type": "Question",
@@ -245,18 +246,11 @@ export function buildBaseJsonLdGraph(options: {
   };
 }
 
-export function buildFaqJsonLd(options: {
-  siteUrl: string;
-  language: AppLanguage;
-}): Record<string, unknown> {
-  return buildBaseJsonLdGraph(options);
-}
-
 export function getHomeTitle(language: AppLanguage): string {
   return SEO_COPY[language].home.title;
 }
 
-export function buildSitemapEntries(siteUrl: string, lastModified = new Date()): Array<{
+export function buildSitemapEntries(siteUrl: string): Array<{
   url: string;
   lastModified: Date;
   changeFrequency: "weekly" | "monthly";
@@ -265,8 +259,14 @@ export function buildSitemapEntries(siteUrl: string, lastModified = new Date()):
     languages: Record<string, string>;
   };
 }> {
-  const homePath = pathnameForPage("home");
-  const blogIndexPath = pathnameForPage("blog");
+  const landingLastModified = new Date("2026-07-12T00:00:00+08:00");
+  const alternatesFor = (pathname: string) => ({
+    languages: {
+      "zh-CN": `${siteUrl}${localizedPath("zh-CN", pathname)}`,
+      en: `${siteUrl}${localizedPath("en", pathname)}`,
+      "x-default": `${siteUrl}${localizedPath("zh-CN", pathname)}`,
+    },
+  });
 
   const entries: Array<{
     url: string;
@@ -274,63 +274,36 @@ export function buildSitemapEntries(siteUrl: string, lastModified = new Date()):
     changeFrequency: "weekly" | "monthly";
     priority: number;
     alternates: { languages: Record<string, string> };
-  }> = [
-    {
-      url: `${siteUrl}${homePath}`,
-      lastModified,
-      changeFrequency: "weekly",
-      priority: 1,
-      alternates: {
-        languages: {
-          "zh-CN": hreflangUrl(siteUrl, homePath, "zh-CN"),
-          en: hreflangUrl(siteUrl, homePath, "en"),
-          "x-default": hreflangUrl(siteUrl, homePath, "zh-CN"),
-        },
-      },
-    },
-    {
-      url: `${siteUrl}${blogIndexPath}`,
-      lastModified,
-      changeFrequency: "weekly",
-      priority: 0.88,
-      alternates: {
-        languages: {
-          "zh-CN": hreflangUrl(siteUrl, blogIndexPath, "zh-CN"),
-          en: hreflangUrl(siteUrl, blogIndexPath, "en"),
-          "x-default": hreflangUrl(siteUrl, blogIndexPath, "zh-CN"),
-        },
-      },
-    },
-    {
-      url: `${siteUrl}/skill`,
-      lastModified,
-      changeFrequency: "monthly",
-      priority: 0.72,
-      alternates: {
-        languages: {
-          "zh-CN": `${siteUrl}/skill`,
-          en: `${siteUrl}/skill`,
-          "x-default": `${siteUrl}/skill`,
-        },
-      },
-    },
-  ];
+  }> = [];
 
-  for (const post of BLOG_POSTS) {
-    const pathname = blogPathname(post.slug);
-    entries.push({
-      url: `${siteUrl}${pathname}`,
-      lastModified,
-      changeFrequency: "monthly",
-      priority: post.priority,
-      alternates: {
-        languages: {
-          "zh-CN": hreflangUrl(siteUrl, pathname, "zh-CN"),
-          en: hreflangUrl(siteUrl, pathname, "en"),
-          "x-default": hreflangUrl(siteUrl, pathname, "zh-CN"),
-        },
+  for (const language of SUPPORTED_LANGUAGES) {
+    entries.push(
+      {
+        url: `${siteUrl}${localizedPath(language)}`,
+        lastModified: landingLastModified,
+        changeFrequency: "weekly",
+        priority: 1,
+        alternates: alternatesFor("/"),
       },
-    });
+      {
+        url: `${siteUrl}${localizedPath(language, "/blog")}`,
+        lastModified: landingLastModified,
+        changeFrequency: "weekly",
+        priority: 0.88,
+        alternates: alternatesFor("/blog"),
+      },
+    );
+
+    for (const post of BLOG_POSTS) {
+      const pathname = blogPathname(post.slug);
+      entries.push({
+        url: `${siteUrl}${localizedPath(language, pathname)}`,
+        lastModified: new Date(`${post.date}T00:00:00+08:00`),
+        changeFrequency: "monthly",
+        priority: post.priority,
+        alternates: alternatesFor(pathname),
+      });
+    }
   }
 
   return entries;

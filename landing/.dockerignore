@@ -6,7 +6,7 @@ coverage
 
 .git
 .gitignore
-*.md
+README.md
 .DS_Store
 
 .env*

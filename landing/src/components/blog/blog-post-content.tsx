@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useTranslation } from "react-i18next";
 import type { AppLanguage } from "@/i18n/config";
+import { localizedPath } from "@/i18n/config";
 import type { BlogPostMeta } from "@/lib/blog-data";
 
 type LocalizedBlogPost = {
@@ -11,21 +12,18 @@ type LocalizedBlogPost = {
 };
 
 type BlogPostContentProps = {
-  postsByLanguage: Record<AppLanguage, LocalizedBlogPost | null>;
+  language: AppLanguage;
+  post: LocalizedBlogPost;
 };
 
-export function BlogPostContent({ postsByLanguage }: BlogPostContentProps) {
-  const { t, i18n } = useTranslation();
-  const language: AppLanguage = i18n.resolvedLanguage?.startsWith("en") ? "en" : "zh-CN";
-  const post = postsByLanguage[language];
-
-  if (!post) return null;
+export function BlogPostContent({ language, post }: BlogPostContentProps) {
+  const { t } = useTranslation();
 
   return (
     <div className="page-wrap relative">
       <article className="page-content page-content--with-bottom relative z-[1] mx-auto max-w-6xl px-5 sm:px-6">
         <nav className="text-sm text-muted-foreground">
-          <Link href="/blog" className="hover:text-foreground">
+          <Link href={localizedPath(language, "/blog")} className="hover:text-foreground">
             {t("blog.indexTitle")}
           </Link>
           <span className="mx-2">/</span>
@@ -47,11 +45,11 @@ export function BlogPostContent({ postsByLanguage }: BlogPostContentProps) {
         <div className="blog-prose mt-10 max-w-3xl" dangerouslySetInnerHTML={{ __html: post.html }} />
 
         <footer className="mt-12 max-w-3xl border-t border-border/60 pt-6">
-          <Link href="/blog" className="text-sm text-muted-foreground transition-colors hover:text-foreground">
+          <Link href={localizedPath(language, "/blog")} className="text-sm text-muted-foreground transition-colors hover:text-foreground">
             {t("blog.backToBlog")}
           </Link>
           <span className="mx-3 text-muted-foreground">·</span>
-          <Link href="/#pipeline" className="text-sm text-muted-foreground transition-colors hover:text-foreground">
+          <Link href={`${localizedPath(language)}#pipeline`} className="text-sm text-muted-foreground transition-colors hover:text-foreground">
             {t("blog.viewPipeline")}
           </Link>
         </footer>

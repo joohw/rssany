@@ -2,17 +2,16 @@
 
 import Link from "next/link";
 import { useTranslation } from "react-i18next";
-import type { AppLanguage } from "@/i18n/config";
 import { blogPathname, type BlogPostMeta } from "@/lib/blog-data";
+import { localizedPath, type AppLanguage } from "@/i18n/config";
 
 type BlogIndexContentProps = {
-  postsByLanguage: Record<AppLanguage, BlogPostMeta[]>;
+  language: AppLanguage;
+  posts: BlogPostMeta[];
 };
 
-export function BlogIndexContent({ postsByLanguage }: BlogIndexContentProps) {
-  const { t, i18n } = useTranslation();
-  const language: AppLanguage = i18n.resolvedLanguage?.startsWith("en") ? "en" : "zh-CN";
-  const posts = postsByLanguage[language];
+export function BlogIndexContent({ language, posts }: BlogIndexContentProps) {
+  const { t } = useTranslation();
 
   return (
     <div className="page-wrap relative">
@@ -27,7 +26,7 @@ export function BlogIndexContent({ postsByLanguage }: BlogIndexContentProps) {
             {posts.map((post) => (
               <Link
                 key={post.slug}
-                href={blogPathname(post.slug)}
+                href={localizedPath(language, blogPathname(post.slug))}
                 className="group rounded-lg border border-border/60 bg-background p-5 transition-colors hover:border-border hover:bg-muted/20"
               >
                 {post.date ? (

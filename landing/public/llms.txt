@@ -7,10 +7,17 @@
 - Robots: https://rssany.com/robots.txt
 
 ## 站点
-- 主页: /
-- 特性: /#features
-- 管线: /#pipeline
-- FAQ: /#faq
+- 中文主页: /zh-CN
+- English home: /en
+- 中文博客: /zh-CN/blog
+- English blog: /en/blog
+- 中文：为内容管线定制专属信息源: /zh-CN/blog/curate-feeds-for-content-pipeline
+- English: Curate dedicated feeds for your content pipeline: /en/blog/curate-feeds-for-content-pipeline
+- 中文：信源插件与 sources.json 配置: /zh-CN/blog/rssany-plugin-and-source-setup
+- English: Plugins and sources.json setup: /en/blog/rssany-plugin-and-source-setup
+- 特性: /zh-CN#features
+- 管线: /zh-CN#pipeline
+- FAQ: /zh-CN#faq
 - 机器可读站点地图: /sitemap.xml
 - 本文件: /llms.txt
 

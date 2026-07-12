@@ -15,17 +15,7 @@ export function normalizePath(path: string): string {
 }
 
 /** Canonical public URL for sitemap/robots. */
-export function resolvePublicSiteUrl(_host?: string): string {
-  return PUBLIC_SITE_URL;
-}
-
-export function getPublicSiteUrlFromRequest(host?: string): string {
-  if (process.env.NODE_ENV === "development") {
-    if (!host) return "http://localhost:28473";
-    return host.startsWith("http://") || host.startsWith("https://")
-      ? host.replace(/\/+$/, "")
-      : `http://${host}`.replace(/\/+$/, "");
-  }
+export function resolvePublicSiteUrl(): string {
   return PUBLIC_SITE_URL;
 }
 

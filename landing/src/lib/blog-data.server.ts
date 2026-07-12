@@ -1,6 +1,7 @@
 import fs from "node:fs";
 import path from "node:path";
 import type { AppLanguage } from "@/i18n/config";
+import { localizedPath } from "@/i18n/config";
 import {
   BLOG_POSTS,
   blogBySlug,
@@ -86,22 +87,74 @@ export function buildBlogPostingJsonLd(options: {
   const post = getBlogPost(slug, language);
   if (!post) return {};
 
-  const pageUrl = `${siteUrl}${blogPathname(slug)}`;
+  const pageUrl = `${siteUrl}${localizedPath(language, blogPathname(slug))}`;
+  const blogUrl = `${siteUrl}${localizedPath(language, "/blog")}`;
 
   return {
     "@context": "https://schema.org",
-    "@type": "BlogPosting",
-    "@id": `${pageUrl}#article`,
-    headline: post.title,
-    description: post.description || post.title,
-    datePublished: post.date || undefined,
-    dateModified: post.date || undefined,
-    inLanguage: language,
+    "@graph": [
+      {
+        "@type": "BlogPosting",
+        "@id": `${pageUrl}#article`,
+        headline: post.title,
+        description: post.description || post.title,
+        datePublished: post.date || undefined,
+        dateModified: post.date || undefined,
+        inLanguage: language,
+        url: pageUrl,
+        mainEntityOfPage: { "@type": "WebPage", "@id": pageUrl },
+        author: { "@type": "Organization", "@id": `${siteUrl}/#organization`, name: SITE_NAME },
+        publisher: { "@id": `${siteUrl}/#organization` },
+        isPartOf: { "@id": `${siteUrl}/#website` },
+      },
+      {
+        "@type": "BreadcrumbList",
+        "@id": `${pageUrl}#breadcrumb`,
+        itemListElement: [
+          {
+            "@type": "ListItem",
+            position: 1,
+            name: language === "zh-CN" ? "首页" : "Home",
+            item: `${siteUrl}${localizedPath(language)}`,
+          },
+          {
+            "@type": "ListItem",
+            position: 2,
+            name: language === "zh-CN" ? "博客" : "Blog",
+            item: blogUrl,
+          },
+          { "@type": "ListItem", position: 3, name: post.title, item: pageUrl },
+        ],
+      },
+    ],
+  };
+}
+
+export function buildBlogIndexJsonLd(options: {
+  siteUrl: string;
+  language: AppLanguage;
+}): Record<string, unknown> {
+  const { siteUrl, language } = options;
+  const pageUrl = `${siteUrl}${localizedPath(language, "/blog")}`;
+  const posts = getAllBlogPosts(language);
+
+  return {
+    "@context": "https://schema.org",
+    "@type": "CollectionPage",
+    "@id": `${pageUrl}#webpage`,
     url: pageUrl,
-    mainEntityOfPage: { "@type": "WebPage", "@id": pageUrl },
-    author: { "@type": "Organization", name: SITE_NAME },
-    publisher: { "@id": `${siteUrl}/#organization` },
+    name: language === "zh-CN" ? "RssAny 博客" : "RssAny Blog",
+    inLanguage: language,
     isPartOf: { "@id": `${siteUrl}/#website` },
+    mainEntity: {
+      "@type": "ItemList",
+      itemListElement: posts.map((post, index) => ({
+        "@type": "ListItem",
+        position: index + 1,
+        url: `${siteUrl}${localizedPath(language, blogPathname(post.slug))}`,
+        name: post.title,
+      })),
+    },
   };
 }
 

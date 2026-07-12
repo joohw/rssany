@@ -1,13 +1,11 @@
 "use client";
 
-import { useEffect } from "react";
 import Image from "next/image";
 import { useTranslation } from "react-i18next";
 import { ClientDownloadButtons } from "@/components/home/client-download-buttons";
 import { ShellHighlight } from "@/components/shell-highlight";
 import { useToast } from "@/components/ui/toast-provider";
 import { getUseCaseImage } from "@/lib/assets";
-import { getHomeTitle } from "@/lib/seo-data";
 import styles from "@/app/page.module.css";
 
 const WORKFLOW_LINES = [
@@ -20,11 +18,6 @@ export function HomeHero() {
   const { t, i18n } = useTranslation();
   const { showError, showSuccess } = useToast();
   const useCaseImage = getUseCaseImage(i18n.language);
-
-  useEffect(() => {
-    const language = i18n.resolvedLanguage?.startsWith("en") ? "en" : "zh-CN";
-    document.title = getHomeTitle(language);
-  }, [i18n.language, i18n.resolvedLanguage]);
 
   async function copyWorkflow() {
     const text = WORKFLOW_LINES.map((line) => (line.prompt ? `$ ${line.text}` : line.text)).join("\n");

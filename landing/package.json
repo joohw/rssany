@@ -6,8 +6,7 @@
     "dev": "next dev -p 28473 --webpack",
     "build": "next build",
     "start": "next start",
-    "lint": "eslint",
-    "postinstall": "next typegen"
+    "lint": "eslint"
   },
   "dependencies": {
     "@base-ui/react": "^1.4.0",
@@ -16,10 +15,9 @@
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
     "i18next": "^25.6.0",
-    "i18next-browser-languagedetector": "^8.2.0",
     "lucide-react": "^1.8.0",
     "marked": "^18.0.0",
-    "next": "16.2.4",
+    "next": "^16.2.10",
     "ogl": "^1.0.11",
     "react": "19.2.4",
     "react-dom": "19.2.4",
@@ -35,7 +33,7 @@
     "@types/react": "^19",
     "@types/react-dom": "^19",
     "eslint": "^9",
-    "eslint-config-next": "16.2.4",
+    "eslint-config-next": "^16.2.10",
     "tailwindcss": "^4",
     "typescript": "^5"
   },
@@ -60,5 +58,10 @@
   "engines": {
     "node": ">=20.0.0",
     "npm": ">=10.0.0"
+  },
+  "overrides": {
+    "next": {
+      "postcss": "8.5.10"
+    }
   }
 }

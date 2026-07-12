@@ -20,6 +20,7 @@ landing/.next/
 npm-debug.log*
 .npm
 .cache
+cache/
 
 # 构建产物
 dist/

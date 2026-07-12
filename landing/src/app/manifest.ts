@@ -6,7 +6,7 @@ export default function manifest(): MetadataRoute.Manifest {
     name: "RssAny",
     short_name: SITE_NAME,
     description: DEFAULT_DESCRIPTION,
-    start_url: "/",
+    start_url: "/zh-CN",
     display: "standalone",
     background_color: "#fff7ed",
     theme_color: "#0f172a",
