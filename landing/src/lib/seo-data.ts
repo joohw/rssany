@@ -102,7 +102,7 @@ export const FAQ_ITEMS: Record<AppLanguage, FaqItem[]> = {
     {
       question: "支持哪些信源类型？",
       answer:
-        "内置大量 Site 插件（.rssany.js），也支持标准 RSS/Atom 与邮件信源。用户可在 ~/.rssany/plugins 覆盖或扩展插件，并在 sources.json 中配置刷新间隔与代理。",
+        "内置大量 Site 插件（.rssany.js），也支持标准 RSS/Atom 与邮件信源。用户可在 ~/.rssany/plugins 覆盖或扩展插件，并在 config.json 的 sources 中配置刷新间隔与代理。",
     },
     {
       question: "需要数据库吗？数据存在哪里？",
@@ -129,7 +129,7 @@ export const FAQ_ITEMS: Record<AppLanguage, FaqItem[]> = {
     {
       question: "Which source types are supported?",
       answer:
-        "Dozens of built-in Site plugins (.rssany.js), standard RSS/Atom feeds, and email sources. Drop custom plugins in ~/.rssany/plugins and tune refresh intervals and proxies in sources.json.",
+        "Dozens of built-in Site plugins (.rssany.js), standard RSS/Atom feeds, and email sources. Drop custom plugins in ~/.rssany/plugins and tune refresh intervals and proxies in config.json sources.",
     },
     {
       question: "Where is data stored?",

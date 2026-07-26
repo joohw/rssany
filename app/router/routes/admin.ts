@@ -10,7 +10,7 @@ import { parseUrlFromPath, readStaticHtml, escapeHtml } from "../utils.js";
 import { requireAdmin } from "../../auth/middleware.js";
 import { getEffectiveProxyForListUrl } from "../../scraper/subscription/index.js";
 
-/** 与 fetcher `resolveProxy` 一致：调试 query 优先 → sources.json / Source.proxy → 环境变量 */
+/** 与 fetcher `resolveProxy` 一致：调试 query 优先 → config sources / Source.proxy → 环境变量 */
 function effectiveProxyUsed(override: string | undefined, mergedFromSource: string | undefined): string | undefined {
   const o = override?.trim();
   if (o) return o;

@@ -1,6 +1,6 @@
 export const id = "theinformation";
 export const name = "Theinformation";
-export const listUrlPattern = /^https:\/\/(www\.)?theinformation\.com\/(briefings|features\/[^/]+)\/?(\?.*)?$/i;
+export const listUrlPattern = /^https:\/\/(www\.)?theinformation\.com\/(?:(?:briefings|features\/[^/]+)\/?)?(\?.*)?$/i;
 export const refreshInterval = "1h";
 
 let _deps;
@@ -117,6 +117,46 @@ function parseFeedItems(html, pageUrl) {
     });
   }
 
+  // 2026 首页使用 Tailwind/React 组件，不再包含旧版 `.article.feed-item`。
+  // 只收录明确的内容路径，并从链接内部的标题与摘要节点提取，避免交给 LLM 解析超大首页。
+  for (const anchor of root.querySelectorAll("a[href]")) {
+    const rawHref = anchor.getAttribute("href");
+    const link = toAbsoluteHttpUrl(rawHref, pageUrl);
+    if (!link || seen.has(link)) continue;
+
+    let pathname;
+    try {
+      pathname = new URL(link).pathname;
+    } catch {
+      continue;
+    }
+    if (
+      !/^\/articles\/[^/]+\/?$/i.test(pathname) &&
+      !/^\/briefings\/[^/]+\/?$/i.test(pathname) &&
+      !/^\/newsletters\/[^/]+\/[^/]+\/?$/i.test(pathname)
+    ) {
+      continue;
+    }
+
+    const heading = anchor.querySelector("h1, h2, h3, h4");
+    const title = normalizeText(heading?.textContent ?? anchor.textContent);
+    if (!title || /^on(?:…|\.\.\.)\s/i.test(title)) continue;
+
+    const summary = anchor
+      .querySelectorAll("p, div")
+      .map((node) => normalizeText(node.textContent))
+      .find((text) => text.length >= 20 && text !== title && !text.startsWith(title));
+
+    seen.add(link);
+    items.push({
+      guid: hashGuid(link),
+      title,
+      link,
+      pubDate: new Date(),
+      summary: summary || undefined,
+    });
+  }
+
   return items;
 }
 
@@ -125,7 +165,7 @@ export async function fetchItems(sourceId, ctx) {
   _deps = ctx.deps;
   const { html, finalUrl, status } = await ctx.fetchHtml(sourceId, {
     waitMs: 5000,
-    waitForSelector: ".article.feed-item",
+    waitForSelector: ".article.feed-item, a[href^='/articles/'], a[href^='/briefings/']",
     waitForSelectorTimeoutMs: 25_000,
   });
 

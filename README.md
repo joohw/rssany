@@ -13,7 +13,7 @@
 
 ## 功能概览
 
-- **统一订阅**：在 `.rssany/sources.json` 中配置网站列表、标准 RSS、IMAP 邮件等，由调度器按 `refresh` 策略拉取。
+- **统一订阅**：在 `.rssany/config.json` 的 `sources` 中配置网站列表、标准 RSS、IMAP 邮件等，由调度器按 `refresh` 策略拉取。
 - **可插拔信源**：**Site / Source** 插件（`.rssany.js` / `.rssany.ts`），见 **[插件配置说明](./docs/plugins.md)**。
 - **正文与解析**：在信源 `fetchItems`（及需要的 `ctx.extractItem` 等）内完成；入库后跑 pipeline。
 - **固定 pipeline**：`app/pipeline/` 中打标签、翻译等，由 `.rssany/config.json` 的 `pipeline.steps` 开关（**不是**用户目录下的 pipeline 插件）。
@@ -94,7 +94,7 @@ npm run dev
 ## 数据流（简图）
 
 ```
-sources.json / 信源插件
+config.json sources / 信源插件
   → 调度器触发 fetchItems
   → upsertItems
   → pipeline（每条一次）
@@ -109,14 +109,14 @@ sources.json / 信源插件
 
 ### RSS 输出
 
-- **按条件从库中生成**：支持 `search`、`tags`、`lng`、`limit` 等查询参数；可用 `subscribed=1` 限定为 `sources.json` 中出现的 ref。
+- **按条件从库中生成**：支持 `search`、`tags`、`lng`、`limit` 等查询参数；可用 `subscribed=1` 限定为 `config.json` 的 `sources` 中出现的 ref。
 - **按 URL 即时抓取**：`GET /rss/https://example.com/...`（具体行为以路由实现为准）。
 
 ---
 
 ## 配置
 
-**信源插件（Site / Source）**：目录约定、`listUrlPattern` / `pattern`、`fetchItems`、与 `sources.json` 的关系等，见 **[docs/plugins.md](./docs/plugins.md)**。
+**信源插件（Site / Source）**：目录约定、`listUrlPattern` / `pattern`、`fetchItems`、与 `config.json` 中 `sources` 的关系等，见 **[docs/plugins.md](./docs/plugins.md)**。
 
 ### Pipeline（固定代码）
 
@@ -138,7 +138,7 @@ sources.json / 信源插件
 
 `deliver.url` 非空时会对处理完成的条目向该 URL 发起出站 POST；留空则不投递。
 
-### `sources.json` 片段示例
+### `config.json` 的 `sources` 片段示例
 
 ```json
 {
@@ -161,9 +161,7 @@ sources.json / 信源插件
 └── webui/               # SvelteKit 前端
 
 ~/.rssany/               # 运行时用户数据（首次启动创建；或 RSSANY_USER_DIR）
-    ├── sources.json
-    ├── config.json
-    ├── tags.json
+    ├── config.json      # sources、sites、tags、pipeline、deliver、llm 等统一配置
     ├── data/rssany.db   # SQLite 主库
     ├── cache/
     └── plugins/         # 用户插件覆盖内置

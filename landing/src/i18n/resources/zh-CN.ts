@@ -19,7 +19,7 @@ const zhCN = {
     subtitle:
       "面向内容生产与资讯管线的自托管订阅系统：接入网页、RSS、邮件等信源，定时抓取与插件解析后统一入库，按需加工并输出 RSS、JSON API 与 MCP，喂给创作与分发流程。",
     quickStart: "快速开始",
-    quickStartHint: "首次运行会在 ~/.rssany/ 生成 sources.json 与 config.json",
+    quickStartHint: "首次运行会生成 ~/.rssany/config.json 并打开初始化页面",
     useCaseAlt: "RssAny Web 界面：定制信源、浏览资讯条目并输出到内容管线",
     copy: "复制",
     copySuccess: "命令已复制到剪贴板",
@@ -31,7 +31,7 @@ const zhCN = {
     features: {
       sources: {
         title: "定制信源",
-        description: "在 sources.json 按需配置网站列表、标准 RSS、IMAP 邮件等，调度器按 refresh 策略持续拉取资讯。",
+        description: "在 config.json 的 sources 中配置网站列表、标准 RSS、IMAP 邮件等，调度器按 refresh 策略持续拉取资讯。",
       },
       plugins: {
         title: "可插拔信源",

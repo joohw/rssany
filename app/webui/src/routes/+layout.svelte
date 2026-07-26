@@ -2,6 +2,8 @@
   /// <reference path="../lucide-svelte.d.ts" />
   import { siGithub } from 'simple-icons';
   import { page } from '$app/stores';
+  import { goto } from '$app/navigation';
+  import { onMount } from 'svelte';
   import Rss from 'lucide-svelte/icons/rss';
   import ScrollText from 'lucide-svelte/icons/scroll-text';
   import Puzzle from 'lucide-svelte/icons/puzzle';
@@ -44,8 +46,24 @@
     skill: pathname === '/skill',
     settings: pathname === '/admin' || pathname.startsWith('/admin/'),
   } as const;
+
+  onMount(async () => {
+    try {
+      const response = await fetch('/api/initialization');
+      const state = (await response.json()) as { initialized?: boolean };
+      if (!state.initialized && pathname !== '/initialize') {
+        await goto('/initialize');
+      }
+    } catch {
+      // 后端尚未就绪时保留当前页面。
+    }
+  });
 </script>
 
+{#if pathname === '/initialize'}
+  <slot />
+  <Toast />
+{:else}
 <div class="layout-outer">
   <div class="layout-app">
     <!-- 左导航 | 中间主内容 |（首页）右条目：同一外框合并为一整块 -->
@@ -151,6 +169,7 @@
   </div>
 </div>
 <Toast />
+{/if}
 
 <style>
   :global(*, *::before, *::after) {

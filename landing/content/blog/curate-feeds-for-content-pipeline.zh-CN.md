@@ -11,7 +11,7 @@ date: 2026-05-20
 RssAny 是自托管的信息源定制与订阅管线：
 
 1. **接入** — 内置 Site 插件（`.rssany.js`）、标准 RSS/Atom、IMAP 邮件。
-2. **抓取** — 按 `sources.json` 配置刷新间隔与代理。
+2. **抓取** — 按 `config.json` 的 sources 配置刷新间隔与代理。
 3. **解析** — 插件把列表页/详情页转成统一条目结构。
 4. **加工** — 固定 pipeline（打标签、翻译、正文提取等，见 `config.json`）。
 5. **输出** — RSS/Atom/JSON Feed、JSON API、MCP，供创作与分发工具消费。
@@ -32,7 +32,7 @@ rssany
 # 浏览器打开 http://127.0.0.1:18473/
 ```
 
-首次运行会在 `~/.rssany/` 生成 `sources.json` 与 `config.json`。
+首次运行会在 `~/.rssany/` 生成统一的 `config.json`。
 
 ## 延伸阅读
 

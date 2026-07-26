@@ -1,14 +1,16 @@
-// /api/plugins、POST /api/plugins（从模板新建）、/api/plugins/:id（读写字节码插件源文件）
+// /api/plugins：列出、创建、读取、保存、删除用户插件目录中的插件。
 
-import { access, mkdir, readFile, writeFile } from "node:fs/promises";
-import { join, resolve, sep } from "node:path";
-import type { Hono } from "hono";
-import { getPluginSites } from "../../../scraper/sources/web/index.js";
-import { registeredSources } from "../../../scraper/sources/index.js";
-import { getPluginFilePath } from "../../../plugins/loader.js";
+import { readFile } from "node:fs/promises";
+import type { Context, Hono } from "hono";
 import { requireAdmin } from "../../../auth/middleware.js";
-import { initSources } from "../../../scraper/sources/index.js";
-import { BUILTIN_PLUGINS_DIR, USER_PLUGINS_DIR, PLUGIN_SITE_TEMPLATE_PATH } from "../../../config/paths.js";
+import { PLUGIN_SITE_TEMPLATE_PATH } from "../../../config/paths.js";
+import {
+  deleteManagedPlugin,
+  listManagedPlugins,
+  PluginManagementError,
+  readManagedPlugin,
+  writeManagedPlugin,
+} from "../../../plugins/management.js";
 
 const SITE_TEMPLATE_FALLBACK = `/**
  * Site plugin template created from the /plugins page.
@@ -44,22 +46,9 @@ function isValidNewListUrlPattern(pattern: string): boolean {
   return true;
 }
 
-async function fileExists(p: string): Promise<boolean> {
-  try {
-    await access(p);
-    return true;
-  } catch {
-    return false;
-  }
-}
-
-function isAllowedPluginPath(absPath: string): boolean {
-  const f = resolve(absPath);
-  for (const root of [BUILTIN_PLUGINS_DIR, USER_PLUGINS_DIR]) {
-    const r = resolve(root);
-    if (f === r || f.startsWith(r + sep)) return true;
-  }
-  return false;
+function pluginError(c: Context, error: unknown) {
+  if (error instanceof PluginManagementError) return c.json({ error: error.message }, error.status);
+  return c.json({ error: error instanceof Error ? error.message : String(error) }, 500);
 }
 
 export function registerPluginsRoutes(app: Hono): void {
@@ -83,9 +72,6 @@ export function registerPluginsRoutes(app: Hono): void {
     if (!isValidNewListUrlPattern(listUrlPatternRaw)) {
       return c.json({ error: "支持的站点须为非空字符串，不超过 2048 字符，且不能含换行" }, 400);
     }
-    await mkdir(USER_PLUGINS_DIR, { recursive: true });
-    const outPath = join(USER_PLUGINS_DIR, `${id}.rssany.js`);
-    if (await fileExists(outPath)) return c.json({ error: "该 id 已存在同名文件" }, 409);
     let tpl = SITE_TEMPLATE_FALLBACK;
     try {
       tpl = await readFile(PLUGIN_SITE_TEMPLATE_PATH, "utf-8");
@@ -94,48 +80,25 @@ export function registerPluginsRoutes(app: Hono): void {
     }
     const patternLiteral = JSON.stringify(listUrlPatternRaw);
     const content = tpl.replace(/__PLUGIN_ID__/g, id).replace(/__LIST_URL_PATTERN__/g, patternLiteral);
-    if (!isAllowedPluginPath(outPath)) return c.json({ error: "路径不允许" }, 403);
     try {
-      await writeFile(outPath, content, "utf-8");
-      await initSources();
-      return c.json({ ok: true, filePath: outPath, id });
-    } catch (e) {
-      return c.json({ error: e instanceof Error ? e.message : String(e) }, 500);
+      const plugin = await writeManagedPlugin(id, content, { mustNotExist: true });
+      return c.json({ ok: true, ...plugin });
+    } catch (error) {
+      return pluginError(c, error);
     }
   });
 
   app.get("/api/plugins", requireAdmin(), (c) => {
-    const sites = getPluginSites().map((s) => ({
-      kind: "site" as const,
-      id: s.id,
-      name: s.name ?? s.id,
-      listUrlPattern: typeof s.listUrlPattern === "string" ? s.listUrlPattern : String(s.listUrlPattern),
-      hasAuth: !!(s.checkAuth && s.loginUrl),
-    }));
-    const siteIds = new Set(sites.map((p) => p.id));
-    const sources = registeredSources
-      .filter((src) => src.id !== "generic" && !siteIds.has(src.id))
-      .map((src) => ({
-        kind: "source" as const,
-        id: src.id,
-        name: src.name ?? src.id,
-        listUrlPattern: typeof src.pattern === "string" ? src.pattern : String(src.pattern),
-        hasAuth: false,
-      }));
-    return c.json([...sites, ...sources]);
+    return c.json(listManagedPlugins());
   });
 
   app.get("/api/plugins/:id", requireAdmin(), async (c) => {
     const id = decodeURIComponent(c.req.param("id") ?? "").trim();
     if (!id) return c.json({ error: "缺少 id" }, 400);
-    const filePath = getPluginFilePath(id);
-    if (!filePath) return c.json({ error: "未找到该插件或无可编辑文件" }, 404);
-    if (!isAllowedPluginPath(filePath)) return c.json({ error: "路径不允许" }, 403);
     try {
-      const content = await readFile(filePath, "utf-8");
-      return c.json({ id, filePath, content });
-    } catch (e) {
-      return c.json({ error: e instanceof Error ? e.message : String(e) }, 500);
+      return c.json(await readManagedPlugin(id));
+    } catch (error) {
+      return pluginError(c, error);
     }
   });
 
@@ -149,15 +112,21 @@ export function registerPluginsRoutes(app: Hono): void {
       return c.json({ error: "无效 JSON" }, 400);
     }
     if (typeof body.content !== "string") return c.json({ error: "需要 content 字符串" }, 400);
-    const filePath = getPluginFilePath(id);
-    if (!filePath) return c.json({ error: "未找到该插件" }, 404);
-    if (!isAllowedPluginPath(filePath)) return c.json({ error: "路径不允许" }, 403);
     try {
-      await writeFile(filePath, body.content, "utf-8");
-      await initSources();
-      return c.json({ ok: true });
-    } catch (e) {
-      return c.json({ error: e instanceof Error ? e.message : String(e) }, 500);
+      const plugin = await writeManagedPlugin(id, body.content);
+      return c.json({ ok: true, ...plugin });
+    } catch (error) {
+      return pluginError(c, error);
+    }
+  });
+
+  app.delete("/api/plugins/:id", requireAdmin(), async (c) => {
+    const id = decodeURIComponent(c.req.param("id") ?? "").trim();
+    if (!id) return c.json({ error: "缺少 id" }, 400);
+    try {
+      return c.json(await deleteManagedPlugin(id));
+    } catch (error) {
+      return pluginError(c, error);
     }
   });
 }

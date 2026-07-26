@@ -7,7 +7,7 @@ const SKILL_MARKDOWN = `# RssAny Agent Skill
 - 需要把网页列表、RSS/Atom、邮件等信源变成可订阅 feed。
 - 需要读取本机 RssAny 已入库的 feeds/items。
 - 需要为新网站编写或调整 RssAny 信源插件。
-- 需要配置 \`~/.rssany/sources.json\`、\`~/.rssany/config.json\` 或 \`~/.rssany/plugins/\`。
+- 需要配置 \`~/.rssany/config.json\` 或 \`~/.rssany/plugins/\`。
 
 ## 安装与启动
 
@@ -68,7 +68,7 @@ curl http://127.0.0.1:18473/api/feed?limit=5
 curl "http://127.0.0.1:18473/api/feed?limit=50"
 \`\`\`
 
-按单个信源过滤。这里的 \`ref\` 必须与 \`~/.rssany/sources.json\` 中的 \`sources[].ref\` 一致：
+按单个信源过滤。这里的 \`ref\` 必须与 \`~/.rssany/config.json\` 中的 \`sources[].ref\` 一致：
 
 \`\`\`bash
 curl "http://127.0.0.1:18473/api/feed?ref=https%3A%2F%2Fexample.com%2Ffeed.xml&limit=20"
@@ -107,14 +107,14 @@ curl "http://127.0.0.1:18473/api/items?limit=50"
 - \`tags\`: 逗号分隔标签。
 - \`lng\`: 返回指定语言译文字段，如 \`zh-CN\` 或 \`en\`。
 
-如果返回空列表，先检查 \`~/.rssany/sources.json\` 是否配置了信源，并等待调度抓取或访问对应 \`/rss/https://...\` 触发即时抓取。
+如果返回空列表，先检查 \`~/.rssany/config.json\` 的 sources 是否配置了信源，并等待调度抓取或访问对应 \`/rss/https://...\` 触发即时抓取。
 
 ## 配置信源
 
 用户信源配置文件：
 
 \`\`\`text
-~/.rssany/sources.json
+~/.rssany/config.json
 \`\`\`
 
 结构是顶层 \`sources\` 数组：
@@ -145,7 +145,7 @@ curl "http://127.0.0.1:18473/api/items?limit=50"
 代理优先级：
 
 \`\`\`text
-sources.json 单源 proxy
+config.json 单源 proxy
   -> 调用方 FeederConfig.proxy
   -> 插件 Source/Site.proxy
   -> process.env.HTTP_PROXY
@@ -206,7 +206,7 @@ app/plugins/builtin/          # 内置插件，随包发布
 
 ### Site 插件
 
-Site 插件用于网页列表站点。它通过 \`listUrlPattern\` 匹配 \`sources.json\` 的 \`ref\`，并在 \`fetchItems\` 内完成列表抓取、详情抓取和正文提取。
+Site 插件用于网页列表站点。它通过 \`listUrlPattern\` 匹配 \`config.json\` 的 \`sources[].ref\`，并在 \`fetchItems\` 内完成列表抓取、详情抓取和正文提取。
 
 \`\`\`js
 export const id = "example-site";
@@ -311,7 +311,7 @@ export async function fetchItems(sourceId, ctx) {
 ## 调试插件
 
 1. 把插件文件放入 \`~/.rssany/plugins/example.rssany.js\`。
-2. 在 \`~/.rssany/sources.json\` 添加匹配该插件的 \`ref\`。
+2. 在 \`~/.rssany/config.json\` 的 sources 中添加匹配该插件的 \`ref\`。
 3. 重启 \`rssany start\`，或在开发模式等待重载。
 4. 访问 \`/rss/<ref>\` 即时抓取，或访问 \`/api/feed?ref=<encoded-ref>\` 查看入库结果。
 5. 查看 Web UI 的插件、日志、信源页面；管理接口通常需要登录且用户角色为 admin。

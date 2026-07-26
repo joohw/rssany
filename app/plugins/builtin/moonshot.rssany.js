@@ -9,7 +9,6 @@ let _deps;
 
 
 const DATE_RE = /^(\d{4})-(\d{1,2})-(\d{1,2})$/;
-const RESEARCH_HEADING_RE = /最新研究|latest\s+research/i;
 
 
 function normalizeText(text) {
@@ -49,7 +48,7 @@ function parseDate(dateText) {
 
 function extractTitleParts(anchor) {
   const parts = anchor
-    .querySelectorAll("h2")
+    .querySelectorAll("h2, h3")
     .map((el) => normalizeText(el.textContent))
     .filter(Boolean);
   if (parts.length > 0) return parts;
@@ -66,10 +65,13 @@ function parseResearchItem(anchor, finalUrl) {
   const titleParts = extractTitleParts(anchor);
   if (titleParts.length === 0) return null;
 
-  const dateText = anchor
-    .querySelectorAll("p")
-    .map((p) => normalizeText(p.textContent))
-    .find((t) => DATE_RE.test(t));
+  const dateText = normalizeText(anchor.textContent)
+    .split(" ")
+    .find((text) => DATE_RE.test(text)) ??
+    anchor
+      .querySelectorAll("p, span, time")
+      .map((node) => normalizeText(node.textContent))
+      .find((text) => DATE_RE.test(text));
   if (!dateText) return null;
 
   const pubDate = parseDate(dateText) ?? new Date();
@@ -87,14 +89,8 @@ function parseResearchItem(anchor, finalUrl) {
 
 
 function collectCandidateAnchors(root) {
-  const heading = root
-    .querySelectorAll("h1, h2, h3")
-    .find((node) => RESEARCH_HEADING_RE.test(normalizeText(node.textContent)));
-
-  if (heading?.parentNode && "querySelectorAll" in heading.parentNode) {
-    return heading.parentNode.querySelectorAll("a[href]");
-  }
-
+  // 当前首页中标题与卡片列表是兄弟节点，不能只搜索标题的直接父节点。
+  // parseResearchItem 仍会用日期 + 标题结构过滤掉导航等无关链接。
   return root.querySelectorAll("a[href]");
 }
 
@@ -122,4 +118,3 @@ export async function fetchItems(sourceId, ctx) {
 
   return items;
 }
-

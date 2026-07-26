@@ -19,7 +19,7 @@ const en = {
     subtitle:
       "Self-hosted pipeline for content production and news workflows: ingest web, RSS, and email, parse with plugins, store in SQLite, enrich on demand, then publish RSS, JSON API, and MCP for editorial and distribution tools.",
     quickStart: "Quick start",
-    quickStartHint: "First run creates ~/.rssany/ with sources.json and config.json",
+    quickStartHint: "First run creates ~/.rssany/config.json and opens the initialization page",
     useCaseAlt: "RssAny web UI to curate sources, browse items, and feed content pipelines",
     copy: "Copy",
     copySuccess: "Commands copied to clipboard",
@@ -31,7 +31,7 @@ const en = {
     features: {
       sources: {
         title: "Curated sources",
-        description: "Configure web lists, RSS feeds, and IMAP mail in sources.json; the scheduler keeps your news intake on refresh intervals.",
+        description: "Configure web lists, RSS feeds, and IMAP mail in config.json sources; the scheduler keeps your news intake on refresh intervals.",
       },
       plugins: {
         title: "Pluggable sources",

@@ -38,7 +38,7 @@ export interface SubscriptionSource {
 }
 
 
-/** sources.json 标准格式：扁平信源列表，无频道/订阅层级 */
+/** config.json 的 sources 标准格式：扁平信源列表，无频道/订阅层级 */
 export interface SourcesFile {
   /** 所有要抓取的信源 */
   sources: SubscriptionSource[];

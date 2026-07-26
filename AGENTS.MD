@@ -8,6 +8,14 @@ RssAny 是**自托管的 RSS / 订阅管线**：把**网页列表、RSS/Atom、�
 
 ---
 
+## 文档索引
+
+- **[插件开发与管理](docs/plugins.md)**：插件协议、目录约定、配置关系、管理 API 与 MCP 工具。
+
+`AGENTS.MD` 只保留架构和行为边界；具体操作与协议文档统一放在 `docs/`。
+
+---
+
 ## 运行模型（持久化）
 
 - **RSS XML**：一般不单独长期落盘成静态文件；按请求或抓取流程**按需生成**。
@@ -19,7 +27,7 @@ RssAny 是**自托管的 RSS / 订阅管线**：把**网页列表、RSS/Atom、�
 | 区域 | 说明 |
 |------|------|
 | **Feeds（前端）** | 访客侧以 WebUI 路由与中间件为准；部分区域需 **邮箱校验**。 |
-| **Admin（`/admin`）** | 需已登录且 **`users.role === 'admin'`**；API 经 **`requireAdmin()`**。管理员可从 **`/me`** 进入后台。 |
+| **Admin（`/admin`）** | 管理 API 经 **`requireAdmin()`**；当前本地运行中间件为直通模式，不做令牌校验，不应直接暴露到不可信网络。 |
 
 ---
 
@@ -48,18 +56,16 @@ RssAny 是**自托管的 RSS / 订阅管线**：把**网页列表、RSS/Atom、�
 │   ├── auth/            # JWT、requireAuth / requireAdmin
 │   ├── config/          # 路径、品牌、deliver 读取等
 │   └── scheduler/       # 通用定时任务（与 scraper/scheduler 等协作）
-├── app/plugins/builtin/  # 内置信源 *.rssany.js（随包发布）
-├── init/                 # 首次初始化默认数据（sources.json、config.json → 复制到 ~/.rssany/）
+├── app/plugins/builtin/  # 默认插件种子（随包发布，首次初始化复制到用户目录）
+├── app/init/             # 首次初始化默认数据（config.json → 复制到 ~/.rssany/）
 ├── webui/               # SvelteKit 静态前端，构建产物由后端托管
 └── statics/             # 其它静态资源（若有）
 
 ~/.rssany/（用户主目录下，首次启动创建；可选 RSSANY_USER_DIR）
-├── sources.json         # 信源列表（扁平 sources 数组，见仓库 init/sources.json）
-├── config.json          # pipeline、deliver 等
-├── tags.json            # 系统标签（pipeline tagger）
+├── config.json          # initialized、sources、sites、tags、pipeline、deliver、llm 等统一配置
 ├── data/rssany.db       # SQLite
 ├── cache/               # fetched、extracted、domains、browser_data 等
-└── plugins/             # 用户插件 *.rssany.{js,ts}（扁平，可覆盖同名内置）
+└── plugins/             # 唯一运行时插件目录 *.rssany.{js,ts}（扁平，默认插件也会复制到这里）
 ```
 
 **对应关系**：**core** → `app/core/`；**feeder** → `app/feeder/`；**scraper** → `app/scraper/`；**db** → `app/db/`。
@@ -86,7 +92,7 @@ RssAny 是**自托管的 RSS / 订阅管线**：把**网页列表、RSS/Atom、�
 
 - **sources**：`getSource`；web / api / email 等
 - **auth**：站点 Puppeteer 登录、`AuthRequiredError`
-- **subscription**：`.rssany/sources.json`
+- **subscription**：`.rssany/config.json` 的 `sources`
 - **scheduler**：信源定时抓取（`app/scraper/scheduler/` 等）
 
 ### db
@@ -125,68 +131,27 @@ cache/domains/{domain}.json 有效？
   否 → ensureAuth() → 有头浏览器登录 → 写回 cookies → 后续请求携带
 ```
 
-**3. 插件加载**
+**3. 插件初始化与加载**
 
 ```
-app/plugins/builtin/*.rssany.{js,ts}  +  .rssany/plugins/*.rssany.{js,ts}
-  → 合并 registeredSources（用户覆盖同 id 内置）
-  → 开发模式可监听重载
+首次 initUserDir()
+  → app/plugins/builtin/*.rssany.{js,ts} 复制到 .rssany/plugins/
+  → 写入 .builtin-plugins-initialized.json（后续不覆盖、不补回删除项）
+运行时只扫描 .rssany/plugins/*.rssany.{js,ts}
+  → registeredSources
+  → 开发模式监听用户插件目录并重载
 ```
 
 ---
 
-## 插件体系
+## 插件体系（摘要）
 
-**信源插件** + **固定 pipeline**（`app/pipeline/`，不是 `.rssany/plugins` 下的目录）：
+插件的完整协议、示例、目录约定、配置关系、管理 API 与 MCP 工具见 **[docs/plugins.md](docs/plugins.md)**。
 
-| 阶段 | 目录 | 职责 | 时机 |
-|------|------|------|------|
-| **sources** | `app/plugins/builtin/`、`.rssany/plugins/` | Site / Source：列表抓取与解析（含正文等，均在 `fetchItems` 内完成） | `fetchItems` |
-| **pipeline** | `app/pipeline/` | 标签、翻译等 | 每条一次 |
-
-出站 **投递下游** 用 **`deliver.url`**（`app/deliver/post.ts`），不是本仓库提供的「入站接收」接口。
-
-### 文件约定
-
-- 后缀：**`.rssany.js`** 或 **`.rssany.ts`**
-- **ESM**，**`export default`** 导出 Site
-- 内置在 `app/plugins/builtin/`；用户覆盖放在 `.rssany/plugins/`
-
-### Site 接口
-
-定义见 **`app/scraper/sources/web/site.ts`**。
-
-**必填**：`id`，`listUrlPattern`
-
-**常用可选**：`detailUrlPattern`，`refreshInterval`，`proxy`，`parser`，`extractor`，`checkAuth` / `loginUrl` / `domain` 等
-
-### `.rssany/sources.json` 覆盖
-
-对单条信源可覆盖 `refresh`、`proxy` 等，优先级高于插件内声明。结构为**顶层 `sources` 数组**（与仓库 **`init/sources.json`** 一致），例如：
-
-```json
-{
-  "sources": [
-    {
-      "ref": "https://example.com/list",
-      "label": "示例",
-      "refresh": "1h",
-      "proxy": "http://127.0.0.1:7890"
-    }
-  ]
-}
-```
-
-**合法 refresh**：`10min` / `30min` / `1h` / `6h` / `12h` / `1day`（默认）/ `3day` / `7day`
-
-### 代理优先级
-
-```
-sources.json 单源 proxy
-  → FeederConfig.proxy（调用方）
-  → Source / Site.proxy（插件）
-  → process.env.HTTP_PROXY
-```
+- `app/plugins/builtin/` 仅是首次初始化种子；运行时只加载 `.rssany/plugins/`。
+- 默认插件首次复制到用户目录后与普通用户插件一致，可以通过 API / MCP 直接读取、修改或删除。
+- 初始化标记存在时，后续启动和升级不会覆盖用户修改，也不会补回已删除插件。
+- `app/pipeline/` 是固定处理链，不属于用户插件体系。
 
 ---
 

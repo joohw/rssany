@@ -6,6 +6,7 @@
   import Rss from 'lucide-svelte/icons/rss';
   import Sparkles from 'lucide-svelte/icons/sparkles';
   import RefreshCw from 'lucide-svelte/icons/refresh-cw';
+  import CloudDownload from 'lucide-svelte/icons/cloud-download';
   import ExternalLink from 'lucide-svelte/icons/external-link';
   import Pencil from 'lucide-svelte/icons/pencil';
   import Trash2 from 'lucide-svelte/icons/trash-2';
@@ -577,7 +578,7 @@
     return { ok: false, error: '超时' };
   }
 
-  async function forcePull(ref: string, e?: MouseEvent) {
+  async function forcePull(ref: string, e?: MouseEvent, headless = false) {
     e?.preventDefault();
     e?.stopPropagation();
     if (ref in $refToTaskId) return;
@@ -585,7 +586,7 @@
       const res = await adminFetch('/api/tasks', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ type: 'source-pull', ref }),
+        body: JSON.stringify({ type: 'source-pull', ref, ...(headless ? { headless: true } : {}) }),
       });
       const data = (await res.json()) as { taskId?: string; error?: string };
       if (!res.ok || !data.taskId) return;
@@ -1119,6 +1120,20 @@
                       >
                         <RefreshCw size={14} />
                         <span>{card.ref in $refToTaskId ? '拉取中…' : '拉取'}</span>
+                      </button>
+                      <button
+                        type="button"
+                        class="more-menu-item"
+                        class:pulling={card.ref in $refToTaskId}
+                        title="使用无头浏览器在后台强制拉取"
+                        disabled={card.ref in $refToTaskId}
+                        onclick={(e) => {
+                          forcePull(card.ref, e, true);
+                          openMoreRef = null;
+                        }}
+                      >
+                        <CloudDownload size={14} />
+                        <span>{card.ref in $refToTaskId ? '拉取中…' : '后台拉取'}</span>
                       </button>
                       <button
                         type="button"

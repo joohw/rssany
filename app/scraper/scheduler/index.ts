@@ -1,10 +1,10 @@
-// 信源调度：根据 sources.json 中的信源 refresh 定时触发 getItems，使用通用调度器
+// 信源调度：根据 config.json 中的 sources refresh 定时触发 getItems，使用通用调度器
 
 import { watch } from "node:fs";
 import { getAllSources, getSourcesRaw } from "../subscription/index.js";
 import { resolveRef } from "../subscription/types.js";
 import { crawlSource } from "../../feeder/index.js";
-import { SOURCES_CONFIG_PATH } from "../../config/paths.js";
+import { CONFIG_PATH } from "../../config/paths.js";
 import { getDeliverConfig } from "../../config/deliver.js";
 import { joinGatewayPath, postDeliverSourcesSafe } from "../../deliver/post.js";
 import type { RefreshInterval } from "../../utils/refreshInterval.js";
@@ -33,7 +33,7 @@ function createPullTask(ref: string, cacheDir: string, cronExpr: string): schedu
 
 export const SOURCES_GROUP = "sources";
 
-/** sources.json 变更且 config.deliver.gateway 非空时，向 {gateway}/sources POST 当前信源 JSON */
+/** config.json 变更且 config.deliver.gateway 非空时，向 {gateway}/sources POST 当前信源 JSON */
 async function deliverSourcesConfigIfConfigured(): Promise<void> {
   const { gateway, token } = await getDeliverConfig();
   if (!gateway.trim()) return;
@@ -76,7 +76,7 @@ export async function initScheduler(cacheDir: string): Promise<void> {
   await rescheduleSources(cacheDir, false);
   let debounceTimer: NodeJS.Timeout | null = null;
   try {
-    const watcher = watch(SOURCES_CONFIG_PATH, () => {
+    const watcher = watch(CONFIG_PATH, () => {
       if (debounceTimer) clearTimeout(debounceTimer);
       debounceTimer = setTimeout(() => {
         void rescheduleSources(cacheDir, false)
@@ -86,6 +86,6 @@ export async function initScheduler(cacheDir: string): Promise<void> {
     });
     watcher.on("error", () => {});
   } catch {
-    /* sources.json 尚不存在 */
+    /* config.json 尚不存在 */
   }
 }

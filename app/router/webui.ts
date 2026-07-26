@@ -6,15 +6,21 @@ import { join, relative } from "node:path";
 import { serveStatic } from "@hono/node-server/serve-static";
 import type { Context, Hono } from "hono";
 import { PACKAGE_ROOT } from "../packageRoot.js";
+import { isInitialized } from "../config/configFile.js";
 
-/** 与 svelte.config.js 中 adapter-static 的 pages/assets 输出目录一致 */
+/** WebUI 构建目录：默认 React/Vite 新版；仍可用 WEBUI_BUILD_DIR 覆盖。 */
 export function getWebUiBuildDir(): string {
   const w = process.env.WEBUI_BUILD_DIR?.trim();
   if (w) {
     if (w.startsWith("/") || /^[A-Za-z]:[\\/]/.test(w)) return w;
     return join(process.cwd(), w);
   }
-  return join(PACKAGE_ROOT, "app/webui/build");
+  return join(PACKAGE_ROOT, "app/webui-react/dist");
+}
+
+/** SvelteKit SPA 使用 200.html，Vite SPA 使用 index.html。 */
+function getWebUiEntryFile(buildDir: string): "200.html" | "index.html" {
+  return existsSync(join(buildDir, "200.html")) ? "200.html" : "index.html";
 }
 
 /** 仅后端接口路径，不走静态/SPA；注意 /admin 为前端路由，仅 /admin/parse、/admin/extractor 为后端 */
@@ -37,6 +43,7 @@ function looksLikeStaticAsset(pathname: string): boolean {
  */
 export function registerWebUiRoutes(app: Hono): void {
   const absRoot = getWebUiBuildDir();
+  const entryFile = getWebUiEntryFile(absRoot);
   if (!existsSync(absRoot)) {
     console.warn(
       "未找到 WebUI 构建目录，静态路由已注册，等待前端 watch 构建:",
@@ -55,11 +62,19 @@ export function registerWebUiRoutes(app: Hono): void {
 
   const staticMw = serveStatic({
     root: staticRoot,
-    index: "200.html",
+    index: entryFile,
   });
 
   app.use("*", async (c, next) => {
     if (isBackendOnlyPath(c.req.path)) return next();
+    if (
+      c.req.method === "GET"
+      && c.req.path !== "/init"
+      && !looksLikeStaticAsset(c.req.path)
+      && !(await isInitialized())
+    ) {
+      return c.redirect("/init");
+    }
     return staticMw(c, next);
   });
 
@@ -68,7 +83,7 @@ export function registerWebUiRoutes(app: Hono): void {
     if (isBackendOnlyPath(p)) return c.notFound();
     if (looksLikeStaticAsset(p)) return c.notFound();
     try {
-      const html = await readFile(join(absRoot, "200.html"), "utf-8");
+      const html = await readFile(join(absRoot, entryFile), "utf-8");
       return c.html(html);
     } catch {
       return c.notFound();

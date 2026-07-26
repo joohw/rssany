@@ -11,7 +11,7 @@ import {
 } from "../../../db/index.js";
 
 export function registerTopicsRoutes(app: Hono): void {
-  /** 系统标签：来自 .rssany/tags.json，供 pipeline tagger 使用 */
+  /** 系统标签：来自 .rssany/config.json 的 tags，供 pipeline tagger 使用 */
   app.get("/api/tags", async (c) => {
     const [tags, stats, suggested] = await Promise.all([
       getSystemTags(),

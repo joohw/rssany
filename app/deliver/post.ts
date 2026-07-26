@@ -72,7 +72,7 @@ export async function postDeliverItemsSafe(
   }
 }
 
-/** POST 当前 sources.json 正文到 {gateway}/sources */
+/** POST 当前 config.json 中的 sources 片段到 {gateway}/sources */
 export async function postDeliverSources(
   url: string,
   sourcesJson: string,

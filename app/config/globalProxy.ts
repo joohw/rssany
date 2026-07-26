@@ -1,7 +1,6 @@
 // Global HTTP(S) proxy settings: read/write .rssany/config.json.
 
-import { readFile, writeFile } from "node:fs/promises";
-import { CONFIG_PATH } from "./paths.js";
+import { readConfigFile, updateConfigFile } from "./configFile.js";
 
 export type ProxySettings = {
   globalProxy: string;
@@ -23,12 +22,7 @@ function normalizeProxyList(raw: unknown): string[] {
 }
 
 async function readConfigRoot(): Promise<Record<string, unknown>> {
-  try {
-    const raw = await readFile(CONFIG_PATH, "utf-8");
-    return JSON.parse(raw) as Record<string, unknown>;
-  } catch {
-    return {};
-  }
+  return readConfigFile();
 }
 
 export async function readProxySettingsFromConfig(): Promise<ProxySettings> {
@@ -51,23 +45,14 @@ export async function readProxyListFromConfig(): Promise<string[]> {
 }
 
 export async function saveProxySettingsToConfig(settings: ProxySettings): Promise<void> {
-  const root = await readConfigRoot();
   const globalProxy = settings.globalProxy.trim();
   const proxyList = normalizeProxyList(settings.proxyList);
-
-  if (globalProxy) {
-    root.globalProxy = globalProxy;
-  } else {
-    delete root.globalProxy;
-  }
-
-  if (proxyList.length > 0) {
-    root.proxyList = proxyList;
-  } else {
-    delete root.proxyList;
-  }
-
-  await writeFile(CONFIG_PATH, JSON.stringify(root, null, 2) + "\n", "utf-8");
+  await updateConfigFile((root) => {
+    if (globalProxy) root.globalProxy = globalProxy;
+    else delete root.globalProxy;
+    if (proxyList.length > 0) root.proxyList = proxyList;
+    else delete root.proxyList;
+  });
 }
 
 /** Write or clear globalProxy while preserving proxyList. */

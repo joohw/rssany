@@ -2,14 +2,15 @@
 // 使用 Node.js 20+ 内置 node:sqlite 模块 (DatabaseSync - 同步API)
 
 import { DatabaseSync } from "node:sqlite";
-import { mkdir, readFile, writeFile } from "node:fs/promises";
+import { mkdir } from "node:fs/promises";
 import { join } from "node:path";
 import { existsSync, openSync, closeSync, writeSync, unlinkSync, readFileSync } from "node:fs";
 import type { FeedItem } from "../types/feedItem.js";
 import { normalizeAuthor, pubDateToIsoOrNull } from "../types/feedItem.js";
 import { canonicalHttpSourceRef } from "../utils/httpSourceRef.js";
 import type { LogEntry } from "../core/logger/types.js";
-import { DATA_DIR, TAGS_CONFIG_PATH } from "../config/paths.js";
+import { DATA_DIR } from "../config/paths.js";
+import { readConfigFile, updateConfigFile } from "../config/configFile.js";
 
 /** 主库日志模式：默认 WAL；环境变量 RSSANY_DB_JOURNAL=delete 时使用 DELETE */
 const MAIN_DB_JOURNAL = (process.env.RSSANY_DB_JOURNAL ?? "wal").toLowerCase() === "delete" ? "DELETE" : "WAL";
@@ -822,16 +823,11 @@ export async function clearAllLogs(): Promise<number> {
 
 /** 读取系统标签 */
 export async function getSystemTags(): Promise<string[]> {
-  try {
-    const raw = await readFile(TAGS_CONFIG_PATH, "utf-8");
-    const parsed = JSON.parse(raw) as { tags?: unknown[] };
-    if (!Array.isArray(parsed?.tags)) return [];
-    return parsed.tags
-      .filter((t): t is string => typeof t === "string" && t.trim().length > 0)
-      .map((t) => t.trim());
-  } catch {
-    return [];
-  }
+  const parsed = await readConfigFile();
+  if (!Array.isArray(parsed.tags)) return [];
+  return parsed.tags
+    .filter((tag): tag is string => typeof tag === "string" && tag.trim().length > 0)
+    .map((tag) => tag.trim());
 }
 
 /** 保存系统标签 */
@@ -839,7 +835,9 @@ export async function saveSystemTagsToFile(tags: string[]): Promise<void> {
   const list = tags
     .filter((t) => typeof t === "string" && t.trim())
     .map((t) => t.trim());
-  await writeFile(TAGS_CONFIG_PATH, JSON.stringify({ tags: list }, null, 2), "utf-8");
+  await updateConfigFile((config) => {
+    config.tags = list;
+  });
 }
 
 /** 标签使用统计 */

@@ -89,7 +89,7 @@
       <BackToParentRoute />
       <p class="intro">
         填写<strong>Gateway 基址</strong>（到 <code>/api/gateway</code> 为止，不要带 <code>/items</code>）。非空时：入库与 Pipeline
-        完成后会 <code>POST {gateway || '…'}/items</code>（体为 <code>sourceRef</code> + <code>items</code>）；<code>sources.json</code>
+        完成后会 <code>POST {gateway || '…'}/items</code>（体为 <code>sourceRef</code> + <code>items</code>）；<code>config.json</code> 中的 sources
         变更后会 <code>POST …/sources</code>（正文与本地信源文件一致）。下游按固定路径接收即可。
       </p>
 

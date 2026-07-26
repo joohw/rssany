@@ -95,7 +95,30 @@ function firstImgSrcFromHtml(html) {
   return m ? trimUrl(m[1]) : undefined;
 }
 
+function looksLikeFeedDocument(text) {
+  return /^\s*(?:<\?[\s\S]*?\?>\s*)*(?:<!DOCTYPE[^>]*>\s*)?<(?:rss|feed|rdf:RDF)\b/i.test(text);
+}
+
 async function fetchFeedXml(url, ctx) {
+  // 无代理时优先直接请求 Feed 原文，避免 Chrome 把 XML 渲染成预览页或长期等待 load。
+  if (!ctx.proxy && typeof fetch === "function") {
+    try {
+      const response = await fetch(url, {
+        redirect: "follow",
+        headers: {
+          "User-Agent": UA,
+          Accept: "application/rss+xml,application/atom+xml,application/json,application/xml,text/xml,*/*",
+        },
+      });
+      if (response.ok) {
+        const raw = await response.text();
+        if (looksLikeFeedDocument(raw)) return raw;
+      }
+    } catch {
+      // 直接请求失败后仍走浏览器路径，保留 cookies 与站点兼容能力。
+    }
+  }
+
   const fetchHtml = ctx.fetchHtml;
   if (typeof fetchHtml !== "function") {
     throw new Error("RSS 插件需要 ctx.fetchHtml（请通过 feeder / buildSourceContext 调用）");
@@ -105,27 +128,90 @@ async function fetchFeedXml(url, ctx) {
     purify: false,
     useHttpResponseBody: true,
   });
+  if (looksLikeFeedDocument(html)) {
+    return html;
+  }
+
   return html;
+}
+
+/** arXiv 的分类 RSS 在周末/无新增日会返回合法但无 item 的 Feed；此时从官方 API 补最近投稿。 */
+function arxivApiFallbackUrl(sourceId) {
+  try {
+    const url = new URL(sourceId);
+    if (url.hostname !== "rss.arxiv.org") return null;
+    const match = url.pathname.match(/^\/rss\/([a-z-]+\.[a-z-]+)$/i);
+    if (!match) return null;
+    const category = match[1];
+    const query = new URLSearchParams({
+      search_query: `cat:${category}`,
+      start: "0",
+      max_results: "50",
+      sortBy: "submittedDate",
+      sortOrder: "descending",
+    });
+    return `https://export.arxiv.org/api/query?${query.toString()}`;
+  } catch {
+    return null;
+  }
+}
+
+function parserOptions(xml2js) {
+  return {
+    timeout: 30_000,
+    headers: {
+      "User-Agent": UA,
+      Accept: "application/rss+xml,application/atom+xml,application/json,application/xml,text/xml,*/*",
+    },
+    customFields: {
+      item: [
+        ["media:thumbnail", "mediaThumbnail", { keepArray: true }],
+        ["media:content", "mediaContent", { keepArray: true }],
+        ["link", "atomLinks", { keepArray: true }],
+      ],
+    },
+    ...(xml2js ? { xml2js } : {}),
+  };
+}
+
+/** 默认严格解析；仅 XML 格式错误时用 sax 宽松模式重试，兼容正文 HTML 标签不平衡的 Feed。 */
+async function parseFeedXml(xml, sourceId, deps) {
+  try {
+    return await new deps.RssParser(parserOptions()).parseString(xml);
+  } catch (strictError) {
+    deps.logger?.warn?.("scraper", "RSS 严格 XML 解析失败，尝试宽松模式", {
+      source_url: sourceId,
+      err: strictError instanceof Error ? strictError.message : String(strictError),
+    });
+    const looseOptions = {
+      strict: false,
+      normalizeTags: true,
+      attrNameProcessors: [(name) => name.toLowerCase()],
+    };
+    try {
+      return await new deps.RssParser(parserOptions(looseOptions)).parseString(xml);
+    } catch (looseError) {
+      throw new Error(
+        `RSS 解析失败（严格与宽松模式均失败）: ${
+          looseError instanceof Error ? looseError.message : String(looseError)
+        }`,
+        { cause: strictError },
+      );
+    }
+  }
 }
 
 export async function fetchItems(sourceId, ctx) {
     const { deps } = ctx;
     const xml = await fetchFeedXml(sourceId, ctx);
-    const parser = new deps.RssParser({
-      timeout: 30_000,
-      headers: {
-        "User-Agent": UA,
-        Accept: "application/rss+xml,application/atom+xml,application/json,application/xml,text/xml,*/*",
-      },
-      customFields: {
-        item: [
-          ["media:thumbnail", "mediaThumbnail", { keepArray: true }],
-          ["media:content", "mediaContent", { keepArray: true }],
-          ["link", "atomLinks", { keepArray: true }],
-        ],
-      },
-    });
-    const feed = await parser.parseString(xml);
+    let feed = await parseFeedXml(xml, sourceId, deps);
+    if ((feed.items?.length ?? 0) === 0) {
+      const fallbackUrl = arxivApiFallbackUrl(sourceId);
+      if (fallbackUrl) {
+        const fallbackXml = await fetchFeedXml(fallbackUrl, ctx);
+        feed = await parseFeedXml(fallbackXml, fallbackUrl, deps);
+      }
+    }
     return (feed.items ?? []).map((item) => {
       const link = item.link ?? item.guid ?? sourceId;
       const guid = item.guid ?? deps.createHash("sha256").update(link).digest("hex");

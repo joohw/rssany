@@ -13,8 +13,8 @@
 - English blog: /en/blog
 - 中文：为内容管线定制专属信息源: /zh-CN/blog/curate-feeds-for-content-pipeline
 - English: Curate dedicated feeds for your content pipeline: /en/blog/curate-feeds-for-content-pipeline
-- 中文：信源插件与 sources.json 配置: /zh-CN/blog/rssany-plugin-and-source-setup
-- English: Plugins and sources.json setup: /en/blog/rssany-plugin-and-source-setup
+- 中文：信源插件与 config.json 配置: /zh-CN/blog/rssany-plugin-and-source-setup
+- English: Plugins and config.json setup: /en/blog/rssany-plugin-and-source-setup
 - 特性: /zh-CN#features
 - 管线: /zh-CN#pipeline
 - FAQ: /zh-CN#faq
@@ -22,7 +22,7 @@
 - 本文件: /llms.txt
 
 ## 核心能力
-- 定制信源：sources.json 配置网站、RSS、IMAP 邮件等
+- 定制信源：config.json 的 sources 配置网站、RSS、IMAP 邮件等
 - 可插拔信源：内置 Site 插件 + ~/.rssany/plugins 用户扩展
 - 固定 pipeline：打标签、翻译等（config.json pipeline.steps）
 - LLM 辅助：解析、提取、标签、翻译（OpenAI 兼容接口）

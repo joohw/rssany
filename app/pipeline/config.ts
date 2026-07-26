@@ -5,8 +5,7 @@
  * - steps 数组顺序即执行顺序，enabled: false 的步骤跳过
  */
 
-import { readFile, writeFile } from "node:fs/promises";
-import { CONFIG_PATH } from "../config/paths.js";
+import { readConfigFile, updateConfigFile } from "../config/configFile.js";
 
 export interface PipelineStepConfig {
   id: string;
@@ -58,8 +57,7 @@ function mergeWithDefaultSteps(userSteps: PipelineStepConfig[]): PipelineStepCon
 /** 读取 pipeline 配置，缺失时返回默认；已存在的 config 会与默认步骤合并，使新步骤（如 qualityFilter）始终出现在列表中 */
 export async function loadPipelineConfig(): Promise<PipelineConfig> {
   try {
-    const raw = await readFile(CONFIG_PATH, "utf-8");
-    const parsed = JSON.parse(raw) as { pipeline?: { steps?: unknown[] } };
+    const parsed = await readConfigFile() as { pipeline?: { steps?: unknown[] } };
     const rawSteps = Array.isArray(parsed?.pipeline?.steps) ? parsed.pipeline.steps : [];
     const steps = mergeWithDefaultSteps(parseSteps(rawSteps));
     if (steps.length > 0) return { steps };
@@ -71,13 +69,7 @@ export async function loadPipelineConfig(): Promise<PipelineConfig> {
 
 /** 保存 pipeline 配置到 config.json（合并其他块，不覆盖） */
 export async function savePipelineConfig(config: PipelineConfig): Promise<void> {
-  let root: Record<string, unknown> = {};
-  try {
-    const raw = await readFile(CONFIG_PATH, "utf-8");
-    root = JSON.parse(raw) as Record<string, unknown>;
-  } catch {
-    // 文件不存在或解析失败，使用空对象
-  }
-  root.pipeline = { steps: config.steps };
-  await writeFile(CONFIG_PATH, JSON.stringify(root, null, 2), "utf-8");
+  await updateConfigFile((root) => {
+    root.pipeline = { steps: config.steps };
+  });
 }

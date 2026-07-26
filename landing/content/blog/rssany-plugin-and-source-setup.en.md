@@ -1,6 +1,6 @@
 ---
-title: RssAny plugins and sources.json setup
-description: Use built-in Site plugins, custom .rssany.js files, and sources.json to add web/RSS/email sources with refresh policies.
+title: RssAny plugins and config.json setup
+description: Use built-in Site plugins, custom .rssany.js files, and config.json sources to add web/RSS/email sources with refresh policies.
 date: 2026-05-22
 ---
 
@@ -14,7 +14,7 @@ RssAny extends through **Site plugins + declarative source config**. Add new sit
 | RSS/Atom | standard feed URL | Publishers with feeds |
 | IMAP mail | mailbox + folder | newsletters, list mail |
 
-## sources.json shape
+## config.json sources shape
 
 Each source typically defines:
 
@@ -24,13 +24,13 @@ Each source typically defines:
 - `proxy` — optional
 - plugin-specific fields (list URL, selectors, …)
 
-After editing `sources.json`, restart or refresh; items land in SQLite and logs appear in the Web UI.
+After editing `config.json` sources, scheduling refreshes automatically; items land in SQLite and logs appear in the Web UI.
 
 ## Custom plugins
 
 1. Drop `my-source.rssany.js` into `~/.rssany/plugins/`.
 2. Implement list fetch + detail parsing (see built-ins and [plugins.md](https://github.com/joohw/rssany/blob/main/docs/plugins.md)).
-3. Reference the plugin name in `sources.json`.
+3. Reference the plugin name in `config.json` sources.
 
 ## Pipeline & outputs
 

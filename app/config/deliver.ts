@@ -2,8 +2,7 @@
 // Gateway 基址示例：https://agidaily.cc/api/gateway
 // 出站固定为：POST {gateway}/items、POST {gateway}/sources、连通性测试 POST {gateway}/test
 
-import { readFile, writeFile } from "node:fs/promises";
-import { CONFIG_PATH } from "./paths.js";
+import { readConfigFile, updateConfigFile } from "./configFile.js";
 
 export interface DeliverConfig {
   /** 基址，不含 /items；如 https://agidaily.cc/api/gateway */
@@ -39,8 +38,7 @@ function migrateGatewayFromFile(j: DeliverFileShape): string {
 
 export async function getDeliverConfig(): Promise<DeliverConfig> {
   try {
-    const raw = await readFile(CONFIG_PATH, "utf-8");
-    const j = JSON.parse(raw) as DeliverFileShape;
+    const j = await readConfigFile() as DeliverFileShape;
     const t = j?.deliver?.token;
     return {
       gateway: migrateGatewayFromFile(j),
@@ -59,18 +57,12 @@ export async function getDeliverUrl(): Promise<string> {
 }
 
 export async function saveDeliverConfig(config: DeliverConfig): Promise<void> {
-  let root: Record<string, unknown> = {};
-  try {
-    const raw = await readFile(CONFIG_PATH, "utf-8");
-    root = JSON.parse(raw) as Record<string, unknown>;
-  } catch {
-    // 无文件则新建
-  }
   const gateway = config.gateway.trim();
   const token = config.token.trim();
   const next: Record<string, unknown> = {};
   if (gateway) next.gateway = gateway;
   if (token) next.token = token;
-  root.deliver = next;
-  await writeFile(CONFIG_PATH, JSON.stringify(root, null, 2) + "\n", "utf-8");
+  await updateConfigFile((root) => {
+    root.deliver = next;
+  });
 }

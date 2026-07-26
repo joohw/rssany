@@ -14,6 +14,7 @@ const packageRoot = join(binDir, "..");
 const userDir = resolveDefaultUserDir(packageRoot);
 const pidPath = join(userDir, "rssany.pid");
 const logPath = join(userDir, "rssany.log");
+const configPath = join(userDir, "config.json");
 const port = Number(process.env.PORT) || 18473;
 const serverOrigin = `http://127.0.0.1:${port}`;
 
@@ -59,12 +60,58 @@ function printAddress(prefix = "RssAny 已启动") {
 }
 
 function printUsage() {
-  console.log("用法: rssany <start|stop|reset|crawl|update>");
+  console.log("用法: rssany <status|start|stop|reset|crawl|update>");
+  console.log("  rssany         自动启动服务并输出访问地址与投递 Gateway 状态");
+  console.log("  rssany status  只读输出服务与投递 Gateway 状态");
   console.log("  rssany start  后台启动服务并输出访问地址");
   console.log("  rssany stop   关闭后台服务并输出执行状态");
   console.log("  rssany reset  重置本地数据");
   console.log("  rssany crawl <ref>  按内部抓取链路拉取指定信源");
   console.log("  rssany update  更新到最新 npm 包；若服务正在运行则自动停止并重启");
+  console.log("  rssany update --no-restart  更新后保持停止状态");
+}
+
+async function readGateway() {
+  try {
+    const config = JSON.parse(await readFile(configPath, "utf-8"));
+    const deliver = config?.deliver;
+    const gateway = typeof deliver?.gateway === "string" ? deliver.gateway.trim() : "";
+    if (gateway) return gateway.replace(/\/+$/, "");
+
+    for (const [key, suffix] of [
+      ["url", "items"],
+      ["sourcesUrl", "sources"],
+    ]) {
+      const legacyUrl = typeof deliver?.[key] === "string" ? deliver[key].trim() : "";
+      if (legacyUrl) {
+        return legacyUrl
+          .replace(new RegExp(`/${suffix}/?$`, "i"), "")
+          .replace(/\/+$/, "");
+      }
+    }
+  } catch {
+    // 配置文件不存在或格式无效时视为未配置。
+  }
+  return "";
+}
+
+async function status() {
+  const pid = await readPid();
+  const running = pid != null && isProcessRunning(pid);
+  if (running) {
+    console.log(`RssAny: 运行中 (pid ${pid})`);
+    console.log(`访问地址: http://127.0.0.1:${port}/`);
+  } else {
+    console.log("RssAny: 未运行");
+    if (pid != null) console.log(`PID 文件已失效: ${pid}`);
+  }
+
+  await printGatewayStatus();
+}
+
+async function printGatewayStatus() {
+  const gateway = await readGateway();
+  console.log(gateway ? `Gateway: 已配置 (${gateway})` : "Gateway: 未配置");
 }
 
 async function canConnectToServer() {
@@ -236,9 +283,11 @@ async function runCommand(commandName, args) {
 async function update() {
   await mkdir(userDir, { recursive: true });
   const pid = await readPid();
-  const shouldRestart = pid != null && isProcessRunning(pid);
+  const restartDisabled = process.argv.slice(3).includes("--no-restart");
+  const shouldRestart = !restartDisabled && pid != null && isProcessRunning(pid);
+  const shouldStop = pid != null && isProcessRunning(pid);
 
-  if (shouldRestart) {
+  if (shouldStop) {
     console.log("RssAny 正在运行 (pid " + pid + ")，先停止服务...");
     await stop();
   } else if (pid != null) {
@@ -259,10 +308,17 @@ async function update() {
   if (shouldRestart) {
     console.log("重新启动 RssAny...");
     await start();
+  } else if (shouldStop) {
+    console.log("自动重启已关闭，请手动执行 rssany start。");
   }
 }
 
-if (command === "reset") {
+if (!command) {
+  await start();
+  await printGatewayStatus();
+} else if (command === "status") {
+  await status();
+} else if (command === "reset") {
   await import(new URL("../scripts/reset.mjs", import.meta.url));
 } else if (command === "start") {
   await start();
@@ -274,5 +330,5 @@ if (command === "reset") {
   await update();
 } else {
   printUsage();
-  if (command) process.exitCode = 1;
+  process.exitCode = 1;
 }

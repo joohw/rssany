@@ -1,10 +1,11 @@
 // /api/sources/stats、/api/sources/raw、/api/sources/plugin-match（admin）
 
 import type { Hono } from "hono";
+import { streamSSE } from "hono/streaming";
 import { getSourceStats } from "../../../db/index.js";
 import { getSource } from "../../../scraper/sources/index.js";
 import { getPluginSites } from "../../../scraper/sources/web/index.js";
-import { getSourcesRaw, saveSourcesFile, getEffectiveProxyForListUrl } from "../../../scraper/subscription/index.js";
+import { getAllSources, getSourcesRaw, saveSourcesFile, getEffectiveProxyForListUrl } from "../../../scraper/subscription/index.js";
 import { openBrowserPage, resolveProxy } from "../../../scraper/sources/web/fetcher/index.js";
 import { CACHE_DIR } from "../../../config/paths.js";
 import type { SourceType } from "../../../scraper/subscription/types.js";
@@ -12,8 +13,47 @@ import type { RefreshInterval } from "../../../utils/refreshInterval.js";
 import { VALID_INTERVALS } from "../../../utils/refreshInterval.js";
 import { requireAdmin } from "../../../auth/middleware.js";
 import { canonicalHttpSourceRef } from "../../../utils/httpSourceRef.js";
+import { getSourcePullStatus, onSourcePullStatus } from "../../../core/sourcePullStatus.js";
+import { resolveRef } from "../../../scraper/subscription/types.js";
 
 export function registerSourcesRoutes(app: Hono): void {
+  const pullStatusSnapshot = async () => {
+    const sources = await getAllSources().catch(() => []);
+    return sources.map((source) => {
+      const ref = resolveRef(source);
+      return getSourcePullStatus(ref) ?? {
+        ref: canonicalHttpSourceRef(ref),
+        status: "idle" as const,
+        pending: 0,
+        running: 0,
+        updatedAt: 0,
+      };
+    });
+  };
+
+  app.get("/api/sources/pull-status", requireAdmin(), async (c) => {
+    return c.json({ sources: await pullStatusSnapshot() });
+  });
+
+  app.get("/api/sources/pull-status/events", (c) => {
+    return streamSSE(c, async (stream) => {
+      await stream.writeSSE({
+        data: JSON.stringify({ type: "snapshot", sources: await pullStatusSnapshot() }),
+      });
+      const off = onSourcePullStatus((source) => {
+        stream.writeSSE({ data: JSON.stringify({ type: "status", source }) }).catch(() => {});
+      });
+      const heartbeat = setInterval(() => {
+        stream.writeSSE({ event: "ping", data: "" }).catch(() => {});
+      }, 25000);
+      stream.onAbort(() => {
+        off();
+        clearInterval(heartbeat);
+      });
+      await new Promise<void>((resolve) => stream.onAbort(resolve));
+    });
+  });
+
   app.get("/api/sources/stats", requireAdmin(), async (c) => {
     const stats = await getSourceStats();
     return c.json(stats);

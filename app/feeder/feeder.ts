@@ -19,6 +19,7 @@ import { getDeliverConfig } from "../config/deliver.js";
 import { joinGatewayPath, postDeliverItemsSafe } from "../deliver/post.js";
 import { getEffectiveProxyForListUrl } from "../scraper/subscription/index.js";
 import { canonicalHttpSourceRef } from "../utils/httpSourceRef.js";
+import { beginSourcePull, finishSourcePull } from "../core/sourcePullStatus.js";
 
 /** 主动拉取默认有头；仅显式 headless:true 时用无头；其余场景沿用 config.headless */
 function resolveHeadlessForFeeder(config: FeederConfig): boolean | undefined {
@@ -144,14 +145,15 @@ async function generateAndCache(
 
 /** 根据 list URL 获取条目列表：按 cron 或 refresh 策略生成时间窗口 key 用于去重，每次均重新抓取 */
 export async function crawlSource(listUrl: string, config: FeederConfig = {}): Promise<{ items: FeedItem[] }> {
-  const source = getSource(listUrl);
-  const proxy = await getEffectiveProxyForListUrl(listUrl, source);
-  const headless = resolveHeadlessForFeeder(config);
-  const key = config.cron
-    ? cacheKeyFromCron(listUrl, config.cron)
-    : cacheKey(listUrl, config.refreshInterval ?? source.refreshInterval ?? "1day");
-  if (source.preCheck != null) {
-    try {
+  beginSourcePull(listUrl);
+  try {
+    const source = getSource(listUrl);
+    const proxy = await getEffectiveProxyForListUrl(listUrl, source);
+    const headless = resolveHeadlessForFeeder(config);
+    const key = config.cron
+      ? cacheKeyFromCron(listUrl, config.cron)
+      : cacheKey(listUrl, config.refreshInterval ?? source.refreshInterval ?? "1day");
+    if (source.preCheck != null) {
       await source.preCheck(
         buildSourceContext({
           cacheDir: config.cacheDir ?? "cache",
@@ -159,18 +161,20 @@ export async function crawlSource(listUrl: string, config: FeederConfig = {}): P
           proxy,
         }),
       );
-    } catch (err) {
-      if (err instanceof AuthRequiredError) throw err;
-      throw err;
     }
+    let task = config.force ? undefined : generatingKeys.get(key);
+    if (!task) {
+      task = generateAndCache(listUrl, key, config, proxy);
+      if (!config.force) generatingKeys.set(key, task);
+    }
+    const { items } = await task;
+    finishSourcePull(listUrl);
+    return { items };
+  } catch (err) {
+    finishSourcePull(listUrl, err instanceof Error ? err.message : String(err));
+    if (err instanceof AuthRequiredError) throw err;
+    throw err;
   }
-  let task = config.force ? undefined : generatingKeys.get(key);
-  if (!task) {
-    task = generateAndCache(listUrl, key, config, proxy);
-    if (!config.force) generatingKeys.set(key, task);
-  }
-  const { items } = await task;
-  return { items };
 }
 
 export async function getItems(listUrl: string, config: FeederConfig = {}): Promise<{ items: FeedItem[]; fromCache: boolean }> {

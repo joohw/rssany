@@ -11,7 +11,7 @@ export interface SourceContext {
   cacheDir?: string;
   /** 是否使用无头浏览器，false 时显示浏览器窗口 */
   headless?: boolean;
-  /** 本次抓取使用的代理（由 feeder 合并 sources.json 与 Source，或管理端调试传入） */
+  /** 本次抓取使用的代理（由 feeder 合并 config sources 与 Source，或管理端调试传入） */
   proxy?: string;
   /**
    * 宿主注入依赖（node-html-parser、rss-parser、imapflow 等）。

@@ -5,6 +5,7 @@ export {
   preCheckAuth,
   launchBrowser,
   getOrCreateBrowser,
+  closeSharedBrowsers,
   openBrowserPage,
   resolveProxy,
   applyProxyAuthToPage,

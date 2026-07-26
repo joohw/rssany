@@ -1,18 +1,13 @@
 // 使用无头浏览器（Puppeteer）拉取页面，缓存逻辑在 cacher 中
 
-import { exec } from "node:child_process";
 import { createHash } from "node:crypto";
-import { platform } from "node:os";
 import { join, resolve } from "node:path";
-import { promisify } from "node:util";
 import puppeteerCore, { type Browser, type Page } from "puppeteer-core";
 import { applyPurify } from "./purify.js";
 import { findChromeExecutable } from "./cdp.js";
 import type { AuthFlow } from "../../../auth/index.js";
 import type { RequestConfig, StructuredHtmlResult } from "./types.js";
 import { logger } from "../../../../core/logger/index.js";
-
-const execAsync = promisify(exec);
 
 /** 与 launchArgs / setViewport 一致；无头拉高便于长页与懒加载内容 */
 const VIEWPORT_WIDTH = 1366;
@@ -84,52 +79,6 @@ function getUserDataDir(cacheDir?: string, proxy?: string): string | undefined {
 function isAlreadyRunningError(e: unknown): boolean {
   const msg = e instanceof Error ? e.message : String(e);
   return /already running/i.test(msg) && /userDataDir|user-data-dir|user data dir/i.test(msg);
-}
-
-
-/**
- * 强制结束占用指定 userDataDir 的 Chrome/Chromium 进程（上次未正常退出时残留）。
- * 仅在 darwin/linux 下执行；启动前调用以释放 profile 锁。
- */
-async function killStaleChromeProcesses(absUserDataDir: string): Promise<void> {
-  const plat = platform();
-  if (plat !== "darwin" && plat !== "linux") {
-    return;
-  }
-  try {
-    // 匹配命令行中包含该 userDataDir 的进程（Chrome 使用 --user-data-dir=/path）
-    const psCmd = plat === "darwin"
-      ? `ps -eww -o pid= -o args= 2>/dev/null`
-      : `ps -eo pid,args --no-headers 2>/dev/null`;
-    const { stdout } = await execAsync(psCmd, { maxBuffer: 4 * 1024 * 1024 });
-    const pids = new Set<number>();
-    const lineRegex = /^\s*(\d+)\s+/;
-    for (const line of stdout.split("\n")) {
-      if (!line.includes(absUserDataDir)) continue;
-      const m = line.match(lineRegex);
-      if (m) pids.add(parseInt(m[1], 10));
-    }
-    if (pids.size === 0) return;
-    logger.info("scraper", "发现占用 browser_data 的 Chrome 进程，正在结束", { pids: [...pids], userDataDir: absUserDataDir });
-    for (const pid of pids) {
-      try {
-        process.kill(pid, "SIGTERM");
-      } catch {
-        // 进程可能已退出
-      }
-    }
-    await new Promise((r) => setTimeout(r, 800));
-    for (const pid of pids) {
-      try {
-        process.kill(pid, "SIGKILL");
-      } catch {
-        // ignore
-      }
-    }
-    await new Promise((r) => setTimeout(r, 300));
-  } catch (err) {
-    logger.warn("scraper", "结束残留 Chrome 进程时出错", { err: err instanceof Error ? err.message : String(err) });
-  }
 }
 
 
@@ -218,139 +167,6 @@ type SharedBrowserSlot = {
 };
 
 const sharedBrowsers = new Map<string, SharedBrowserSlot>();
-const managedBrowsers = new WeakSet<Browser>();
-const infoPagePromises = new WeakMap<Browser, Promise<void>>();
-
-const RSSANY_INFO_PAGE_PREFIX = "data:text/html;charset=utf-8,";
-
-function rssAnyInfoPageUrl(): string {
-  const html = `<!doctype html>
-<html lang="zh-CN">
-<head>
-  <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>RssAny 浏览器</title>
-  <style>
-    :root {
-      color-scheme: light dark;
-      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
-      background: #f7f7f5;
-      color: #202124;
-    }
-    body {
-      margin: 0;
-      min-height: 100vh;
-      display: grid;
-      place-items: center;
-      padding: 32px;
-      box-sizing: border-box;
-    }
-    main {
-      max-width: 680px;
-      border: 1px solid #d7d7d1;
-      border-radius: 8px;
-      background: #ffffff;
-      padding: 28px 32px;
-      box-shadow: 0 8px 24px rgba(0, 0, 0, 0.08);
-    }
-    h1 {
-      margin: 0 0 12px;
-      font-size: 24px;
-      line-height: 1.25;
-    }
-    p {
-      margin: 10px 0 0;
-      font-size: 15px;
-      line-height: 1.7;
-    }
-    code {
-      font-family: ui-monospace, SFMono-Regular, Consolas, "Liberation Mono", monospace;
-      font-size: 13px;
-      background: #f0f0ec;
-      padding: 2px 6px;
-      border-radius: 4px;
-    }
-    @media (prefers-color-scheme: dark) {
-      :root {
-        background: #181a1b;
-        color: #f1f1ed;
-      }
-      main {
-        background: #202325;
-        border-color: #3a3d3f;
-        box-shadow: none;
-      }
-      code {
-        background: #303335;
-      }
-    }
-  </style>
-</head>
-<body>
-  <main>
-    <h1>这是 RssAny 创建的浏览器</h1>
-    <p>RssAny 会复用这个浏览器执行订阅抓取、站点登录、页面解析和调试打开等任务。</p>
-    <p>抓取任务会临时打开自己的标签页，完成后自动关闭。请保留此页面，以便区分 RssAny 管理的浏览器窗口。</p>
-    <p>用户数据与 cookies 保存在 <code>.rssany/cache/browser_data</code> 对应的浏览器 profile 中。</p>
-  </main>
-</body>
-</html>`;
-  return `${RSSANY_INFO_PAGE_PREFIX}${encodeURIComponent(html)}`;
-}
-
-function isRssAnyInfoPage(page: Page): boolean {
-  return page.url().startsWith(RSSANY_INFO_PAGE_PREFIX);
-}
-
-function isBlankPage(page: Page): boolean {
-  const url = page.url();
-  return url === "about:blank" || url === "" || url.startsWith("chrome://newtab");
-}
-
-async function cleanupExtraBlankPages(browser: Browser): Promise<void> {
-  if (!isBrowserConnected(browser)) return;
-  const pages = await browser.pages().catch(() => []);
-  for (const page of pages) {
-    if (page.isClosed() || isRssAnyInfoPage(page) || !isBlankPage(page)) continue;
-    if (pages.length <= 1) continue;
-    await page.close().catch(() => {});
-  }
-}
-
-async function ensureRssAnyInfoPage(browser: Browser): Promise<void> {
-  if (!isBrowserConnected(browser)) return;
-  const current = infoPagePromises.get(browser);
-  if (current) return current;
-  const promise = (async () => {
-    const pages = await browser.pages().catch(() => []);
-    if (pages.some((page) => !page.isClosed() && isRssAnyInfoPage(page))) {
-      await cleanupExtraBlankPages(browser);
-      return;
-    }
-    const page = await browser.newPage();
-    await page.goto(rssAnyInfoPageUrl(), { waitUntil: "domcontentloaded", timeout: 10_000 }).catch(() => {});
-    await cleanupExtraBlankPages(browser);
-  })().finally(() => {
-    infoPagePromises.delete(browser);
-  });
-  infoPagePromises.set(browser, promise);
-  return promise;
-}
-
-function setupRssAnyBrowserLifecycle(browser: Browser, headless: boolean): void {
-  if (headless || managedBrowsers.has(browser)) return;
-  managedBrowsers.add(browser);
-  browser.on("targetcreated", () => {
-    setTimeout(() => {
-      cleanupExtraBlankPages(browser).catch(() => {});
-    }, 2500);
-  });
-  browser.on("targetdestroyed", () => {
-    setTimeout(() => {
-      ensureRssAnyInfoPage(browser).catch(() => {});
-    }, 300);
-  });
-}
 
 function browserKey(config: BrowserLaunchConfig): string {
   const executablePath = config.chromeExecutablePath ?? process.env.CHROME_PATH ?? findChromeExecutable() ?? "";
@@ -382,13 +198,9 @@ export async function launchBrowser(config: BrowserLaunchConfig): Promise<Browse
   let lastErr: unknown;
   for (let attempt = 0; attempt <= maxRetries; attempt++) {
     try {
-      if (attempt === 0 && userDataDir) {
-        const absUserDataDir = resolve(userDataDir);
-        await killStaleChromeProcesses(absUserDataDir);
-      }
       if (attempt > 0) {
         const waitMs = attempt * 2000;
-        logger.info("scraper", "userDataDir 曾被占用，等待后重试", { waitMs, attempt });
+        logger.info("scraper", "browser_data 正被使用，等待现有浏览器释放后重试", { waitMs, attempt });
         await new Promise((r) => setTimeout(r, waitMs));
       }
       return await puppeteerCore.launch({
@@ -406,7 +218,7 @@ export async function launchBrowser(config: BrowserLaunchConfig): Promise<Browse
       if (isAlreadyRunningError(e)) {
         const dir = userDataDir ?? "browser_data/main";
         throw new Error(
-          `Chrome 的 profile 目录已被占用（${dir}）。通常是因为上次未正常退出，或另一个服务实例正在使用同一个缓存目录。请关闭占用该目录的 Chrome 进程后重试，或设置环境变量 CACHE_DIR 使用不同缓存目录。`
+          `Chrome 的 profile 目录正被另一个 RssAny/Chrome 实例使用（${dir}）。为避免误关正在浏览或抓取的页面，RssAny 不会强制结束该进程。请关闭对应实例后重试，或为并行实例配置不同的 CACHE_DIR。`
         );
       }
       throw e;
@@ -430,9 +242,6 @@ export async function getOrCreateBrowser(config: BrowserLaunchConfig): Promise<B
   if (current?.promise) {
     const browser = await current.promise;
     if (isBrowserConnected(browser) && (wantHeadless || current.headless === false)) {
-      if (!wantHeadless) {
-        await ensureRssAnyInfoPage(browser);
-      }
       return browser;
     }
     if (isBrowserConnected(browser)) {
@@ -443,9 +252,6 @@ export async function getOrCreateBrowser(config: BrowserLaunchConfig): Promise<B
     }
   } else if (isBrowserConnected(current?.browser)) {
     if (wantHeadless || current.headless === false) {
-      if (!wantHeadless) {
-        await ensureRssAnyInfoPage(current.browser);
-      }
       return current.browser;
     }
     await current.browser.close().catch(() => {});
@@ -459,16 +265,12 @@ export async function getOrCreateBrowser(config: BrowserLaunchConfig): Promise<B
     slot.browser = browser;
     slot.promise = undefined;
     slot.headless = wantHeadless;
-    setupRssAnyBrowserLifecycle(browser, wantHeadless);
     browser.once("disconnected", () => {
       if (sharedBrowsers.get(key)?.browser === browser) {
         sharedBrowsers.delete(key);
       }
     });
-    if (wantHeadless) {
-      return browser;
-    }
-    return ensureRssAnyInfoPage(browser).then(() => browser);
+    return browser;
   }).catch((err) => {
     if (sharedBrowsers.get(key) === slot) {
       sharedBrowsers.delete(key);
@@ -479,6 +281,25 @@ export async function getOrCreateBrowser(config: BrowserLaunchConfig): Promise<B
   slot.promise = promise;
   sharedBrowsers.set(key, slot);
   return promise;
+}
+
+/** 主动关闭当前进程创建的共享浏览器，供测试或优雅停机使用。 */
+export async function closeSharedBrowsers(): Promise<void> {
+  const slots = [...sharedBrowsers.values()];
+  sharedBrowsers.clear();
+  const browsers = await Promise.all(
+    slots.map(async (slot) => slot.browser ?? await slot.promise?.catch(() => undefined)),
+  );
+  await Promise.all(
+    [...new Set(browsers.filter((browser): browser is Browser => isBrowserConnected(browser)))]
+      .map((browser) => browser.close().catch(() => {})),
+  );
+}
+
+/** 只关闭当前任务明确创建的页面；不按 URL、空白状态或延时猜测其他页面是否可关闭。 */
+async function closeTaskPage(page: Page): Promise<void> {
+  if (page.isClosed()) return;
+  await page.close().catch(() => {});
 }
 
 
@@ -506,7 +327,7 @@ export async function preCheckAuth(
       await new Promise((resolve) => setTimeout(resolve, 3000));
       return await checkAuth(page, page.url());
   } finally {
-    await page.close().catch(() => {});
+    await closeTaskPage(page);
   }
 }
 
@@ -535,7 +356,7 @@ export async function ensureAuth(
       }
       throw new Error(`登录超时（${loginTimeoutMs}ms）`);
   } finally {
-    await page.close().catch(() => {});
+    await closeTaskPage(page);
   }
 }
 
@@ -559,7 +380,7 @@ export async function openBrowserPage(
     await page.goto(url, { waitUntil: "domcontentloaded", timeout: 60_000 });
     return page;
   } catch (err) {
-    await page.close().catch(() => {});
+    await closeTaskPage(page);
     throw err;
   }
 }
@@ -678,16 +499,16 @@ export async function fetchHtml(url: string, config: RequestConfig = {}): Promis
         const rawHeaders = response?.headers() ?? {};
         const normalizedHeaders = headersToRecord(rawHeaders);
         const body = applyPurify(rawBody, purify);
-        await page.close().catch(() => {});
         return { finalUrl, status, statusText, headers: normalizedHeaders, body };
       } catch (e) {
         lastError = e;
-        await page.close().catch(() => {});
         if (isRetry || !isFrameDetachedError(e)) {
           throw e;
         }
         logger.warn("scraper", "fetchHtml 因 frame 分离重试", { url, attempt: attempt + 1, err: e instanceof Error ? e.message : String(e) });
         await new Promise((r) => setTimeout(r, 800));
+      } finally {
+        await closeTaskPage(page);
       }
     }
   throw lastError;
