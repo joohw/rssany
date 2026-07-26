@@ -17,6 +17,8 @@ const logPath = join(userDir, "rssany.log");
 const configPath = join(userDir, "config.json");
 const port = Number(process.env.PORT) || 18473;
 const serverOrigin = `http://127.0.0.1:${port}`;
+const STOP_TIMEOUT_MS = 15_000;
+const FORCE_STOP_TIMEOUT_MS = 5_000;
 
 async function pathExists(path) {
   try {
@@ -44,6 +46,15 @@ function isProcessRunning(pid) {
   } catch {
     return false;
   }
+}
+
+async function waitForProcessExit(pid, timeoutMs) {
+  const startTime = Date.now();
+  while (Date.now() - startTime < timeoutMs) {
+    if (!isProcessRunning(pid)) return true;
+    await new Promise((resolve) => setTimeout(resolve, 100));
+  }
+  return !isProcessRunning(pid);
 }
 
 function getLanUrl() {
@@ -189,8 +200,16 @@ async function stop() {
   }
 
   process.kill(pid, "SIGTERM");
+  console.log(`正在停止 RssAny (pid ${pid})...`);
+  if (!(await waitForProcessExit(pid, STOP_TIMEOUT_MS))) {
+    console.warn(`RssAny 未在 ${STOP_TIMEOUT_MS / 1000} 秒内退出，正在强制停止...`);
+    process.kill(pid, "SIGKILL");
+    if (!(await waitForProcessExit(pid, FORCE_STOP_TIMEOUT_MS))) {
+      throw new Error(`无法停止 RssAny (pid ${pid})，更新已中止。`);
+    }
+  }
   await rm(pidPath, { force: true });
-  console.log(`RssAny 已发送停止信号 (pid ${pid})。`);
+  console.log(`RssAny 已停止 (pid ${pid})。`);
 }
 
 function readCrawlRef(args) {
@@ -289,7 +308,13 @@ async function update() {
 
   if (shouldStop) {
     console.log("RssAny 正在运行 (pid " + pid + ")，先停止服务...");
-    await stop();
+    try {
+      await stop();
+    } catch (err) {
+      console.error(err instanceof Error ? err.message : String(err));
+      process.exitCode = 1;
+      return;
+    }
   } else if (pid != null) {
     await rm(pidPath, { force: true });
   }

@@ -49,4 +49,37 @@ describe("rssany update", () => {
     expect(result.stdout).toContain("RssAny 更新完成");
     expect(result.stdout).not.toContain("重新启动");
   });
+
+  it("waits for the managed process to exit before installing", async () => {
+    const dir = await mkdtemp(join(tmpdir(), "rssany-update-wait-test-"));
+    const fakeNpm = join(dir, "fake-npm");
+    const statePath = join(dir, "process-state.txt");
+    const managed = spawn(process.execPath, [
+      "-e",
+      "process.on('SIGTERM',()=>setTimeout(()=>process.exit(0),300));setInterval(()=>{},1000)",
+    ], { stdio: "ignore" });
+    await new Promise((resolve) => setTimeout(resolve, 100));
+    await writeFile(join(dir, "rssany.pid"), `${managed.pid}\n`, "utf-8");
+    await writeFile(
+      fakeNpm,
+      [
+        "#!/usr/bin/env node",
+        "const { writeFileSync } = require('node:fs');",
+        `try { process.kill(${managed.pid}, 0); writeFileSync(${JSON.stringify(statePath)}, 'running'); }`,
+        `catch { writeFileSync(${JSON.stringify(statePath)}, 'stopped'); }`,
+      ].join("\n") + "\n",
+      "utf-8",
+    );
+    await chmod(fakeNpm, 0o755);
+
+    const result = await runNode([binPath, "update", "--no-restart"], {
+      RSSANY_USER_DIR: dir,
+      RSSANY_UPDATE_NPM_CMD: fakeNpm,
+    });
+
+    expect(result.code).toBe(0);
+    await expect(readFile(statePath, "utf-8")).resolves.toBe("stopped");
+    expect(result.stdout).toContain(`RssAny 已停止 (pid ${managed.pid})`);
+    expect(result.stdout).toContain("RssAny 更新完成");
+  });
 });
