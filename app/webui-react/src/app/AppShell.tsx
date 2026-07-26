@@ -33,7 +33,7 @@ export function AppShell() {
 
   return (
     <TooltipProvider delayDuration={200}>
-      <div className="min-h-dvh bg-background p-2 sm:p-3">
+      <div className="app-shell">
         <div className="app-frame">
           <aside className="app-nav-rail">
             <nav className="app-nav-links" aria-label="主导航">

@@ -66,22 +66,42 @@
   box-sizing: border-box;
   border-color: var(--border);
 }
-html, body, #root { min-height: 100%; }
+html,
+body,
+#root {
+  width: 100%;
+  height: 100%;
+  min-height: 0;
+}
 body {
   margin: 0;
   min-width: 320px;
+  overflow: hidden;
   background: var(--background);
   color: var(--foreground);
   font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
   -webkit-font-smoothing: antialiased;
 }
 
-.app-frame {
+.app-shell {
   display: flex;
   width: 100%;
-  max-width: 72rem;
-  height: calc(100dvh - 1rem);
+  height: 100%;
   min-height: 0;
+  flex-direction: column;
+  overflow: hidden;
+  padding: clamp(0.4rem, 1.25vw, 0.85rem);
+  background: var(--background);
+}
+
+.app-frame {
+  display: flex;
+  min-width: 0;
+  min-height: 0;
+  width: 100%;
+  max-width: 72rem;
+  flex: 1 1 auto;
+  align-self: stretch;
   margin-inline: auto;
   overflow: hidden;
   border: 1px solid var(--border);
@@ -125,10 +145,6 @@ body {
 
 .logs-filter-grid > * {
   min-width: 0;
-}
-
-@media (min-width: 640px) {
-  .app-frame { height: calc(100dvh - 1.5rem); }
 }
 
 /* App navigation uses explicit layout rules so icon alignment is not affected by

@@ -39,17 +39,16 @@ rssany reset
 从源码运行：
 
 \`\`\`bash
-pnpm install
-pnpm run webui:install
+npm install
 cp .env.example .env
-pnpm run dev:all
+npm run dev
 \`\`\`
 
 生产源码运行：
 
 \`\`\`bash
-pnpm run webui:build
-pnpm start
+npm run build:all
+npm start
 \`\`\`
 
 数据目录默认在 \`~/.rssany/\`，Windows 为 \`%USERPROFILE%\\.rssany\\\`。可用环境变量 \`RSSANY_USER_DIR\` 指向其他用户数据目录。

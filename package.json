@@ -33,7 +33,6 @@
   "scripts": {
     "build": "vite build",
     "dev": "node scripts/dev-react.mjs",
-    "dev:legacy": "node scripts/dev.mjs",
     "dev:backend": "cross-env PORT=18374 NODE_ENV=development WEBUI_BUILD_DIR=app/webui-react/dist tsx watch --clear-screen=false app/index.ts",
     "start": "node dist/index.js",
     "serve:route": "node scripts/serve-route.mjs",
@@ -46,10 +45,6 @@
     "reset": "node scripts/reset.mjs",
     "postinstall": "node scripts/postinstall.mjs",
     "proxy-browser": "tsx scripts/proxy-browser.ts",
-    "webui:install": "cd app/webui && npm install",
-    "webui:dev": "cd app/webui && npm run build:watch",
-    "webui:build": "cd app/webui && npm run build",
-    "webui:watch": "cd app/webui && npm run build:watch",
     "webui:react:dev": "cd app/webui-react && npm run dev",
     "dev:frontend": "npm --prefix app/webui-react run dev",
     "webui:react:build": "cd app/webui-react && npm run build",

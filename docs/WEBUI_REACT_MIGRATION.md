@@ -6,7 +6,7 @@ WebUI 从 SvelteKit 静态 SPA 迁移至 React + Vite + shadcn/ui。后端 Hono 
 
 迁移完成后：
 
-- 旧实现保留在 `app/webui/`，仅作为历史对照。
+- 旧 SvelteKit 实现已删除。
 - 当前实现位于 `app/webui-react/`，Hono 默认托管其 Vite 构建。
 - 不使用 TanStack Query。现阶段通过 `src/api/client.ts` 集中请求、页面级状态和小型 hooks 管理交互；当出现跨页缓存失效或复杂无限列表需求时再评估引入。
 

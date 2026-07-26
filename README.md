@@ -20,7 +20,7 @@
 - **LLM 辅助**：解析、提取、标签、翻译等可按配置走 OpenAI 兼容接口。
 - **站点登录**：需登录的站点通过 Puppeteer 管理 Cookie（与产品用户账号无关）。
 - **可选远端投递**：若 `config.json` 中 `**deliver.url`** 非空，在写库与 pipeline 完成后将条目以 `**{ sourceRef, items }**` JSON **POST** 到该 URL（由 `app/deliver/post.ts` 发送）；留空则仅本地消费。
-- **Web 界面**：SvelteKit 构建产物由后端托管；**Feeds** 等需 **邮箱校验**；`**/admin`** 需 `**users.role === 'admin'**`（可从 `**/me**` 进入）。
+- **Web 界面**：React/Vite 构建产物由后端托管；**Feeds** 等需 **邮箱校验**；`**/admin`** 需 `**users.role === 'admin'**`（可从 `**/me**` 进入）。
 
 ---
 
@@ -69,27 +69,24 @@ CLI 名为 **`rssany`**；裸 `rssany` 只显示用法，不再直接进入服�
 
 ```bash
 npm install
-npm run webui:install
 cp .env.example .env   # 按需修改
 ```
 
-**开发**（单一后端地址；前端静态构建自动 watch）：
+**开发**：
 
 ```bash
 npm run dev
 ```
 
-该命令会先启动 `webui` 静态构建 watch，等首轮 HTML 构建完成后再启动后端服务；浏览器只访问后端地址（默认 `http://127.0.0.1:3999/`），不再单独启动前端开发服务器。
-
 运行 `npm run dev` 会同时启动 React Vite（固定 `18373`）和支持热重启的开发后端（固定 `18374`）。React 页面使用 HMR，后端由 `tsx watch` 在源码变化时自动重启；`Ctrl+C` 会同时清理两个进程。正式服务仍使用 `18473`。
 
 也可分步运行：一个终端执行 `npm run dev:frontend`，另一个终端执行 `npm run dev:backend`。
 
-**生产**（本仓库）：`npm run webui:build && npm start`。
+**生产**（本仓库）：`npm run build:all && npm start`。
 
 **重置本地数据**（与全局安装的 `rssany reset` 逻辑相同）：`npm run reset`。
 
-发布到 npm 时 `prepublishOnly` 会执行 `build:all`（后端 `vite build` + `webui:build`）。
+发布到 npm 时 `prepublishOnly` 会执行 `build:all`（后端 `vite build` + React/Vite 前端构建）。
 
 ---
 
@@ -160,7 +157,7 @@ config.json sources / 信源插件
 ├── app/                 # 后端：路由、feeder、scraper、pipeline、db、auth…
 │   └── plugins/builtin/ # 内置信源 *.rssany.js
 ├── docs/                # 用户文档（如 plugins.md）
-└── webui/               # SvelteKit 前端
+└── webui-react/         # React + Vite 前端
 
 ~/.rssany/               # 运行时用户数据（首次启动创建；或 RSSANY_USER_DIR）
     ├── config.json      # sources、sites、tags、pipeline、deliver、llm 等统一配置

@@ -14,13 +14,13 @@ RssAny 使用紧凑、克制的桌面工具风格：
 
 ## 技术基线
 
-- 框架：SvelteKit 5。
+- 框架：React 19 + Vite。
 - 样式：Tailwind CSS 4 + `app.css` 中的 CSS token。
-- 通用组件：shadcn-svelte，源码位于 `src/lib/components/ui/`。
-- 无障碍基础组件：Bits UI，由 shadcn-svelte 组件内部封装。
-- 图标：Lucide Svelte，常规尺寸 `14px`、`16px` 或 `18px`。
+- 通用组件：shadcn/ui，源码位于 `app/webui-react/src/components/ui/`。
+- 无障碍基础组件：Radix UI，由 shadcn/ui 组件内部封装。
+- 图标：Lucide React，常规尺寸 `14px`、`16px` 或 `18px`。
 
-业务页面不应直接使用 Bits UI primitive，也不应重复手写 Button、Switch、Card、Label 等基础控件。缺少组件时，先通过 shadcn-svelte CLI 添加到 `src/lib/components/ui/`，再在业务页面使用。
+业务页面不应直接使用 Radix primitive，也不应重复手写 Button、Switch、Card、Label 等基础控件。缺少组件时，先添加到 `app/webui-react/src/components/ui/`，再在业务页面使用。
 
 ## 颜色
 
@@ -61,19 +61,13 @@ RssAny 使用紧凑、克制的桌面工具风格：
 
 推荐外壳：
 
-```svelte
-<div class="feed-wrap">
-  <div class="feed-col">
-    <div class="body">
-      <BackToParentRoute />
-      <p class="intro">页面说明</p>
-      <!-- sections -->
-    </div>
-  </div>
-</div>
+```tsx
+<Page title="设置" description="页面说明" back="/admin">
+  <section className="space-y-4">{/* sections */}</section>
+</Page>
 ```
 
-页面内容宽度默认 `max-width: 42rem`，顶部通过 `margin-top: calc(-1 * var(--main-padding-top))` 与后台布局对齐。
+普通页面通过共享 `Page` 组件统一内容宽度与顶部间距；主从布局使用 `master-detail-layout`。
 
 ## 组件规范
 
@@ -130,4 +124,4 @@ RssAny 使用紧凑、克制的桌面工具风格：
 - 页面在桌面和窄屏下均无横向滚动。
 - 键盘可以访问所有交互控件。
 - loading、disabled、success、error 状态均明确。
-- `npm run build` 和 `npx svelte-check --tsconfig ./tsconfig.json` 通过。
+- `npm --prefix app/webui-react run build` 和 `npm --prefix app/webui-react run lint` 通过。

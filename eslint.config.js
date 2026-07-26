@@ -3,7 +3,7 @@ import tseslint from "typescript-eslint";
 import globals from "globals";
 
 export default tseslint.config(
-  { ignores: ["dist/**", "node_modules/**", "app/webui/.svelte-kit/**", "app/webui/build/**"] },
+  { ignores: ["dist/**", "node_modules/**", "app/webui-react/dist/**"] },
   js.configs.recommended,
   ...tseslint.configs.recommended,
   {

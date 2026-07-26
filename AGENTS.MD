@@ -58,7 +58,7 @@ RssAny 是**自托管的 RSS / 订阅管线**：把**网页列表、RSS/Atom、�
 │   └── scheduler/       # 通用定时任务（与 scraper/scheduler 等协作）
 ├── app/plugins/builtin/  # 默认插件种子（随包发布，首次初始化复制到用户目录）
 ├── app/init/             # 首次初始化默认数据（config.json → 复制到 ~/.rssany/）
-├── webui/               # SvelteKit 静态前端，构建产物由后端托管
+├── app/webui-react/     # React/Vite 前端，构建产物由后端托管
 └── statics/             # 其它静态资源（若有）
 
 ~/.rssany/（用户主目录下，首次启动创建；可选 RSSANY_USER_DIR）

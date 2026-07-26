@@ -1,4 +1,4 @@
-// 生产环境：在同一端口托管 SvelteKit 静态构建（adapter-static + 200.html SPA fallback）
+// 生产环境：在同一端口托管 React/Vite 静态构建。
 
 import { existsSync } from "node:fs";
 import { readFile } from "node:fs/promises";
@@ -8,7 +8,7 @@ import type { Context, Hono } from "hono";
 import { PACKAGE_ROOT } from "../packageRoot.js";
 import { isInitialized } from "../config/configFile.js";
 
-/** WebUI 构建目录：默认 React/Vite 新版；仍可用 WEBUI_BUILD_DIR 覆盖。 */
+/** WebUI 构建目录；可用 WEBUI_BUILD_DIR 覆盖。 */
 export function getWebUiBuildDir(): string {
   const w = process.env.WEBUI_BUILD_DIR?.trim();
   if (w) {
@@ -16,11 +16,6 @@ export function getWebUiBuildDir(): string {
     return join(process.cwd(), w);
   }
   return join(PACKAGE_ROOT, "app/webui-react/dist");
-}
-
-/** SvelteKit SPA 使用 200.html，Vite SPA 使用 index.html。 */
-function getWebUiEntryFile(buildDir: string): "200.html" | "index.html" {
-  return existsSync(join(buildDir, "200.html")) ? "200.html" : "index.html";
 }
 
 /** 仅后端接口路径，不走静态/SPA；注意 /admin 为前端路由，仅 /admin/parse、/admin/extractor 为后端 */
@@ -43,12 +38,12 @@ function looksLikeStaticAsset(pathname: string): boolean {
  */
 export function registerWebUiRoutes(app: Hono): void {
   const absRoot = getWebUiBuildDir();
-  const entryFile = getWebUiEntryFile(absRoot);
+  const entryFile = "index.html";
   if (!existsSync(absRoot)) {
     console.warn(
       "未找到 WebUI 构建目录，静态路由已注册，等待前端 watch 构建:",
       absRoot,
-      "（开发模式：npm run dev；单独构建：npm run webui:build）",
+      "（开发模式：npm run dev；单独构建：npm run webui:react:build）",
     );
   }
 

@@ -9,15 +9,15 @@
 | 层次 | 技术 |
 |------|------|
 | 运行时 | Node.js **20.x–23.x**（见 `package.json` `engines`），**ESM** |
-| 包管理 | **pnpm**（根目录与 `webui/` 分别安装依赖） |
+| 包管理 | **npm**（根目录与 `app/webui-react/` 分别安装依赖） |
 | 语言 | TypeScript（以 `tsconfig.json` / ESLint 为准） |
 | HTTP | Hono + `@hono/node-server` |
 | 数据库 | **SQLite**（Node.js 内置 `node:sqlite`），默认路径 `~/.rssany/data/rssany.db`（或 `RSSANY_USER_DIR`） |
 | 浏览器自动化 | `puppeteer-core` |
 | HTML / 正文 | `node-html-parser`、jsdom、`@mozilla/readability` |
 | LLM（可选） | `openai`（兼容 OpenAI 式 HTTP API） |
-| 前端 | SvelteKit（`webui/`），构建产物由后端托管 |
-| 构建 | Vite（根与 `webui/` 各自配置） |
+| 前端 | React + Vite（`app/webui-react/`），构建产物由后端托管 |
+| 构建 | Vite（根与 `app/webui-react/` 各自配置） |
 | 测试 | Vitest（`package.json` 中已配置；测试目录与命名见下） |
 
 ---
@@ -30,7 +30,7 @@
 - **函数之间**：模块内函数之间空行适度（常见为**空两行**，与周边文件保持一致即可）
 - **函数开头**：复杂或非显然的函数顶部用**一行中文注释**说明用途；显而易见的可省略
 - **缩进**：2 空格
-- **引号**：TypeScript/JavaScript 以**双引号**为主；Svelte 模板遵循项目格式化工具输出
+- **引号**：TypeScript/JavaScript 以**双引号**为主；JSX 遵循项目格式化工具输出
 - **分号**：省略（与现有文件一致）
 
 ### TypeScript 规范
