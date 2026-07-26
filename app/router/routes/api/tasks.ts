@@ -58,7 +58,7 @@ export function registerTasksRoutes(app: Hono): void {
             await crawlSource(ref, {
               cacheDir: CACHE_DIR,
               force: true,
-              headless: body.headless === true ? true : undefined,
+              headless: typeof body.headless === "boolean" ? body.headless : undefined,
             });
             taskStore.setTaskDone(taskId, { ok: true });
           } catch (err) {

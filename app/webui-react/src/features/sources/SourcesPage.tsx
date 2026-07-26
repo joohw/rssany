@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
-import { ArrowUpDown, CloudDownload, Copy, ExternalLink, LoaderCircle, MoreHorizontal, Pencil, Plus, RefreshCw, Trash, Trash2, X } from 'lucide-react'
+import { ArrowUpDown, Copy, ExternalLink, LoaderCircle, Monitor, MoreHorizontal, Pencil, Plus, RefreshCw, Trash, Trash2, X } from 'lucide-react'
 import { api } from '@/api/client'
 import { Button } from '@/components/ui/button'
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuRadioGroup, DropdownMenuRadioItem, DropdownMenuSeparator, DropdownMenuTrigger } from '@/components/ui/dropdown-menu'
@@ -69,11 +69,11 @@ export function SourcesPage(){
   const closeDetails=()=>{detailRequestId.current+=1;detailAbortController.current?.abort();detailAbortController.current=null;selectedRef.current=null;setSelected(null);setItems([]);setItemsLoading(false)}
   const persist=async(next:Source[])=>{await api('/api/sources/raw',{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify({sources:next})});setSources(next)}
   const remove=async(s:Source)=>{if(!window.confirm(`删除信源“${s.label||s.ref}”及其条目？`))return;await api(`/api/items/by-source?source_url=${encodeURIComponent(s.ref)}`,{method:'DELETE'});await persist(sources.filter(x=>x.ref!==s.ref));if(selected?.ref===s.ref)closeDetails()}
-  const pull=async(ref:string,headless=false)=>{
+  const pull=async(ref:string,headless=true)=>{
     const key=canonicalSourceRef(ref)
     if(pullingRefs[key])return
     try{
-      await api<{taskId:string}>('/api/tasks',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({type:'source-pull',ref,...(headless?{headless:true}:{})})})
+      await api<{taskId:string}>('/api/tasks',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({type:'source-pull',ref,headless})})
     }catch(e){
       setError(String(e))
     }
@@ -120,7 +120,7 @@ export function SourcesPage(){
           </DropdownMenuTrigger>
           <DropdownMenuContent align="end" onClick={event=>event.stopPropagation()}>
             <DropdownMenuItem disabled={!!pullingRefs[canonicalSourceRef(s.ref)]} onSelect={()=>void pull(s.ref)}><RefreshCw/>拉取</DropdownMenuItem>
-            <DropdownMenuItem disabled={!!pullingRefs[canonicalSourceRef(s.ref)]} onSelect={()=>void pull(s.ref,true)}><CloudDownload/>后台拉取</DropdownMenuItem>
+            <DropdownMenuItem disabled={!!pullingRefs[canonicalSourceRef(s.ref)]} onSelect={()=>void pull(s.ref,false)}><Monitor/>前台拉取</DropdownMenuItem>
             <DropdownMenuItem onSelect={()=>{setEditing({...s});setAdding(false)}}><Pencil/>编辑</DropdownMenuItem>
             <DropdownMenuItem onSelect={()=>void copyRss(s.ref)}><Copy/>复制 RSS 地址</DropdownMenuItem>
             {host&&<DropdownMenuItem onSelect={()=>void openLink(s.ref)}><ExternalLink/>打开链接</DropdownMenuItem>}
