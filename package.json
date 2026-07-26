@@ -1,6 +1,6 @@
 {
   "name": "rssany",
-  "version": "0.3.6",
+  "version": "0.3.7",
   "description": "Universal RSS/Atom/JSON Feed pipeline — fetches, extracts, parses and converts any web content into consumable feeds with plugin support",
   "author": "Joo",
   "type": "module",
@@ -32,9 +32,9 @@
   },
   "scripts": {
     "build": "vite build",
-    "dev": "npm run dev:react",
+    "dev": "node scripts/dev-react.mjs",
     "dev:legacy": "node scripts/dev.mjs",
-    "dev:backend": "cross-env PORT=3999 tsx app/index.ts",
+    "dev:backend": "cross-env PORT=18374 NODE_ENV=development WEBUI_BUILD_DIR=app/webui-react/dist tsx watch --clear-screen=false app/index.ts",
     "start": "node dist/index.js",
     "serve:route": "node scripts/serve-route.mjs",
     "serve:app": "npx tsx app/index.ts",
@@ -53,7 +53,7 @@
     "webui:react:dev": "cd app/webui-react && npm run dev",
     "dev:frontend": "npm --prefix app/webui-react run dev",
     "webui:react:build": "cd app/webui-react && npm run build",
-    "dev:react": "concurrently -n react,backend -c cyan,green \"npm run webui:react:dev\" \"cross-env PORT=3999 WEBUI_BUILD_DIR=app/webui-react/dist npm run dev:backend\"",
+    "dev:react": "node scripts/dev-react.mjs",
     "dev:all": "npm run dev",
     "build:all": "npm run build && npm run webui:react:build",
     "prepublishOnly": "npm run build:all",

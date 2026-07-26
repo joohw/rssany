@@ -1,8 +1,8 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
-import { CloudDownload, Copy, ExternalLink, LoaderCircle, MoreHorizontal, Pencil, Plus, RefreshCw, Trash, Trash2, X } from 'lucide-react'
+import { ArrowUpDown, CloudDownload, Copy, ExternalLink, LoaderCircle, MoreHorizontal, Pencil, Plus, RefreshCw, Trash, Trash2, X } from 'lucide-react'
 import { api } from '@/api/client'
 import { Button } from '@/components/ui/button'
-import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from '@/components/ui/dropdown-menu'
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuRadioGroup, DropdownMenuRadioItem, DropdownMenuSeparator, DropdownMenuTrigger } from '@/components/ui/dropdown-menu'
 import { fieldClass, Notice } from '@/components/Page'
 import { FeedItemCard, type FeedItem } from './FeedItemCard'
 
@@ -10,10 +10,12 @@ type Source={ref:string;label?:string;description?:string;refresh?:string;proxy?
 type Feed={items?:FeedItem[];hasMore?:boolean}
 type SourceStat={source_url:string;count:number}
 type PullStatus={ref:string;status:'idle'|'pending'|'running'|'done'|'error';pending:number;running:number;error?:string}
+type SourceSort='configured'|'name-asc'|'name-desc'|'count-desc'|'count-asc'
 const intervals=['10min','30min','1h','6h','12h','1day','3day','7day']
+const sourceNameCollator=new Intl.Collator('zh-CN',{numeric:true,sensitivity:'base'})
 
 export function SourcesPage(){
-  const [sources,setSources]=useState<Source[]>([]);const [stats,setStats]=useState<Record<string,number>>({});const [items,setItems]=useState<FeedItem[]>([]);const [selected,setSelected]=useState<Source|null>(null);const [editing,setEditing]=useState<Source|null>(null);const [adding,setAdding]=useState(false);const [query,setQuery]=useState('');const [error,setError]=useState('');const [pullingRefs,setPullingRefs]=useState<Record<string,boolean>>({});const [itemsLoading,setItemsLoading]=useState(false)
+  const [sources,setSources]=useState<Source[]>([]);const [stats,setStats]=useState<Record<string,number>>({});const [items,setItems]=useState<FeedItem[]>([]);const [selected,setSelected]=useState<Source|null>(null);const [editing,setEditing]=useState<Source|null>(null);const [adding,setAdding]=useState(false);const [query,setQuery]=useState('');const [sort,setSort]=useState<SourceSort>('configured');const [error,setError]=useState('');const [pullingRefs,setPullingRefs]=useState<Record<string,boolean>>({});const [itemsLoading,setItemsLoading]=useState(false)
   const detailRequestId=useRef(0)
   const detailAbortController=useRef<AbortController|null>(null)
   const selectedRef=useRef<Source|null>(null)
@@ -79,15 +81,34 @@ export function SourcesPage(){
   const clearItems=async(s:Source)=>{if(!window.confirm('确定要清空该信源下的所有条目吗？此操作不可恢复。'))return;await api(`/api/items/by-source?source_url=${encodeURIComponent(s.ref)}`,{method:'DELETE'});setStats(current=>({...current,[canonicalSourceRef(s.ref)]:0}));if(selected?.ref===s.ref)setItems([])}
   const copyRss=async(ref:string)=>{const url=new URL('/rss',window.location.origin);url.searchParams.set('ref',ref);await navigator.clipboard.writeText(url.href)}
   const openLink=async(ref:string)=>{await api('/api/sources/open-browser',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({url:ref})})}
-  const filtered=sources.filter(s=>`${s.label??''} ${s.ref} ${s.description??''}`.toLowerCase().includes(query.toLowerCase()))
+  const filtered=sortSources(sources.filter(s=>`${s.label??''} ${s.ref} ${s.description??''}`.toLowerCase().includes(query.toLowerCase())),sort,stats)
   return <div className="sources-split">
     <section className="sources-list-pane">
       <header className="sources-toolbar">
-        <input className="sources-filter-input" type="search" value={query} onChange={e=>setQuery(e.target.value)} placeholder="过滤…"/>
-        <button className="sources-add-button" title="添加信源" aria-label="添加信源" onClick={()=>{setEditing({ref:'',refresh:'1day',weight:0});setAdding(true)}}><Plus aria-hidden="true"/></button>
+        <input className={`${fieldClass} sidebar-filter-input sources-filter-input`} type="search" value={query} onChange={e=>setQuery(e.target.value)} placeholder="过滤…"/>
+        <div className="sources-toolbar-actions">
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <button className="sources-sort-button" title="排序信源" aria-label="排序信源"><ArrowUpDown aria-hidden="true"/></button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end">
+              <DropdownMenuLabel>排序方式</DropdownMenuLabel>
+              <DropdownMenuSeparator/>
+              <DropdownMenuRadioGroup value={sort} onValueChange={value=>setSort(value as SourceSort)}>
+                <DropdownMenuRadioItem value="configured">配置顺序</DropdownMenuRadioItem>
+                <DropdownMenuRadioItem value="name-asc">名称 A–Z</DropdownMenuRadioItem>
+                <DropdownMenuRadioItem value="name-desc">名称 Z–A</DropdownMenuRadioItem>
+                <DropdownMenuRadioItem value="count-desc">条目数：从多到少</DropdownMenuRadioItem>
+                <DropdownMenuRadioItem value="count-asc">条目数：从少到多</DropdownMenuRadioItem>
+              </DropdownMenuRadioGroup>
+            </DropdownMenuContent>
+          </DropdownMenu>
+          <button className="sources-add-button" title="添加信源" aria-label="添加信源" onClick={()=>{setEditing({ref:'',refresh:'1day',weight:0});setAdding(true)}}><Plus aria-hidden="true"/></button>
+        </div>
       </header>
-      {error&&<Notice error>{error}</Notice>}
-      <div className="sources-list-scroll">{filtered.map(s=>{const host=sourceHostname(s.ref);return <article key={s.ref} className={`source-row ${selected?.ref===s.ref?'source-row--active':''}`} onClick={()=>void open(s)}>
+      <div className="sources-list-scroll">
+      {error&&<div className="sidebar-error"><Notice error>{error}</Notice></div>}
+      {filtered.map(s=>{const host=sourceHostname(s.ref);return <article key={s.ref} className={`source-row ${selected?.ref===s.ref?'source-row--active':''}`} onClick={()=>void open(s)}>
         <button className="source-row-main" title={s.ref}>
           <span className="source-favicon-slot">{host&&<img src={`/api/feed-favicon?domain=${encodeURIComponent(host)}`} alt=""/>}</span>
           <span className="source-row-title">{s.label||s.ref}</span>
@@ -128,6 +149,17 @@ function canonicalSourceRef(ref:string){
     const path=url.pathname.length>1&&url.pathname.endsWith('/')?url.pathname.slice(0,-1):url.pathname
     return `${url.protocol.toLowerCase()}//${url.host.toLowerCase()}${path}${url.search}${url.hash}`
   }catch{return value.toLowerCase()}
+}
+
+function sortSources(sources:Source[],sort:SourceSort,stats:Record<string,number>){
+  if(sort==='configured')return sources
+  return [...sources].sort((a,b)=>{
+    const nameComparison=sourceNameCollator.compare(a.label||a.ref,b.label||b.ref)
+    if(sort==='name-asc')return nameComparison
+    if(sort==='name-desc')return -nameComparison
+    const countComparison=(stats[canonicalSourceRef(a.ref)]??0)-(stats[canonicalSourceRef(b.ref)]??0)
+    return (sort==='count-asc'?countComparison:-countComparison)||nameComparison
+  })
 }
 
 function SourceDialog({value,adding,onClose,onSave}:{value:Source;adding:boolean;onClose:()=>void;onSave:(v:Source)=>Promise<void>}){

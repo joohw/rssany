@@ -81,7 +81,9 @@ npm run dev
 
 该命令会先启动 `webui` 静态构建 watch，等首轮 HTML 构建完成后再启动后端服务；浏览器只访问后端地址（默认 `http://127.0.0.1:3999/`），不再单独启动前端开发服务器。
 
-或分步：一个终端运行 `npm run webui:watch`，另一个终端运行 `npm run dev:backend`。
+运行 `npm run dev` 会同时启动 React Vite（固定 `18373`）和支持热重启的开发后端（固定 `18374`）。React 页面使用 HMR，后端由 `tsx watch` 在源码变化时自动重启；`Ctrl+C` 会同时清理两个进程。正式服务仍使用 `18473`。
+
+也可分步运行：一个终端执行 `npm run dev:frontend`，另一个终端执行 `npm run dev:backend`。
 
 **生产**（本仓库）：`npm run webui:build && npm start`。
 

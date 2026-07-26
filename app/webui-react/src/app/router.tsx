@@ -20,7 +20,7 @@ export const router = createBrowserRouter([
     element: <AppShell />,
     children: [
       { path: '/', element: <SourcesPage /> },
-      { path: '/logs', element: <LogsPage /> },
+      { path: '/logs', element: <Navigate to="/admin/logs" replace /> },
       {
         path: '/plugins',
         element: <PluginsLayout />,
@@ -42,7 +42,7 @@ export const router = createBrowserRouter([
           { path: 'llm', element: <LlmPage /> },
           { path: 'proxy', element: <ProxyPage /> },
           { path: 'deliver', element: <DeliverPage /> },
-          { path: 'logs', element: <Navigate to="/logs" replace /> },
+          { path: 'logs', element: <LogsPage /> },
           { path: 'sources', element: <Navigate to="/" replace /> },
         ],
       },

@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from 'react'
 import { NavLink, Outlet, useLocation, useNavigate, useOutletContext, useParams } from 'react-router'
-import { Plus, Trash2 } from 'lucide-react'
+import { Plus } from 'lucide-react'
 import { api } from '@/api/client'
 import { Button } from '@/components/ui/button'
 import { fieldClass, Notice, Page } from '@/components/Page'
@@ -17,12 +17,12 @@ export function PluginsLayout(){
   const filtered=plugins.filter(p=>`${p.id} ${p.name??''}`.toLowerCase().includes(query.toLowerCase()))
   return <div className="master-detail-layout">
     <aside className="flex min-h-0 flex-col overflow-hidden border-r bg-card">
-      <header className="flex items-center gap-2 px-3 py-4">
-        <input className={fieldClass} value={query} onChange={e=>setQuery(e.target.value)} placeholder="搜索插件"/>
+      <header className="sidebar-toolbar">
+        <input className={`${fieldClass} sidebar-filter-input`} value={query} onChange={e=>setQuery(e.target.value)} placeholder="搜索插件"/>
         <Button size="icon-sm" onClick={()=>nav('/plugins/new')} aria-label="新建插件"><Plus size={15}/></Button>
       </header>
-      {error&&<Notice error>{error}</Notice>}
-      <nav className="min-h-0 flex-1 divide-y overflow-y-auto border-t" aria-label="插件列表">
+      <nav className="min-h-0 flex-1 divide-y overflow-y-auto" aria-label="插件列表">
+        {error&&<div className="sidebar-error"><Notice error>{error}</Notice></div>}
         {filtered.map(p=><NavLink key={p.id} to={`/plugins/${encodeURIComponent(p.id)}`} className={({isActive})=>cn(
           'group flex min-h-14 items-center gap-2 px-3 py-2.5 hover:bg-muted',
           isActive&&'bg-primary/10 text-primary',
@@ -61,7 +61,7 @@ export function PluginEditorPage(){
     <header className="mb-4 flex flex-none items-start justify-between gap-4">
       <div className="min-w-0"><h1 className="truncate text-base font-semibold">{id}</h1><p className="mt-1 truncate text-xs text-muted-foreground">{path}</p></div>
       <div className="flex items-center gap-2">
-        {canDelete&&<Button variant="destructive" onClick={remove} disabled={busy||loading}><Trash2 size={14}/>删除</Button>}
+        {canDelete&&<Button variant="destructive" onClick={remove} disabled={busy||loading}>删除</Button>}
         <Button onClick={save} disabled={busy||loading}>{busy?'处理中…':'保存'}</Button>
       </div>
     </header>

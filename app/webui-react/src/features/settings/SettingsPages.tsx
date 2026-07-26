@@ -12,6 +12,7 @@ const settingsNavigation = [
   ['/admin/llm', 'LLM', 'OpenAI 兼容 API 配置'],
   ['/admin/proxy', '代理', '全局代理与代理列表'],
   ['/admin/deliver', '投递', '下游 URL 与 Bearer 令牌'],
+  ['/admin/logs', '日志', '查看运行与抓取日志'],
 ] as const
 
 export function SettingsLayout() {

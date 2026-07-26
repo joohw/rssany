@@ -12,8 +12,12 @@ export default defineConfig({
     },
   },
   server: {
+    host: '127.0.0.1',
+    port: 18373,
+    strictPort: true,
     proxy: {
-      '/api': 'http://127.0.0.1:3999',
+      '/api': 'http://127.0.0.1:18374',
+      '/rss': 'http://127.0.0.1:18374',
     },
   },
 })

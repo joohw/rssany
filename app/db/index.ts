@@ -97,6 +97,8 @@ function acquireDbLock(dbDir: string): void {
 function releaseDbLock(): void {
   if (!existsSync(MAIN_DB_LOCK_PATH)) return;
   try {
+    const ownerPid = parseInt(readFileSync(MAIN_DB_LOCK_PATH, "utf8").trim(), 10);
+    if (Number.isNaN(ownerPid) || ownerPid !== process.pid) return;
     unlinkSync(MAIN_DB_LOCK_PATH);
   } catch {
     /* ignore */
@@ -284,6 +286,11 @@ function initSchema(db: DatabaseSync): void {
       fetched_at  TEXT NOT NULL,
       pushed_at   TEXT
     );
+  `);
+
+  ensureItemsColumns(db);
+
+  db.exec(`
     CREATE INDEX IF NOT EXISTS idx_items_source    ON items(source_url);
     CREATE INDEX IF NOT EXISTS idx_items_fetched   ON items(fetched_at);
     CREATE INDEX IF NOT EXISTS idx_items_pushed    ON items(pushed_at);
@@ -340,17 +347,34 @@ function initSchema(db: DatabaseSync): void {
     END;
   `);
 
-  // 旧库迁移：若无 image_url 列则追加
-  try {
-    const cols = db.prepare("PRAGMA table_info(items)").all().map((r: Record<string, unknown>) => r.name as string);
-    if (!cols.includes("image_url")) {
-      db.exec("ALTER TABLE items ADD COLUMN image_url TEXT");
-    }
-  } catch {
-    /* ignore */
-  }
-
   migrateItemsSourceUrlIfNeeded(db);
+}
+
+/** 旧库兼容：在依赖新列的索引、视图和查询初始化前补齐可选列。 */
+function ensureItemsColumns(db: DatabaseSync): void {
+  const existing = new Set(
+    db.prepare("PRAGMA table_info(items)").all().map((row: Record<string, unknown>) => String(row.name)),
+  );
+  const additions = [
+    ["content", "TEXT"],
+    ["image_url", "TEXT"],
+    ["tags", "TEXT"],
+    ["translations", "TEXT"],
+    ["pushed_at", "TEXT"],
+  ] as const;
+  const missing = additions.filter(([name]) => !existing.has(name));
+  if (missing.length === 0) return;
+
+  db.exec("BEGIN TRANSACTION");
+  try {
+    for (const [name, definition] of missing) {
+      db.exec(`ALTER TABLE items ADD COLUMN ${name} ${definition}`);
+    }
+    db.exec("COMMIT");
+  } catch (error) {
+    db.exec("ROLLBACK");
+    throw error;
+  }
 }
 
 /** 规范化 source_url */

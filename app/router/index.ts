@@ -18,6 +18,7 @@ import { registerMcpRoutes } from "./routes/mcp.js";
 import { registerWebUiRoutes } from "./webui.js";
 import { getAppVersion } from "../version.js";
 import { initAutoUpdate } from "../update/index.js";
+import { getDb } from "../db/index.js";
 
 const PORT = Number(process.env.PORT) || 18473;
 const IS_DEV = process.env.NODE_ENV === "development" || process.argv.includes("--watch");
@@ -68,6 +69,7 @@ function watchPlugins(): void {
 
 async function main(): Promise<void> {
   await initUserDir();
+  await getDb();
   await initSites();
   await initScheduler(CACHE_DIR);
   initAutoUpdate();

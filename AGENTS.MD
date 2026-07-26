@@ -167,3 +167,9 @@ cache/domains/{domain}.json 有效？
 ## 开发原则
 
 当前按开发阶段迭代：**不做无意义 fallback**；**不做数据迁移脚本**（除非单独需求）。新代码避免背负已删除模块（如旧 Gateway、旧 research-only 路由）的命名与假设。
+
+### npm 发布
+
+- npm 包统一通过 GitHub Actions 的 `.github/workflows/npm-publish.yml` 发布，不直接依赖开发机执行 `npm publish` 或本机 npm 登录状态。
+- 发布前更新 `package.json` 与 `package-lock.json` 的版本，运行测试、完整构建及 `npm pack --dry-run`，确认生产 WebUI 等必要产物已包含在 tarball 中。
+- 将待发布代码提交并推送到 GitHub 后，再通过版本标签或 `workflow_dispatch` 触发发布；完成后核验 workflow 结果、npm 版本与 `latest` 标签。

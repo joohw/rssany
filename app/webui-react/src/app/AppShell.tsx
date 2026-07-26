@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import { NavLink, Outlet, useLocation, useNavigate } from 'react-router'
-import { Bot, Puzzle, Rss, ScrollText, Settings } from 'lucide-react'
+import { Bot, Puzzle, Rss, Settings } from 'lucide-react'
 import { Toaster } from '@/components/ui/sonner'
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip'
 import { getInitialization } from '@/api/server'
@@ -8,7 +8,6 @@ import { cn } from '@/lib/utils'
 
 const navigation = [
   { to: '/', label: '信源', icon: Rss, end: true },
-  { to: '/logs', label: '日志', icon: ScrollText },
   { to: '/plugins', label: '插件', icon: Puzzle },
   { to: '/skill', label: 'Skill', icon: Bot },
   { to: '/admin', label: '设置', icon: Settings },
