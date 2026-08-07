@@ -11,7 +11,6 @@ import { CACHE_DIR } from "../../../config/paths.js";
 import type { SourceType } from "../../../scraper/subscription/types.js";
 import type { RefreshInterval } from "../../../utils/refreshInterval.js";
 import { VALID_INTERVALS } from "../../../utils/refreshInterval.js";
-import { requireAdmin } from "../../../auth/middleware.js";
 import { canonicalHttpSourceRef } from "../../../utils/httpSourceRef.js";
 import { getSourcePullStatus, onSourcePullStatus } from "../../../core/sourcePullStatus.js";
 import { resolveRef } from "../../../scraper/subscription/types.js";
@@ -31,7 +30,7 @@ export function registerSourcesRoutes(app: Hono): void {
     });
   };
 
-  app.get("/api/sources/pull-status", requireAdmin(), async (c) => {
+  app.get("/api/sources/pull-status", async (c) => {
     return c.json({ sources: await pullStatusSnapshot() });
   });
 
@@ -54,12 +53,40 @@ export function registerSourcesRoutes(app: Hono): void {
     });
   });
 
-  app.get("/api/sources/stats", requireAdmin(), async (c) => {
+  app.get("/api/sources/stats", async (c) => {
     const stats = await getSourceStats();
     return c.json(stats);
   });
 
-  app.post("/api/sources/plugin-match", requireAdmin(), async (c) => {
+  app.get("/api/sources", async (c) => {
+    const [sources, stats] = await Promise.all([getAllSources(), getSourceStats()]);
+    const statsByRef = new Map(stats.map((row) => [canonicalHttpSourceRef(row.source_url), row]));
+    return c.json({
+      sources: sources.map((source) => {
+        const ref = resolveRef(source);
+        const stat = statsByRef.get(canonicalHttpSourceRef(ref));
+        const pull = getSourcePullStatus(ref) ?? {
+          ref: canonicalHttpSourceRef(ref),
+          status: "idle" as const,
+          pending: 0,
+          running: 0,
+          updatedAt: 0,
+        };
+        return {
+          ...source,
+          ref,
+          stats: {
+            count: stat?.count ?? 0,
+            count7d: stat?.count_7d ?? 0,
+            latestAt: stat?.latest_at ?? null,
+          },
+          pull,
+        };
+      }),
+    });
+  });
+
+  app.post("/api/sources/plugin-match", async (c) => {
     try {
       const body = await c.req.json<{ refs?: string[] }>();
       const refs = Array.isArray(body?.refs) ? body.refs : [];
@@ -79,7 +106,7 @@ export function registerSourcesRoutes(app: Hono): void {
    * 在有头 Chrome 中打开 URL：与抓取共用 CACHE_DIR/browser_data、代理优先级与 /auth/open 一致。
    * 浏览器在本机服务端弹出，非用户默认浏览器。
    */
-  app.post("/api/sources/open-browser", requireAdmin(), async (c) => {
+  app.post("/api/sources/open-browser", async (c) => {
     try {
       const body = await c.req.json<{ url?: string }>();
       const raw = typeof body?.url === "string" ? body.url.trim() : "";
@@ -99,7 +126,7 @@ export function registerSourcesRoutes(app: Hono): void {
     }
   });
 
-  app.get("/api/sources/raw", requireAdmin(), async (c) => {
+  app.get("/api/sources/raw", async (c) => {
     try {
       const raw = await getSourcesRaw();
       return c.text(raw, 200, { "Content-Type": "application/json; charset=utf-8" });
@@ -108,7 +135,7 @@ export function registerSourcesRoutes(app: Hono): void {
     }
   });
 
-  app.put("/api/sources/raw", requireAdmin(), async (c) => {
+  app.put("/api/sources/raw", async (c) => {
     try {
       const body = await c.req.json<{ sources?: unknown[] }>();
       const list = Array.isArray(body?.sources) ? body.sources : [];

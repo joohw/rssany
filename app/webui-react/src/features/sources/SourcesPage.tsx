@@ -1,25 +1,37 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { ArrowUpDown, Copy, ExternalLink, LoaderCircle, Monitor, MoreHorizontal, Pencil, Plus, RefreshCw, Trash, Trash2, X } from 'lucide-react'
+import { toast } from 'sonner'
 import { api } from '@/api/client'
 import { Button } from '@/components/ui/button'
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuRadioGroup, DropdownMenuRadioItem, DropdownMenuSeparator, DropdownMenuTrigger } from '@/components/ui/dropdown-menu'
-import { fieldClass, Notice } from '@/components/Page'
+import { fieldClass } from '@/components/Page'
 import { FeedItemCard, type FeedItem } from './FeedItemCard'
 
 type Source={ref:string;label?:string;description?:string;refresh?:string;proxy?:string;weight?:number}
 type Feed={items?:FeedItem[];hasMore?:boolean}
-type SourceStat={source_url:string;count:number}
 type PullStatus={ref:string;status:'idle'|'pending'|'running'|'done'|'error';pending:number;running:number;error?:string}
+type SourceOverview=Source&{stats:{count:number;count7d:number;latestAt:string|null};pull:PullStatus}
 type SourceSort='configured'|'name-asc'|'name-desc'|'count-desc'|'count-asc'
 const intervals=['10min','30min','1h','6h','12h','1day','3day','7day']
 const sourceNameCollator=new Intl.Collator('zh-CN',{numeric:true,sensitivity:'base'})
+const showError=(cause:unknown)=>toast.error(cause instanceof Error?cause.message:String(cause),{duration:3500})
 
 export function SourcesPage(){
-  const [sources,setSources]=useState<Source[]>([]);const [stats,setStats]=useState<Record<string,number>>({});const [items,setItems]=useState<FeedItem[]>([]);const [selected,setSelected]=useState<Source|null>(null);const [editing,setEditing]=useState<Source|null>(null);const [adding,setAdding]=useState(false);const [query,setQuery]=useState('');const [sort,setSort]=useState<SourceSort>('configured');const [error,setError]=useState('');const [pullingRefs,setPullingRefs]=useState<Record<string,boolean>>({});const [itemsLoading,setItemsLoading]=useState(false)
+  const [sources,setSources]=useState<Source[]>([]);const [stats,setStats]=useState<Record<string,number>>({});const [items,setItems]=useState<FeedItem[]>([]);const [selected,setSelected]=useState<Source|null>(null);const [editing,setEditing]=useState<Source|null>(null);const [adding,setAdding]=useState(false);const [query,setQuery]=useState('');const [sort,setSort]=useState<SourceSort>('configured');const [pullingRefs,setPullingRefs]=useState<Record<string,boolean>>({});const [itemsLoading,setItemsLoading]=useState(false);const [sourcesLoading,setSourcesLoading]=useState(true)
   const detailRequestId=useRef(0)
   const detailAbortController=useRef<AbortController|null>(null)
   const selectedRef=useRef<Source|null>(null)
-  const load=useCallback(async()=>{try{const [raw,rows]=await Promise.all([api<{sources?:Source[]}>('/api/sources/raw'),api<SourceStat[]>('/api/sources/stats').catch(()=>[])]);setSources(raw.sources??[]);setStats(Object.fromEntries(rows.map(row=>[canonicalSourceRef(row.source_url),row.count])))}catch(e){setError(String(e))}},[])
+  const load=useCallback(async()=>{
+    try{
+      const response=await api<{sources?:SourceOverview[]}>('/api/sources')
+      const rows=response.sources??[]
+      setSources(rows.map(({stats:_stats,pull:_pull,...source})=>source))
+      setStats(Object.fromEntries(rows.map(row=>[canonicalSourceRef(row.ref),row.stats.count])))
+      setPullingRefs(Object.fromEntries(rows
+        .filter(row=>row.pull.status==='pending'||row.pull.status==='running')
+        .map(row=>[canonicalSourceRef(row.ref),true])))
+    }catch(e){showError(e)}finally{setSourcesLoading(false)}
+  },[])
   useEffect(()=>{void load()},[load])
   useEffect(()=>()=>detailAbortController.current?.abort(),[])
   const open=useCallback(async(s:Source)=>{
@@ -27,7 +39,7 @@ export function SourcesPage(){
     detailAbortController.current?.abort()
     const controller=new AbortController()
     detailAbortController.current=controller
-    selectedRef.current=s;setSelected(s);setItems([]);setItemsLoading(true);setError('')
+    selectedRef.current=s;setSelected(s);setItems([]);setItemsLoading(true)
     try{
       let d:Feed
       try{
@@ -38,7 +50,7 @@ export function SourcesPage(){
       }
       if(requestId===detailRequestId.current)setItems(d.items??[])
     }catch(e){
-      if(!controller.signal.aborted&&requestId===detailRequestId.current){setItems([]);setError(String(e))}
+      if(!controller.signal.aborted&&requestId===detailRequestId.current){setItems([]);showError(e)}
     }finally{
       if(requestId===detailRequestId.current){setItemsLoading(false);detailAbortController.current=null}
     }
@@ -61,7 +73,7 @@ export function SourcesPage(){
         void load()
         const current=selectedRef.current
         if(current&&canonicalSourceRef(current.ref)===canonicalSourceRef(data.source.ref))void open(current)
-        if(data.source.status==='error'&&data.source.error)setError(data.source.error)
+        if(data.source.status==='error'&&data.source.error)showError(data.source.error)
       }
     }
     return()=>events.close()
@@ -75,7 +87,7 @@ export function SourcesPage(){
     try{
       await api<{taskId:string}>('/api/tasks',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({type:'source-pull',ref,headless})})
     }catch(e){
-      setError(String(e))
+      showError(e)
     }
   }
   const clearItems=async(s:Source)=>{if(!window.confirm('确定要清空该信源下的所有条目吗？此操作不可恢复。'))return;await api(`/api/items/by-source?source_url=${encodeURIComponent(s.ref)}`,{method:'DELETE'});setStats(current=>({...current,[canonicalSourceRef(s.ref)]:0}));if(selected?.ref===s.ref)setItems([])}
@@ -107,10 +119,9 @@ export function SourcesPage(){
         </div>
       </header>
       <div className="sources-list-scroll">
-      {error&&<div className="sidebar-error"><Notice error>{error}</Notice></div>}
       {filtered.map(s=>{const host=sourceHostname(s.ref);return <article key={s.ref} className={`source-row ${selected?.ref===s.ref?'source-row--active':''}`} onClick={()=>void open(s)}>
         <button className="source-row-main" title={s.ref}>
-          <span className="source-favicon-slot">{host&&<img src={`/api/feed-favicon?domain=${encodeURIComponent(host)}`} alt=""/>}</span>
+          <span className="source-favicon-slot">{host&&<img src={`/api/feed-favicon?domain=${encodeURIComponent(host)}`} alt="" loading="lazy" decoding="async"/>}</span>
           <span className="source-row-title">{s.label||s.ref}</span>
           <span className="source-row-count">{pullingRefs[canonicalSourceRef(s.ref)]?<LoaderCircle className="source-row-loader" aria-label="正在拉取"/>:stats[canonicalSourceRef(s.ref)]??0}</span>
         </button>
@@ -130,10 +141,23 @@ export function SourcesPage(){
           </DropdownMenuContent>
         </DropdownMenu>
       </article>})}
-      {!filtered.length&&!error&&<Notice>暂无信源</Notice>}</div>
+      {sourcesLoading
+        ? <div className="sources-list-empty">加载中…</div>
+        : !filtered.length&&<div className="sources-list-empty">{sources.length?'没有匹配的信源':'暂无信源'}</div>}
+      </div>
     </section>
     <ItemsPanel source={selected} items={items} loading={itemsLoading} onDelete={async item=>{await api(`/api/items/${encodeURIComponent(item.id)}`,{method:'DELETE'});setItems(current=>current.filter(x=>x.id!==item.id))}}/>
-    {editing&&<SourceDialog value={editing} adding={adding} onClose={()=>setEditing(null)} onSave={async value=>{const next=adding?[...sources,value]:sources.map(s=>s.ref===editing.ref?value:s);await persist(next);setEditing(null)}}/>}
+    {editing&&<SourceDialog value={editing} adding={adding} onClose={()=>setEditing(null)} onSave={async value=>{
+      const previousRef=editing.ref
+      const next=adding?[...sources,value]:sources.map(s=>s.ref===previousRef?value:s)
+      await persist(next)
+      if(!adding&&selected?.ref===previousRef){
+        selectedRef.current=value
+        setSelected(value)
+        if(canonicalSourceRef(previousRef)!==canonicalSourceRef(value.ref))void open(value)
+      }
+      setEditing(null)
+    }}/>}
   </div>
 }
 
@@ -166,7 +190,7 @@ function SourceDialog({value,adding,onClose,onSave}:{value:Source;adding:boolean
   const [form,setForm]=useState(value);const [busy,setBusy]=useState(false);const change=(key:keyof Source,val:string|number)=>setForm({...form,[key]:val})
   return <div className="fixed inset-0 z-50 grid place-items-center bg-black/35 p-4" onMouseDown={e=>e.target===e.currentTarget&&onClose()}><form className="w-full max-w-lg space-y-4 rounded-xl bg-card p-6 shadow-xl" onSubmit={async e=>{e.preventDefault();setBusy(true);try{await onSave({...form,ref:form.ref.trim()})}finally{setBusy(false)}}}>
     <div className="flex items-center justify-between"><h2 className="text-lg font-semibold">{adding?'添加信源':'编辑信源'}</h2><Button type="button" size="sm" variant="ghost" onClick={onClose}><X size={16}/></Button></div>
-    <label className="block text-sm">URL / Ref<input required disabled={!adding} className={`${fieldClass} mt-1`} value={form.ref} onChange={e=>change('ref',e.target.value)}/></label>
+    <label className="block text-sm">URL / Ref<input required className={`${fieldClass} mt-1`} value={form.ref} onChange={e=>change('ref',e.target.value)}/></label>
     <label className="block text-sm">名称<input className={`${fieldClass} mt-1`} value={form.label??''} onChange={e=>change('label',e.target.value)}/></label>
     <label className="block text-sm">描述<textarea className={`${fieldClass} mt-1`} value={form.description??''} onChange={e=>change('description',e.target.value)}/></label>
     <div className="grid grid-cols-2 gap-3"><label className="text-sm">刷新间隔<select className={`${fieldClass} mt-1`} value={form.refresh??'1day'} onChange={e=>change('refresh',e.target.value)}>{intervals.map(x=><option key={x}>{x}</option>)}</select></label><label className="text-sm">权重<input className={`${fieldClass} mt-1`} type="number" min="0" max="1" step=".1" value={form.weight??0} onChange={e=>change('weight',Number(e.target.value))}/></label></div>

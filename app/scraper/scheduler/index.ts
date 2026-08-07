@@ -32,6 +32,8 @@ function createPullTask(ref: string, cacheDir: string, cronExpr: string): schedu
 }
 
 export const SOURCES_GROUP = "sources";
+/** 手动拉取使用独立通道，避免被定时抓取占满 SOURCES_GROUP 的并发槽。 */
+export const MANUAL_SOURCES_GROUP = "sources-manual";
 
 /** config.json 变更且 config.deliver.gateways 非空时，向每个 {gateway}/sources POST 当前信源 JSON */
 async function deliverSourcesConfigIfConfigured(): Promise<void> {

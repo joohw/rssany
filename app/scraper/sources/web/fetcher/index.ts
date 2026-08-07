@@ -6,10 +6,12 @@ export {
   launchBrowser,
   getOrCreateBrowser,
   closeSharedBrowsers,
+  forceCloseSharedBrowsers,
   openBrowserPage,
   resolveProxy,
   applyProxyAuthToPage,
 } from "./browser.js";
+export type { ForceCloseSharedBrowsersResult } from "./browser.js";
 export { cacheKey, cacheKeyFromCron, readProfile, writeProfile } from "../../../../core/cacher/index.js";
 export type { AuthProfile } from "../../../../core/cacher/index.js";
 export type { CheckAuthFn, AuthFlow } from "../../../auth/index.js";

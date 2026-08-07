@@ -6,8 +6,7 @@ import * as taskStore from "../../../tasks/index.js";
 import * as scheduler from "../../../scheduler/index.js";
 import { CACHE_DIR } from "../../../config/paths.js";
 import { crawlSource } from "../../../feeder/index.js";
-import { SOURCES_GROUP } from "../../../scraper/scheduler/index.js";
-import { requireAdmin } from "../../../auth/middleware.js";
+import { MANUAL_SOURCES_GROUP } from "../../../scraper/scheduler/index.js";
 import { markSourcePullPending } from "../../../core/sourcePullStatus.js";
 
 export function registerTasksRoutes(app: Hono): void {
@@ -39,7 +38,7 @@ export function registerTasksRoutes(app: Hono): void {
     return c.json(task);
   });
 
-  app.post("/api/tasks", requireAdmin(), async (c) => {
+  app.post("/api/tasks", async (c) => {
     try {
       const body = (await c.req.json().catch(() => ({}))) as {
         type?: string;
@@ -52,13 +51,13 @@ export function registerTasksRoutes(app: Hono): void {
         if (!ref) return c.json({ error: "ref 不能为空" }, 400);
         const taskId = taskStore.createTask();
         markSourcePullPending(ref);
-        scheduler.schedule(SOURCES_GROUP, taskId, async () => {
+        scheduler.schedule(MANUAL_SOURCES_GROUP, taskId, async () => {
           taskStore.setTaskRunning(taskId);
           try {
             await crawlSource(ref, {
               cacheDir: CACHE_DIR,
               force: true,
-              headless: typeof body.headless === "boolean" ? body.headless : undefined,
+              headless: typeof body.headless === "boolean" ? body.headless : true,
             });
             taskStore.setTaskDone(taskId, { ok: true });
           } catch (err) {
@@ -66,7 +65,7 @@ export function registerTasksRoutes(app: Hono): void {
             taskStore.setTaskError(taskId, msg);
             throw err;
           }
-        }, { priority: true }).catch(() => {});
+        }, { priority: true, concurrency: 1 }).catch(() => {});
         return c.json({ taskId });
       }
       return c.json({ error: `未知任务类型: ${type}` }, 400);

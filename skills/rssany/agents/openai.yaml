@@ -1,0 +1,12 @@
+interface:
+  display_name: "RssAny"
+  short_description: "Operate RssAny feeds, MCP, plugins, and local service"
+  default_prompt: "Use $rssany to query feeds, operate the local MCP service, or develop a source plugin."
+
+dependencies:
+  tools:
+    - type: "mcp"
+      value: "rssany"
+      description: "Local RssAny feeds, items, source statistics, and plugin tools"
+      transport: "streamable_http"
+      url: "http://127.0.0.1:18473/mcp"

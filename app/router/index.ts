@@ -19,6 +19,8 @@ import { registerWebUiRoutes } from "./webui.js";
 import { getAppVersion } from "../version.js";
 import { initAutoUpdate } from "../update/index.js";
 import { getDb } from "../db/index.js";
+import { closeSharedBrowsers } from "../scraper/sources/web/fetcher/index.js";
+import { initSourcesCache } from "../scraper/subscription/index.js";
 
 const PORT = Number(process.env.PORT) || 18473;
 const IS_DEV = process.env.NODE_ENV === "development" || process.argv.includes("--watch");
@@ -69,6 +71,7 @@ function watchPlugins(): void {
 
 async function main(): Promise<void> {
   await initUserDir();
+  await initSourcesCache();
   await getDb();
   await initSites();
   await initScheduler(CACHE_DIR);
@@ -76,6 +79,29 @@ async function main(): Promise<void> {
   const app = createApp();
   const server = serve({ fetch: app.fetch, port: PORT, hostname: "0.0.0.0" });
   server.setMaxListeners(32);
+  let shuttingDown = false;
+  const shutdown = async (signal: string) => {
+    if (shuttingDown) return;
+    shuttingDown = true;
+    logger.info("server", "正在停止 RssAny", { signal });
+    server.close();
+    await closeSharedBrowsers();
+  };
+  for (const signal of ["SIGINT", "SIGTERM"] as const) {
+    process.once(signal, () => {
+      void shutdown(signal)
+        .then(() => {
+          process.exit(0);
+        })
+        .catch((err) => {
+          logger.error("server", "RssAny 停机清理失败", {
+            signal,
+            err: err instanceof Error ? err.message : String(err),
+          });
+          process.exit(1);
+        });
+    });
+  }
   console.log(
     `RssAny ${getAppVersion()} 服务已启动 http://127.0.0.1:${PORT}/（API + 静态前端单地址）`,
   );

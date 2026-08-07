@@ -1,32 +1,78 @@
-import { useMemo, useState } from 'react'
-import { Check, Copy } from 'lucide-react'
+import { useEffect, useState } from 'react'
+import type { ReactNode } from 'react'
+import { FileArchive, Server } from 'lucide-react'
+import { getSkill, type SkillBundleMetadata } from '@/api/server'
 import { Button } from '@/components/ui/button'
-import { Page } from '@/components/Page'
+import { Notice, Page } from '@/components/Page'
 
-export function SkillPage(){
-  const base=typeof window==='undefined'?'http://127.0.0.1:18473':window.location.origin
-  const text=useMemo(()=>`# RssAny Agent 能力增强说明
+export function SkillPage() {
+  const [bundle, setBundle] = useState<SkillBundleMetadata | null>(null)
+  const [error, setError] = useState('')
+  const [loading, setLoading] = useState(true)
+  const [copied, setCopied] = useState(false)
 
-RssAny 把网页列表、RSS/Atom、邮件等信源转成统一条目库，并输出 JSON / RSS。
+  const load = async () => {
+    setLoading(true)
+    setError('')
+    try {
+      setBundle(await getSkill())
+    } catch (err) {
+      setError(err instanceof Error ? err.message : String(err))
+    } finally {
+      setLoading(false)
+    }
+  }
 
-## 使用
+  useEffect(() => {
+    void load()
+  }, [])
 
-1. 打开 Web UI：${base}/
-2. 读取最新 JSON 条目：${base}/api/feed?limit=50
-3. 读取 RSS：${base}/rss?limit=50
-4. 指定信源：${base}/api/feed?ref=<sourceRef>&limit=50
-5. 管理插件：${base}/plugins
-6. 后台设置：${base}/admin
+  const copy = async () => {
+    if (!bundle) return
+    await navigator.clipboard.writeText(bundle.skill)
+    setCopied(true)
+    setTimeout(() => setCopied(false), 1500)
+  }
 
-## Agent 原则
+  const actions = <div className="flex flex-wrap items-center justify-end gap-2">
+    <Button variant="outline" onClick={() => void copy()} disabled={!bundle}>
+      {copied ? '已复制' : '复制 SKILL.md'}
+    </Button>
+    {bundle
+      ? <Button asChild><a href={bundle.downloadUrl} download>下载完整 ZIP</a></Button>
+      : <Button disabled>下载完整 ZIP</Button>}
+  </div>
 
-- 优先读取 JSON feed，保留标题、链接、来源和发布时间。
-- 关键判断回到原文核对；区分事实、推断和建议。
-- 按主题、时间和来源过滤噪声，再形成摘要、行动项或监控结果。
-- 目标站点没有 Feed 时，在用户插件目录创建 .rssany.js 插件。
-- 不要未经用户明确要求删除、重置或破坏用户数据。
-`,[base])
-  const [copied,setCopied]=useState(false)
-  const copy=async()=>{await navigator.clipboard.writeText(text);setCopied(true);setTimeout(()=>setCopied(false),1500)}
-  return <Page title="Skill" description="提供给 Agent 的 RssAny 使用说明" actions={<Button onClick={copy}>{copied?<Check size={15}/>:<Copy size={15}/>}复制</Button>}><pre className="overflow-auto whitespace-pre-wrap rounded-lg border bg-card p-5 text-sm leading-6">{text}</pre></Page>
+  return <Page
+    title="RssAny Skill"
+    description="供 Agent 使用的官方操作、MCP、插件开发与排错知识包"
+    actions={actions}
+    className="flex h-full min-h-0 flex-col"
+  >
+    {error && <Notice error>{error}</Notice>}
+
+    {bundle && <div className="flex min-h-0 flex-1 flex-col">
+      <div className="mb-5 grid gap-3 sm:grid-cols-2">
+        <InfoCard icon={<FileArchive />} label="Skill 版本" value={bundle.version} />
+        <InfoCard icon={<Server />} label="本地 MCP" value={`${window.location.origin}/mcp/sse`} />
+      </div>
+
+      <section className="flex min-h-0 flex-1 flex-col">
+        <div className="mb-2 flex items-center justify-between gap-3">
+          <h2 className="text-sm font-semibold">SKILL.md</h2>
+          <span className="text-xs text-muted-foreground">详细内容按需读取 references/</span>
+        </div>
+        <pre className="min-h-0 flex-1 overflow-auto whitespace-pre-wrap rounded-lg border bg-card p-5 text-sm leading-6">{bundle.skill}</pre>
+      </section>
+    </div>}
+
+    {loading && !bundle && <p className="py-16 text-center text-sm text-muted-foreground">正在读取官方 Skill…</p>}
+  </Page>
+}
+
+function InfoCard({ icon, label, value }: { icon: ReactNode; label: string; value: string }) {
+  return <div className="min-w-0 rounded-lg border bg-card p-4">
+    <div className="mb-2 flex items-center gap-2 text-xs text-muted-foreground">{icon}{label}</div>
+    <p className="truncate text-sm font-medium" title={value}>{value}</p>
+  </div>
 }

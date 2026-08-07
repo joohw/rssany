@@ -1,6 +1,7 @@
 // 使用无头浏览器（Puppeteer）拉取页面，缓存逻辑在 cacher 中
 
 import { createHash } from "node:crypto";
+import { readFile } from "node:fs/promises";
 import { join, resolve } from "node:path";
 import puppeteerCore, { type Browser, type Page } from "puppeteer-core";
 import { applyPurify } from "./purify.js";
@@ -167,6 +168,8 @@ type SharedBrowserSlot = {
 };
 
 const sharedBrowsers = new Map<string, SharedBrowserSlot>();
+const browserTransitions = new Map<string, Promise<void>>();
+const FORCE_CLOSE_TIMEOUT_MS = 3_000;
 
 function browserKey(config: BrowserLaunchConfig): string {
   const executablePath = config.chromeExecutablePath ?? process.env.CHROME_PATH ?? findChromeExecutable() ?? "";
@@ -183,8 +186,58 @@ function isBrowserConnected(browser: Browser | undefined): browser is Browser {
   return !!browser && browser.connected !== false;
 }
 
+function isOwnedBrowser(browser: Browser): boolean {
+  return browser.process() != null;
+}
+
+async function closeOrDisconnectBrowser(browser: Browser): Promise<void> {
+  if (isOwnedBrowser(browser)) {
+    await browser.close().catch(() => {});
+    return;
+  }
+  await browser.disconnect().catch(() => {});
+}
+
+async function connectToProfileBrowser(userDataDir: string | undefined): Promise<Browser | null> {
+  if (!userDataDir) return null;
+  try {
+    const raw = await readFile(join(userDataDir, "DevToolsActivePort"), "utf8");
+    const [portLine, endpointLine] = raw.split(/\r?\n/);
+    const port = Number(portLine?.trim());
+    const endpoint = endpointLine?.trim();
+    if (!Number.isInteger(port) || port <= 0 || !endpoint?.startsWith("/devtools/browser/")) {
+      return null;
+    }
+    return await puppeteerCore.connect({
+      browserWSEndpoint: `ws://127.0.0.1:${port}${endpoint}`,
+    });
+  } catch {
+    return null;
+  }
+}
+
+async function withBrowserTransition<T>(key: string, task: () => Promise<T>): Promise<T> {
+  const previous = browserTransitions.get(key) ?? Promise.resolve();
+  let release!: () => void;
+  const gate = new Promise<void>((resolveGate) => {
+    release = resolveGate;
+  });
+  const tail = previous.catch(() => {}).then(() => gate);
+  browserTransitions.set(key, tail);
+  await previous.catch(() => {});
+  try {
+    return await task();
+  } finally {
+    release();
+    if (browserTransitions.get(key) === tail) {
+      browserTransitions.delete(key);
+    }
+  }
+}
+
 /**
- * 启动新的 Chrome 实例（不缓存、不复用）。调用方须在 `finally` 中 `await browser.close()`。
+ * 启动新的 Chrome 实例；无头模式遇到已占用 profile 时会连接现有 Chrome。
+ * 调用方须在 `finally` 中关闭自行启动的实例，或断开复用实例的 CDP 连接。
  */
 export async function launchBrowser(config: BrowserLaunchConfig): Promise<Browser> {
   const wantHeadless = config.headless !== false;
@@ -212,10 +265,17 @@ export async function launchBrowser(config: BrowserLaunchConfig): Promise<Browse
       });
     } catch (e) {
       lastErr = e;
-      if (attempt < maxRetries && isAlreadyRunningError(e)) {
-        continue;
-      }
       if (isAlreadyRunningError(e)) {
+        const existing = wantHeadless
+          ? await connectToProfileBrowser(userDataDir)
+          : null;
+        if (existing) {
+          logger.info("scraper", "已连接正在使用 browser_data 的 Chrome", { userDataDir });
+          return existing;
+        }
+        if (attempt < maxRetries) {
+          continue;
+        }
         const dir = userDataDir ?? "browser_data/main";
         throw new Error(
           `Chrome 的 profile 目录正被另一个 RssAny/Chrome 实例使用（${dir}）。为避免误关正在浏览或抓取的页面，RssAny 不会强制结束该进程。请关闭对应实例后重试，或为并行实例配置不同的 CACHE_DIR。`
@@ -237,54 +297,63 @@ export async function launchBrowser(config: BrowserLaunchConfig): Promise<Browse
 export async function getOrCreateBrowser(config: BrowserLaunchConfig): Promise<Browser> {
   const normalizedConfig = { ...config, proxy: resolveProxy(config) };
   const key = browserKey(normalizedConfig);
-  const wantHeadless = normalizedConfig.headless !== false;
-  const current = sharedBrowsers.get(key);
-  if (current?.promise) {
-    const browser = await current.promise;
-    if (isBrowserConnected(browser) && (wantHeadless || current.headless === false)) {
-      return browser;
-    }
-    if (isBrowserConnected(browser)) {
-      await browser.close().catch(() => {});
-    }
-    if (sharedBrowsers.get(key) === current) {
-      sharedBrowsers.delete(key);
-    }
-  } else if (isBrowserConnected(current?.browser)) {
-    if (wantHeadless || current.headless === false) {
-      return current.browser;
-    }
-    await current.browser.close().catch(() => {});
-    if (sharedBrowsers.get(key) === current) {
-      sharedBrowsers.delete(key);
-    }
-  }
-
-  const slot: SharedBrowserSlot = {};
-  const promise = launchBrowser(normalizedConfig).then((browser) => {
-    slot.browser = browser;
-    slot.promise = undefined;
-    slot.headless = wantHeadless;
-    browser.once("disconnected", () => {
-      if (sharedBrowsers.get(key)?.browser === browser) {
+  return withBrowserTransition(key, async () => {
+    const wantHeadless = normalizedConfig.headless !== false;
+    const current = sharedBrowsers.get(key);
+    if (current?.promise) {
+      const browser = await current.promise;
+      if (isBrowserConnected(browser) && (wantHeadless || current.headless === false)) {
+        return browser;
+      }
+      if (isBrowserConnected(browser)) {
+        if (!isOwnedBrowser(browser)) {
+          throw new Error("当前 profile 由其他 RssAny/Chrome 实例以无头模式管理，无法安全切换为有头模式");
+        }
+        await closeOrDisconnectBrowser(browser);
+      }
+      if (sharedBrowsers.get(key) === current) {
         sharedBrowsers.delete(key);
       }
-    });
-    return browser;
-  }).catch((err) => {
-    if (sharedBrowsers.get(key) === slot) {
-      sharedBrowsers.delete(key);
+    } else if (isBrowserConnected(current?.browser)) {
+      if (wantHeadless || current.headless === false) {
+        return current.browser;
+      }
+      if (!isOwnedBrowser(current.browser)) {
+        throw new Error("当前 profile 由其他 RssAny/Chrome 实例以无头模式管理，无法安全切换为有头模式");
+      }
+      await closeOrDisconnectBrowser(current.browser);
+      if (sharedBrowsers.get(key) === current) {
+        sharedBrowsers.delete(key);
+      }
     }
-    throw err;
-  });
 
-  slot.promise = promise;
-  sharedBrowsers.set(key, slot);
-  return promise;
+    const slot: SharedBrowserSlot = {};
+    const promise = launchBrowser(normalizedConfig).then((browser) => {
+      slot.browser = browser;
+      slot.promise = undefined;
+      slot.headless = wantHeadless;
+      browser.once("disconnected", () => {
+        if (sharedBrowsers.get(key)?.browser === browser) {
+          sharedBrowsers.delete(key);
+        }
+      });
+      return browser;
+    }).catch((err) => {
+      if (sharedBrowsers.get(key) === slot) {
+        sharedBrowsers.delete(key);
+      }
+      throw err;
+    });
+
+    slot.promise = promise;
+    sharedBrowsers.set(key, slot);
+    return promise;
+  });
 }
 
 /** 主动关闭当前进程创建的共享浏览器，供测试或优雅停机使用。 */
 export async function closeSharedBrowsers(): Promise<void> {
+  await Promise.all([...browserTransitions.values()].map((transition) => transition.catch(() => {})));
   const slots = [...sharedBrowsers.values()];
   sharedBrowsers.clear();
   const browsers = await Promise.all(
@@ -292,8 +361,66 @@ export async function closeSharedBrowsers(): Promise<void> {
   );
   await Promise.all(
     [...new Set(browsers.filter((browser): browser is Browser => isBrowserConnected(browser)))]
-      .map((browser) => browser.close().catch(() => {})),
+      .map((browser) => closeOrDisconnectBrowser(browser)),
   );
+}
+
+export interface ForceCloseSharedBrowsersResult {
+  found: number;
+  closed: number;
+  terminated: number;
+  failed: number;
+}
+
+/**
+ * 强制关闭当前 RssAny 进程管理的全部共享 Chrome。
+ *
+ * 先给 Puppeteer 一个短暂的正常关闭窗口；若浏览器仍连接，则终止本进程启动的
+ * Chrome 子进程。该函数不会扫描或结束其他 RssAny/Chrome 进程。
+ */
+export async function forceCloseSharedBrowsers(): Promise<ForceCloseSharedBrowsersResult> {
+  await Promise.all([...browserTransitions.values()].map((transition) => transition.catch(() => {})));
+  const slots = [...sharedBrowsers.values()];
+  sharedBrowsers.clear();
+  const browsers = await Promise.all(
+    slots.map(async (slot) => slot.browser ?? await slot.promise?.catch(() => undefined)),
+  );
+  const uniqueBrowsers = [...new Set(
+    browsers.filter((browser): browser is Browser => browser != null),
+  )];
+  const result: ForceCloseSharedBrowsersResult = {
+    found: uniqueBrowsers.length,
+    closed: 0,
+    terminated: 0,
+    failed: 0,
+  };
+
+  await Promise.all(uniqueBrowsers.map(async (browser) => {
+    const closedNormally = await Promise.race([
+      browser.close().then(() => true).catch(() => false),
+      new Promise<false>((resolveTimeout) => {
+        setTimeout(() => resolveTimeout(false), FORCE_CLOSE_TIMEOUT_MS);
+      }),
+    ]);
+    if (closedNormally || !isBrowserConnected(browser)) {
+      result.closed++;
+      return;
+    }
+
+    const chromeProcess = browser.process();
+    const terminated = chromeProcess != null
+      && chromeProcess.exitCode == null
+      && chromeProcess.kill();
+    await browser.disconnect().catch(() => {});
+    if (terminated) {
+      result.terminated++;
+    } else {
+      result.failed++;
+    }
+  }));
+
+  logger.warn("scraper", "已执行共享浏览器强制关闭", { ...result });
+  return result;
 }
 
 /** 只关闭当前任务明确创建的页面；不按 URL、空白状态或延时猜测其他页面是否可关闭。 */

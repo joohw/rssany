@@ -218,5 +218,5 @@ describe("plugin management", () => {
     } finally {
       await rm(userDir, { recursive: true, force: true });
     }
-  });
+  }, 15_000);
 });

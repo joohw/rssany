@@ -19,7 +19,8 @@ export interface JsonRpcResponse {
   error?: { code: number; message: string; data?: unknown };
 }
 
-const PROTOCOL_VERSION = "2024-11-05";
+const PROTOCOL_VERSION = "2025-03-26";
+const SUPPORTED_PROTOCOL_VERSIONS = new Set([PROTOCOL_VERSION, "2024-11-05"]);
 
 function responseId(value: unknown): JsonRpcId {
   return typeof value === "string" || typeof value === "number" || value === null ? value : null;
@@ -48,11 +49,15 @@ export async function handleMcpJsonRpc(input: unknown): Promise<JsonRpcResponse 
   if (request.method.startsWith("notifications/")) return undefined;
 
   if (request.method === "initialize") {
+    const requestedVersion = (request.params as { protocolVersion?: unknown } | undefined)?.protocolVersion;
+    const protocolVersion = typeof requestedVersion === "string" && SUPPORTED_PROTOCOL_VERSIONS.has(requestedVersion)
+      ? requestedVersion
+      : PROTOCOL_VERSION;
     return {
       jsonrpc: "2.0",
       id,
       result: {
-        protocolVersion: PROTOCOL_VERSION,
+        protocolVersion,
         capabilities: { tools: { listChanged: false } },
         serverInfo: { name: "rssany-local", version: getAppVersion() },
         instructions:

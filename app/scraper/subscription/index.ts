@@ -19,15 +19,38 @@ async function loadSourcesFile(): Promise<SubscriptionSource[]> {
     : [];
 }
 
+let cachedSources: SubscriptionSource[] | null = null;
+let sourcesLoadPromise: Promise<void> | null = null;
+
+function cloneSources(sources: readonly SubscriptionSource[]): SubscriptionSource[] {
+  return sources.map((source) => ({ ...source }));
+}
+
+/** 启动时加载一次信源配置，后续读取直接使用内存快照。 */
+export async function initSourcesCache(): Promise<void> {
+  if (cachedSources) return;
+  if (!sourcesLoadPromise) {
+    sourcesLoadPromise = loadSourcesFile()
+      .then((sources) => {
+        cachedSources = cloneSources(sources);
+      })
+      .finally(() => {
+        sourcesLoadPromise = null;
+      });
+  }
+  await sourcesLoadPromise;
+}
+
 
 /** 获取所有信源（扁平列表），供 scheduler 使用 */
 export async function getAllSources(): Promise<SubscriptionSource[]> {
-  return loadSourcesFile();
+  await initSourcesCache();
+  return cloneSources(cachedSources ?? []);
 }
 
 /** 去重后的 ref 列表，供 Feed / 聚合查询使用 */
 export async function getAllSubscriptionRefs(): Promise<string[]> {
-  const list = await loadSourcesFile();
+  const list = await getAllSources();
   const seen = new Set<string>();
   const out: string[] = [];
   for (const s of list) {
@@ -43,9 +66,11 @@ export async function getAllSubscriptionRefs(): Promise<string[]> {
 
 /** 将扁平列表写回 config.json；供 raw API 写入 */
 export async function saveSourcesFile(sources: SubscriptionSource[]): Promise<void> {
+  const next = cloneSources(sources);
   await updateConfigFile((config) => {
-    config.sources = sources;
+    config.sources = next;
   });
+  cachedSources = next;
 }
 
 
@@ -64,5 +89,5 @@ export async function getEffectiveProxyForListUrl(listUrl: string, source: Sourc
 
 /** 读取 config.json 中的 sources 片段（用于 GET /api/sources/raw）。 */
 export async function getSourcesRaw(): Promise<string> {
-  return JSON.stringify({ sources: await loadSourcesFile() }, null, 2);
+  return JSON.stringify({ sources: await getAllSources() }, null, 2);
 }

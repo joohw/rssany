@@ -74,6 +74,41 @@ describe("local MCP SSE", () => {
     await reader.cancel();
   });
 
+  it("exposes the same MCP server over stateless Streamable HTTP", async () => {
+    const app = new Hono();
+    registerMcpRoutes(app);
+
+    const initialize = await app.request("/mcp", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Accept: "application/json, text/event-stream",
+      },
+      body: JSON.stringify({
+        jsonrpc: "2.0",
+        id: 1,
+        method: "initialize",
+        params: { protocolVersion: "2025-03-26", capabilities: {}, clientInfo: { name: "test", version: "1" } },
+      }),
+    });
+    expect(initialize.status).toBe(200);
+    expect(initialize.headers.get("content-type")).toContain("application/json");
+    await expect(initialize.json()).resolves.toMatchObject({
+      id: 1,
+      result: {
+        protocolVersion: "2025-03-26",
+        serverInfo: { name: "rssany-local" },
+      },
+    });
+
+    const notification = await app.request("/mcp", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ jsonrpc: "2.0", method: "notifications/initialized" }),
+    });
+    expect(notification.status).toBe(202);
+  });
+
   it("lists the backend tools and their mutation annotations", async () => {
     const response = await handleMcpJsonRpc({
       jsonrpc: "2.0",

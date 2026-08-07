@@ -52,7 +52,8 @@ describe("rssany update", () => {
 
   it("waits for the managed process to exit before installing", async () => {
     const dir = await mkdtemp(join(tmpdir(), "rssany-update-wait-test-"));
-    const fakeNpm = join(dir, "fake-npm");
+    const fakeNpm = join(dir, process.platform === "win32" ? "fake-npm.cmd" : "fake-npm");
+    const fakeNpmScript = process.platform === "win32" ? join(dir, "fake-npm.cjs") : fakeNpm;
     const statePath = join(dir, "process-state.txt");
     const managed = spawn(process.execPath, [
       "-e",
@@ -61,7 +62,7 @@ describe("rssany update", () => {
     await new Promise((resolve) => setTimeout(resolve, 100));
     await writeFile(join(dir, "rssany.pid"), `${managed.pid}\n`, "utf-8");
     await writeFile(
-      fakeNpm,
+      fakeNpmScript,
       [
         "#!/usr/bin/env node",
         "const { writeFileSync } = require('node:fs');",
@@ -70,7 +71,11 @@ describe("rssany update", () => {
       ].join("\n") + "\n",
       "utf-8",
     );
-    await chmod(fakeNpm, 0o755);
+    if (process.platform === "win32") {
+      await writeFile(fakeNpm, `@echo off\r\n"${process.execPath}" "${fakeNpmScript}" %*\r\n`, "utf-8");
+    } else {
+      await chmod(fakeNpm, 0o755);
+    }
 
     const result = await runNode([binPath, "update", "--no-restart"], {
       RSSANY_USER_DIR: dir,

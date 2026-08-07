@@ -17,6 +17,7 @@ const logPath = join(userDir, "rssany.log");
 const configPath = join(userDir, "config.json");
 const port = Number(process.env.PORT) || 18473;
 const serverOrigin = `http://127.0.0.1:${port}`;
+const START_TIMEOUT_MS = 12_000;
 const STOP_TIMEOUT_MS = 15_000;
 const FORCE_STOP_TIMEOUT_MS = 5_000;
 
@@ -139,7 +140,7 @@ async function canConnectToServer() {
   });
 }
 
-async function waitForServer(timeoutMs = 5000) {
+async function waitForServer(timeoutMs = START_TIMEOUT_MS) {
   const startTime = Date.now();
   while (Date.now() - startTime < timeoutMs) {
     if (await canConnectToServer()) return true;

@@ -5,6 +5,10 @@
 
 **RSSAny** 是一套自托管的订阅管线：列表 URL → **抓取与解析**（规则 / LLM）→ **正文提取**（自定义 / Readability / LLM）→ **upsert 去重** → 固定 **pipeline**（打标签、翻译等）→ 对外提供 `**/rss`** 等输出。
 
+- 官网：[https://rssany.com](https://rssany.com)
+- GitHub：[https://github.com/joohw/rssany](https://github.com/joohw/rssany)
+- npm：[https://www.npmjs.com/package/rssany](https://www.npmjs.com/package/rssany)
+
 ## 界面预览
 
 ![RSSAny Web 界面截图](images/ScreenShot_2026-04-10_153307_558.png)
@@ -35,7 +39,7 @@
 
 ## 快速开始
 
-日常使用只需 **Node.js 20.x–23.x**（与 `package.json` 的 `engines` 一致）：
+日常使用只需 **Node.js 20.x–23.x**（与 `package.json` 的 `engines` 一致）；全新安装推荐当前的 **Node.js 22 LTS**：
 
 ### 全局安装（推荐）
 
@@ -53,6 +57,18 @@ npm install -g rssany
 ```
 
 使用 **nvm / fnm** 安装的 Node 通常可直接 `npm install -g rssany`，无需上述配置。
+
+如果 macOS / Linux 使用系统级 npm prefix，且确实需要管理员权限，也可以安装后把 RssAny 数据目录交还给当前用户：
+
+```bash
+sudo npm install -g rssany
+rssany_npm_prefix="$(npm prefix -g)"
+sudo mkdir -p "$rssany_npm_prefix/var/rssany"
+sudo chown -R "$(id -u):$(id -g)" "$rssany_npm_prefix/var/rssany"
+rssany start
+```
+
+只对可信 npm 包使用 `sudo npm install -g`；长期使用更推荐 nvm / fnm 或用户级 npm prefix。
 
 安装包内已包含构建好的后端与 Web 界面；用 **`rssany start`** 后台启动并直接返回访问地址（默认 **`http://127.0.0.1:18473/`**，端口可在**运行命令时当前目录**下的 `.env` 里设置 `PORT`）；用 **`rssany stop`** 关闭后台服务并输出执行状态。
 
@@ -105,6 +121,12 @@ config.json sources / 信源插件
 ---
 
 ## 常用 HTTP 能力
+
+### Agent Skill
+
+- `GET /api/skill`：返回官方 `SKILL.md`、版本和完整文件清单。
+- `GET /api/skill.zip`：下载可直接解压到 Agent skills 目录的完整知识包。
+- Web UI 的 `/skill` 页面支持复制核心说明和下载 ZIP；知识包覆盖 HTTP API、本地 MCP、插件开发、配置、运维、排错与架构。
 
 ### RSS 输出
 

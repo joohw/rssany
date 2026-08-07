@@ -35,11 +35,20 @@ export function registerMcpRoutes(app: Hono): void {
   app.get("/mcp", (c) => c.json({
     name: "rssany-local",
     transport: "sse",
+    streamableHttp: "/mcp",
     sse: "/mcp/sse",
     messages: "/mcp/messages?sessionId={sessionId}",
     readOnly: false,
     localOnly: process.env.RSSANY_MCP_ALLOW_REMOTE !== "1",
   }));
+
+  // 无状态 Streamable HTTP：供 Codex、ChatGPT desktop 和现代 MCP 客户端直连。
+  app.post("/mcp", async (c) => {
+    const parsed = parseJsonRpcBody(await c.req.text());
+    const response = "error" in parsed ? parsed.error : await handleMcpJsonRpc(parsed.value);
+    if (!response) return c.body(null, 202);
+    return c.json(response);
+  });
 
   app.get("/mcp/sse", (c) => {
     if (sessions.size >= MAX_SESSIONS) {
