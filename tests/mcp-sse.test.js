@@ -122,6 +122,7 @@ describe("local MCP SSE", () => {
       "query_items",
       "get_item",
       "get_source_stats",
+      "query_logs",
       "list_collectors",
       "read_collector",
       "write_collector",

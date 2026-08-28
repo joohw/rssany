@@ -61,9 +61,8 @@ export async function saveGlobalProxyToConfig(proxy: string): Promise<void> {
   await saveProxySettingsToConfig({ ...current, globalProxy: proxy });
 }
 
-/** Collector proxy takes precedence over config globalProxy. */
-export async function resolveProxyForSite(site: { proxy?: string }): Promise<string | undefined> {
+/** 站点级认证只使用采集器显式代理；空字符串会阻止 fetcher 自动继承环境代理。 */
+export async function resolveProxyForSite(site: { proxy?: string }): Promise<string> {
   const s = site.proxy?.trim();
-  if (s) return s;
-  return readGlobalProxyFromConfig();
+  return s || "";
 }

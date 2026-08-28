@@ -1,6 +1,6 @@
 // MCP 工具：读取本地 sources / SQLite，并管理用户采集器。
 
-import { getItemById, getSourceStats, queryItems } from "../db/index.js";
+import { getItemById, getSourceStats, queryItems, queryLogs } from "../db/index.js";
 import {
   deleteManagedCollector,
   listManagedCollectors,
@@ -80,6 +80,23 @@ const tools: McpToolDefinition[] = [
     inputSchema: {
       type: "object",
       properties: {},
+      additionalProperties: false,
+    },
+    annotations: { readOnlyHint: true, destructiveHint: false, openWorldHint: false },
+  },
+  {
+    name: "query_logs",
+    description: "Query local RssAny runtime logs by level, category, date range, and pagination.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        level: { type: "string", enum: ["error", "warn", "info", "debug"], description: "Exact log level." },
+        category: { type: "string", description: "Case-insensitive partial category match." },
+        since: { type: "string", description: "ISO 8601 inclusive lower date/time bound." },
+        until: { type: "string", description: "ISO 8601 exclusive upper date/time bound." },
+        limit: { type: "integer", minimum: 1, maximum: 200, default: 100 },
+        offset: { type: "integer", minimum: 0, default: 0 },
+      },
       additionalProperties: false,
     },
     annotations: { readOnlyHint: true, destructiveHint: false, openWorldHint: false },
@@ -189,11 +206,12 @@ export async function callMcpTool(name: string, rawArgs: unknown): Promise<McpTo
   try {
     const args = objectArgs(rawArgs);
     if (name === "list_sources") {
-      const sources = (await getAllSources()).map(({ ref, type, label, description, refresh, cron, weight }) => ({
+      const sources = (await getAllSources()).map(({ ref, type, label, description, group, refresh, cron, weight }) => ({
         ref,
         type,
         label,
         description,
+        group,
         refresh,
         cron,
         weight,
@@ -231,6 +249,25 @@ export async function callMcpTool(name: string, rawArgs: unknown): Promise<McpTo
     if (name === "get_source_stats") {
       const sources = await getSourceStats();
       return textResult({ sources, total: sources.length });
+    }
+
+    if (name === "query_logs") {
+      const levelRaw = optionalString(args, "level");
+      if (levelRaw && !["error", "warn", "info", "debug"].includes(levelRaw)) {
+        throw new Error("level 必须是 error、warn、info 或 debug");
+      }
+      const since = optionalDate(args, "since");
+      const until = optionalDate(args, "until");
+      if (since && until && since >= until) throw new Error("since 必须早于 until");
+      const result = await queryLogs({
+        level: levelRaw as "error" | "warn" | "info" | "debug" | undefined,
+        category: optionalString(args, "category"),
+        since,
+        until,
+        limit: boundedInteger(args, "limit", 100, 1, 200),
+        offset: boundedInteger(args, "offset", 0, 0, Number.MAX_SAFE_INTEGER),
+      });
+      return textResult({ logs: result.items, total: result.total });
     }
 
     if (name === "list_collectors") {

@@ -21,7 +21,10 @@ function runBackupRoundTrip(userDir) {
         format: "rssany-sources-backup",
         schemaVersion: 1,
         exportedAt: "2026-08-28T00:00:00.000Z",
-        sources: [{ ref: "https://example.com/feed/", label: "Example", refresh: "1h" }]
+        sources: [
+          { ref: "https://example.com/feed/", label: "Example", group: ["Tech", "AI"], refresh: "1h", proxyMode: "default" },
+          { ref: "https://root.example.com/feed", label: "Root" }
+        ]
       };
       const item = {
         id: "item-1",
@@ -78,11 +81,14 @@ describe("independent sources and items backups", () => {
     const userDir = await mkdtemp(join(tmpdir(), "rssany-backup-test-"));
     try {
       const result = await runBackupRoundTrip(userDir);
-      expect(result.sourceResult).toMatchObject({ sources: 1 });
+      expect(result.sourceResult).toMatchObject({ sources: 2 });
       expect(result.itemResult).toMatchObject({ items: 1, insertedItems: 1, updatedItems: 0 });
       expect(result.exportedSources).toMatchObject({
         format: "rssany-sources-backup",
-        sources: [{ ref: "https://example.com/feed", label: "Example" }],
+        sources: [
+          { ref: "https://example.com/feed", label: "Example", group: ["Tech", "AI"], proxyMode: "default" },
+          { ref: "https://root.example.com/feed", label: "Root", group: [], proxyMode: "none" },
+        ],
       });
       expect(result.exportedItems.format).toBe("rssany-items-backup");
       expect(result.exportedItems.items[0]).toMatchObject({

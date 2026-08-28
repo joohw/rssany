@@ -6,6 +6,9 @@ import type { RefreshInterval } from "../../utils/refreshInterval.js";
 /** 信源类型枚举 */
 export type SourceType = "web" | "rss" | "email";
 
+/** 信源代理策略：默认直连；仅显式选择 default/custom 时使用代理。 */
+export type SourceProxyMode = "none" | "default" | "custom";
+
 
 /**
  * 单个信源配置
@@ -27,21 +30,50 @@ export interface SubscriptionSource {
   label?: string;
   /** 简短描述，用于界面展示信源用途或内容说明 */
   description?: string;
+  /** 分组路径；每个元素是一层目录，空数组或省略均表示根路径 */
+  group?: string[];
   /** 单源有效时间窗口覆盖：优先级高于 Collector 声明；不填则使用 Collector 声明 */
   refresh?: RefreshInterval;
   /** 单源 cron 表达式（如 "0 9 * * *" 每天 9:00）；有值时优先于 refresh */
   cron?: string;
-  /** 单源代理覆盖：优先级高于 Collector.proxy；不填则使用 Collector.proxy 或 env HTTP_PROXY */
+  /** 代理策略；省略时兼容旧配置：有 proxy 视为 custom，否则视为 none。 */
+  proxyMode?: SourceProxyMode;
+  /** proxyMode=custom 时使用的代理地址。 */
   proxy?: string;
   /** 信源权重，用于排序与优先级控制；默认 0，值越大优先级越高 */
   weight?: number;
 }
 
 
-/** config.json 的 sources 标准格式：扁平信源列表，无频道/订阅层级 */
+/** config.json 的 sources 标准格式：信源保持扁平存储，通过 group 路径表达分组与嵌套 */
 export interface SourcesFile {
   /** 所有要抓取的信源 */
   sources: SubscriptionSource[];
+}
+
+/** 由信源 group 路径聚合出的只读分组树。 */
+export interface SourceGroupTreeNode {
+  name: string;
+  path: string[];
+  /** 当前节点及全部子节点包含的信源总数。 */
+  sourceCount: number;
+  children: SourceGroupTreeNode[];
+}
+
+/** 规范化分组路径；旧配置未提供 group 时落在根路径。 */
+export function normalizeSourceGroup(group: unknown): string[] {
+  if (!Array.isArray(group)) return [];
+  return group
+    .filter((segment): segment is string => typeof segment === "string")
+    .map((segment) => segment.trim())
+    .filter(Boolean);
+}
+
+/** 规范化代理策略，同时兼容只有 proxy 字段的旧配置。 */
+export function normalizeSourceProxyMode(mode: unknown, proxy?: unknown): SourceProxyMode {
+  if (mode === "none" || mode === "default") return mode;
+  if (mode === "custom") return typeof proxy === "string" && proxy.trim() ? "custom" : "none";
+  return typeof proxy === "string" && proxy.trim() ? "custom" : "none";
 }
 
 

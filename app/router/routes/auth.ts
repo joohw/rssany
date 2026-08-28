@@ -5,6 +5,7 @@ import { getSiteCollector, getBestSiteCollector, toAuthFlow } from "../../scrape
 import { ensureAuth, preCheckAuth, openBrowserPage, resolveProxy } from "../../scraper/sources/web/fetcher/index.js";
 import { CACHE_DIR } from "../../config/paths.js";
 import { resolveProxyForSite } from "../../config/globalProxy.js";
+import { getEffectiveProxyForListUrl } from "../../scraper/subscription/index.js";
 
 export function registerAuthRoutes(app: Hono): void {
   app.get("/auth/check", async (c) => {
@@ -44,8 +45,10 @@ export function registerAuthRoutes(app: Hono): void {
     const urlParam = c.req.query("url");
     const siteIdParam = c.req.query("siteId");
     let site;
+    let sourceUrl: string | undefined;
     if (urlParam) {
       const decoded = decodeURIComponent(urlParam);
+      sourceUrl = decoded;
       site = getBestSiteCollector(decoded);
       if (!site) return c.json({ ok: false, message: "无匹配站点" }, 404);
     } else if (siteIdParam) {
@@ -56,7 +59,10 @@ export function registerAuthRoutes(app: Hono): void {
     }
     const authFlow = toAuthFlow(site);
     if (!authFlow) return c.json({ ok: false, message: "该站点无需登录" }, 400);
-    ensureAuth(authFlow, CACHE_DIR, { proxy: await resolveProxyForSite(site) }).then(() => {}).catch(() => {});
+    const proxy = sourceUrl
+      ? await getEffectiveProxyForListUrl(sourceUrl, site)
+      : await resolveProxyForSite(site);
+    ensureAuth(authFlow, CACHE_DIR, { proxy }).then(() => {}).catch(() => {});
     return c.json({ ok: true, message: "已打开登录窗口，请在弹出的浏览器中完成登录，完成后刷新订阅页面即可。" });
   });
 }

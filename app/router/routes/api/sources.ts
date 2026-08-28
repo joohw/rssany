@@ -5,15 +5,15 @@ import { streamSSE } from "hono/streaming";
 import { getSourceStats } from "../../../db/index.js";
 import { getCollector } from "../../../scraper/sources/index.js";
 import { getCollectorSites } from "../../../scraper/sources/web/index.js";
-import { getAllSources, getSourcesRaw, saveSourcesFile, getEffectiveProxyForListUrl } from "../../../scraper/subscription/index.js";
+import { getAllSources, getSourceGroupTree, getSourcesRaw, saveSourcesFile, getEffectiveProxyForListUrl } from "../../../scraper/subscription/index.js";
 import { openBrowserPage, resolveProxy } from "../../../scraper/sources/web/fetcher/index.js";
 import { CACHE_DIR } from "../../../config/paths.js";
-import type { SourceType } from "../../../scraper/subscription/types.js";
+import type { SourceProxyMode, SourceType } from "../../../scraper/subscription/types.js";
 import type { RefreshInterval } from "../../../utils/refreshInterval.js";
 import { VALID_INTERVALS } from "../../../utils/refreshInterval.js";
 import { canonicalHttpSourceRef } from "../../../utils/httpSourceRef.js";
 import { getSourcePullStatus, onSourcePullStatus } from "../../../core/sourcePullStatus.js";
-import { resolveRef } from "../../../scraper/subscription/types.js";
+import { normalizeSourceGroup, normalizeSourceProxyMode, resolveRef } from "../../../scraper/subscription/types.js";
 
 export function registerSourcesRoutes(app: Hono): void {
   const pullStatusSnapshot = async () => {
@@ -56,6 +56,11 @@ export function registerSourcesRoutes(app: Hono): void {
   app.get("/api/sources/stats", async (c) => {
     const stats = await getSourceStats();
     return c.json(stats);
+  });
+
+  app.get("/api/sources/groups", async (c) => {
+    const groups = await getSourceGroupTree();
+    return c.json({ groups });
   });
 
   app.get("/api/sources", async (c) => {
@@ -139,7 +144,7 @@ export function registerSourcesRoutes(app: Hono): void {
     try {
       const body = await c.req.json<{ sources?: unknown[] }>();
       const list = Array.isArray(body?.sources) ? body.sources : [];
-      const sources: { ref: string; type?: SourceType; label?: string; description?: string; refresh?: RefreshInterval; proxy?: string; weight?: number }[] = list
+      const sources: { ref: string; type?: SourceType; label?: string; description?: string; group: string[]; refresh?: RefreshInterval; cron?: string; proxyMode: SourceProxyMode; proxy?: string; weight?: number }[] = list
         .filter((s): s is Record<string, unknown> => s != null && typeof s === "object" && typeof (s as { ref?: unknown }).ref === "string")
         .map((s) => {
           const t = (s as { type?: string }).type;
@@ -150,13 +155,20 @@ export function registerSourcesRoutes(app: Hono): void {
             r && VALID_INTERVALS.includes(r as RefreshInterval) ? (r as RefreshInterval) : undefined;
           const w = (s as { weight?: unknown }).weight;
           const weight: number | undefined = typeof w === "number" ? w : undefined;
+          const proxy = typeof (s as { proxy?: unknown }).proxy === "string"
+            ? (s as { proxy: string }).proxy.trim()
+            : undefined;
+          const proxyMode = normalizeSourceProxyMode((s as { proxyMode?: unknown }).proxyMode, proxy);
           return {
             ref: canonicalHttpSourceRef(String((s as { ref: string }).ref)),
             type,
             label: (s as { label?: string }).label,
             description: (s as { description?: string }).description,
+            group: normalizeSourceGroup((s as { group?: unknown }).group),
             refresh,
-            proxy: (s as { proxy?: string }).proxy,
+            cron: (s as { cron?: string }).cron,
+            proxyMode,
+            ...(proxyMode === "custom" && proxy ? { proxy } : {}),
             weight,
           };
         });

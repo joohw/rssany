@@ -61,7 +61,7 @@ export async function fetchItems(sourceId, ctx) {
 **常用可选**
 
 - `refreshInterval`：条目缓存/调度窗口（不填默认 `1day`）
-- `proxy`：该站代理；仍可被 `config.json` 的单源设置或环境变量覆盖（见下）
+- `proxy`：采集器自身声明的代理；已配置到 `sources` 的信源以信源级显式策略为准
 - **站点登录**：`checkAuth`、`loginUrl`；可选 `domain`、`loginTimeoutMs`、`pollIntervalMs`（Cookie 落在 `~/.rssany/cache/domains/`）
 
 **上下文 `SiteCollectorContext`（摘要）**
@@ -91,8 +91,11 @@ export async function fetchItems(sourceId, ctx) {
 ## 与 `config.json` 的关系
 
 - 订阅地址写在 **`~/.rssany/config.json`** 顶层 **`sources`** 数组的 `ref` 中。
+- 单条信源可用 **`group`** 字符串数组表达分组路径，例如 `"group": ["技术", "前端"]`；省略或 `[]` 表示根路径。信源仍以扁平数组存储，嵌套只由路径表达。
+- `GET /api/sources/groups` 返回当前分组树；每个节点包含 `name`、完整 `path`、含后代的 `sourceCount` 与 `children`，可直接用于分组选择器。
 - 调度器会选用最匹配的采集器处理该 `ref`。
-- 单条信源可覆盖 **`refresh`**、**`proxy`** 等，优先级一般高于采集器内声明（具体合并逻辑见 scraper/feeder 实现）。
+- 单条信源通过 **`proxyMode`** 选择代理策略：`none`（默认直连）、`default`（使用代理设置页的默认代理）、`custom`（使用该信源的 `proxy` 地址）。旧配置中只有 `proxy` 时按 `custom` 兼容。
+- 默认代理不会自动应用到全部信源；通常只给需要代理的境外信源显式选择 `default` 或 `custom`。
 
 合法 **`refresh`**：`10min`、`30min`、`1h`、`6h`、`12h`、`1day`（默认）、`3day`、`7day`。
 

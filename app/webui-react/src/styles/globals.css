@@ -122,8 +122,6 @@ body {
   min-height: 0;
   flex: 1 1 auto;
   overflow: hidden;
-  border: 1px solid var(--border);
-  border-radius: var(--radius-sm);
   background: var(--card);
 }
 
@@ -708,6 +706,37 @@ body {
   text-align: center;
 }
 
+.source-group-row {
+  display: flex;
+  width: 100%;
+  min-height: 2rem;
+  align-items: center;
+  gap: 0.35rem;
+  padding-top: 0.45rem;
+  padding-right: 0.75rem;
+  padding-bottom: 0.3rem;
+  padding-left: 0.75rem;
+  border-bottom: 1px solid var(--border);
+  border-top: 0;
+  border-right: 0;
+  border-left: 0;
+  background: color-mix(in srgb, var(--muted) 45%, transparent);
+  color: var(--muted-foreground);
+  font-size: 0.72rem;
+  font-weight: 650;
+  letter-spacing: 0.02em;
+  text-align: left;
+  cursor: pointer;
+}
+.source-group-row:hover { background: var(--muted); color: var(--foreground); }
+.source-group-row--drop-target {
+  background: color-mix(in srgb, var(--primary) 14%, var(--muted));
+  color: var(--foreground);
+  box-shadow: inset 3px 0 0 var(--primary);
+}
+.source-group-row svg { width: 0.8rem; height: 0.8rem; flex: none; }
+.source-group-count { margin-left: auto; padding-left: 0.5rem; font-variant-numeric: tabular-nums; }
+
 .sidebar-error {
   display: flex;
   justify-content: center;
@@ -797,6 +826,23 @@ body {
   transition: background-color 150ms ease;
 }
 .source-row:hover, .source-row--active { background: var(--muted); }
+.source-row--draggable { cursor: grab; }
+.source-row--draggable:active { cursor: grabbing; }
+.source-row--dragging { opacity: 0.45; }
+.source-row--drop-before::before,
+.source-row--drop-after::after {
+  position: absolute;
+  z-index: 2;
+  right: 0.5rem;
+  left: 0.5rem;
+  height: 2px;
+  border-radius: 999px;
+  background: var(--primary);
+  content: "";
+  pointer-events: none;
+}
+.source-row--drop-before::before { top: -1px; }
+.source-row--drop-after::after { bottom: -1px; }
 
 .source-row-main {
   display: flex;
@@ -812,6 +858,8 @@ body {
   text-align: left;
   cursor: pointer;
 }
+.source-row--draggable .source-row-main { cursor: grab; }
+.source-row--draggable:active .source-row-main { cursor: grabbing; }
 .source-favicon-slot {
   width: 1rem;
   height: 1rem;
@@ -881,6 +929,7 @@ body {
   justify-content: center;
   gap: 0.125rem;
   padding: 0 1.25rem;
+  border-bottom: 1px solid var(--border);
 }
 
 .sources-detail-header h2 {

@@ -36,6 +36,7 @@ Real HTTP requests are accepted only from loopback by default. `RSSANY_MCP_ALLOW
 - `query_items { q?, source_url?, tags?, author?, since?, until?, limit?, offset? }`: indexed search; limit 1-200.
 - `get_item { id }`: one item including full content.
 - `get_source_stats {}`: item counts and latest timestamps grouped by source.
+- `query_logs { level?, category?, since?, until?, limit?, offset? }`: runtime logs in reverse chronological order; limit 1-200.
 - `list_collectors {}`: loaded user collectors.
 - `read_collector { id }`: complete effective collector source.
 

@@ -32,7 +32,12 @@ export function CollectorsLayout(){
         {!filtered.length&&!error&&<p className="p-4 text-center text-xs text-muted-foreground">没有匹配的采集器</p>}
       </nav>
     </aside>
-    <section className={cn('min-h-0 bg-background px-5 py-6 sm:px-6', pathname==='/collectors'||pathname==='/collectors/new'?'overflow-y-auto':'overflow-hidden')}>
+    <section className={cn(
+      'min-h-0 bg-background',
+      pathname==='/collectors'||pathname==='/collectors/new'
+        ? 'overflow-y-auto px-5 py-6 sm:px-6'
+        : 'overflow-hidden',
+    )}>
       <Outlet context={{reload:load} satisfies CollectorContext}/>
     </section>
   </div>
@@ -58,7 +63,7 @@ export function CollectorEditorPage(){
   const save=async()=>{setBusy(true);setError('');try{await api(`/api/collectors/${encodeURIComponent(id)}`,{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify({content})})}catch(e){setError(String(e))}finally{setBusy(false)}}
   const remove=async()=>{if(!window.confirm(`删除采集器 ${id}？此操作不可恢复。`))return;setBusy(true);setError('');try{await api(`/api/collectors/${encodeURIComponent(id)}`,{method:'DELETE'});reload();nav('/collectors')}catch(e){setError(String(e));setBusy(false)}}
   return <div className="flex h-full min-h-0 flex-col">
-    <header className="mb-4 flex flex-none items-start justify-between gap-4">
+    <header className="flex flex-none items-start justify-between gap-4 border-b px-5 py-4 sm:px-6">
       <div className="min-w-0"><h1 className="truncate text-base font-semibold">{id}</h1><p className="mt-1 truncate text-xs text-muted-foreground">{path}</p></div>
       <div className="flex items-center gap-2">
         {canDelete&&<Button variant="destructive" onClick={remove} disabled={busy||loading}>删除</Button>}

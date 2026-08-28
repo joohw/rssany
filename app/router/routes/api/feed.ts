@@ -29,6 +29,7 @@ export function registerFeedRoutes(app: Hono): void {
     const sourcesMeta = sources.map((s) => ({
       ref: resolveRef(s),
       label: s.label ?? resolveRef(s),
+      group: s.group ?? [],
     }));
 
     const parseDateBound = (value: string | undefined, endExclusive: boolean): Date | undefined => {

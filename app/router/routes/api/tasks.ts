@@ -9,6 +9,8 @@ import { crawlSource } from "../../../feeder/index.js";
 import { MANUAL_SOURCES_GROUP } from "../../../scraper/scheduler/index.js";
 import { markSourcePullPending } from "../../../core/sourcePullStatus.js";
 
+const MANUAL_SOURCES_CONCURRENCY = 4;
+
 export function registerTasksRoutes(app: Hono): void {
   app.get("/api/tasks/:id/events", (c) => {
     const id = c.req.param("id") ?? "";
@@ -65,7 +67,7 @@ export function registerTasksRoutes(app: Hono): void {
             taskStore.setTaskError(taskId, msg);
             throw err;
           }
-        }, { priority: true, concurrency: 1 }).catch(() => {});
+        }, { priority: true, concurrency: MANUAL_SOURCES_CONCURRENCY }).catch(() => {});
         return c.json({ taskId });
       }
       return c.json({ error: `未知任务类型: ${type}` }, 400);

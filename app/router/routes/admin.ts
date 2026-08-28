@@ -9,13 +9,13 @@ import { AuthRequiredError } from "../../scraper/auth/index.js";
 import { parseUrlFromPath, readStaticHtml, escapeHtml } from "../utils.js";
 import { getEffectiveProxyForListUrl } from "../../scraper/subscription/index.js";
 
-/** 与 fetcher `resolveProxy` 一致：调试 query 优先 → config sources / Collector.proxy → 环境变量 */
+/** 调试 query 优先，其次使用信源显式选择的代理；默认直连。 */
 function effectiveProxyUsed(override: string | undefined, mergedFromSource: string | undefined): string | undefined {
   const o = override?.trim();
   if (o) return o;
   const s = mergedFromSource?.trim();
   if (s) return s;
-  return process.env.HTTP_PROXY?.trim() || process.env.HTTPS_PROXY?.trim();
+  return undefined;
 }
 
 function redactProxyForLog(p: string | undefined): string | null {

@@ -30,7 +30,6 @@ function getRecentDates():DateOption[]{
 export function LogsPage(){
   const dates=useMemo(getRecentDates,[]);const [selectedDate,setSelectedDate]=useState('recent');const [items,setItems]=useState<LogItem[]>([]);const [total,setTotal]=useState(0);const [level,setLevel]=useState('');const [categoryInput,setCategoryInput]=useState('');const [category,setCategory]=useState('');const [error,setError]=useState('');const [loading,setLoading]=useState(false);const [offset,setOffset]=useState(0)
   const selectedOption=dates.find(option=>option.value===selectedDate)
-  const selectedLabel=selectedOption?.label??'最近 30 天'
   const load=useCallback(async(signal?:AbortSignal)=>{setLoading(true);setError('');try{const range=selectedDate==='recent'?{since:dates.at(-1)?.since}:selectedOption;const p=new URLSearchParams({limit:String(PAGE_SIZE),offset:String(offset)});if(range?.since)p.set('since',range.since.toISOString());if(selectedDate!=='recent'&&selectedOption)p.set('until',selectedOption.until.toISOString());if(level)p.set('level',level);if(category.trim())p.set('category',category.trim());const d=await api<{items?:LogItem[];total?:number}>(`/api/logs?${p}`,{signal});setItems(d.items??[]);setTotal(d.total??0)}catch(e){if((e as Error).name!=='AbortError')setError(String(e))}finally{if(!signal?.aborted)setLoading(false)}},[level,category,offset,dates,selectedDate,selectedOption])
   useEffect(()=>{const controller=new AbortController();void load(controller.signal);return()=>controller.abort()},[load])
   useEffect(()=>{const timer=window.setTimeout(()=>{setOffset(0);setCategory(categoryInput.trim())},350);return()=>window.clearTimeout(timer)},[categoryInput])
@@ -54,11 +53,7 @@ export function LogsPage(){
       </nav>
     </aside>
     <section className="flex min-h-0 min-w-0 flex-col overflow-hidden">
-      <header className="flex h-[4.5rem] flex-none items-center justify-between gap-4 border-b px-5 sm:px-8">
-        <div>
-          <h1 className="text-base font-semibold tracking-tight">日志</h1>
-          <p className="mt-1 text-xs text-muted-foreground">{selectedLabel} · 共 {total} 条</p>
-        </div>
+      <header className="flex h-[4.5rem] flex-none items-center justify-end gap-4 border-b px-5 sm:px-8">
         <div className="flex min-w-0 items-center gap-2">
           <div className="w-32">
             <Select value={level||'all'} onValueChange={value=>{setOffset(0);setLevel(value==='all'?'':value)}}>

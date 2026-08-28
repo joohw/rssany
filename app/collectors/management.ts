@@ -140,7 +140,7 @@ export async function readManagedCollector(rawId: string): Promise<CollectorFile
 export function writeManagedCollector(
   rawId: string,
   content: string,
-  options: { mustNotExist?: boolean } = {},
+  options: { mustNotExist?: boolean; fileName?: string } = {},
 ): Promise<CollectorFile> {
   return enqueueMutation(() => writeManagedCollectorUnlocked(rawId, content, options));
 }
@@ -148,7 +148,7 @@ export function writeManagedCollector(
 async function writeManagedCollectorUnlocked(
   rawId: string,
   content: string,
-  options: { mustNotExist?: boolean },
+  options: { mustNotExist?: boolean; fileName?: string },
 ): Promise<CollectorFile> {
   const id = requireCollectorId(rawId);
   if (typeof content !== "string") throw new CollectorManagementError("需要 content 字符串", 400);
@@ -157,10 +157,15 @@ async function writeManagedCollectorUnlocked(
   }
   await mkdir(USER_COLLECTORS_DIR, { recursive: true });
 
+  const requestedFileName = options.fileName?.trim();
+  if (requestedFileName && requestedFileName !== `${id}.rssany.js` && requestedFileName !== `${id}.rssany.ts`) {
+    throw new CollectorManagementError("采集器文件名必须与 id 一致，且扩展名为 .rssany.js 或 .rssany.ts", 400);
+  }
+
   const activePath = getCollectorFilePath(id);
   const targetPath = activePath && collectorScope(activePath) === "user"
     ? activePath
-    : join(USER_COLLECTORS_DIR, `${id}.rssany.js`);
+    : join(USER_COLLECTORS_DIR, requestedFileName ?? `${id}.rssany.js`);
   if (!isInside(USER_COLLECTORS_DIR, targetPath)) throw new CollectorManagementError("采集器路径不允许", 403);
   if (options.mustNotExist && (activePath || await fileExists(targetPath))) {
     throw new CollectorManagementError("该 id 已存在", 409);

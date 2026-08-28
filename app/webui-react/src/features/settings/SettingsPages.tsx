@@ -11,7 +11,7 @@ const settingsNavigation = [
   ['/admin/llm', 'LLM', 'OpenAI 兼容 API 配置'],
   ['/admin/proxy', '代理', '全局代理与代理列表'],
   ['/admin/deliver', '投递', '下游 URL 与 Bearer 令牌'],
-  ['/admin/backup', '备份与恢复', '导入导出全部信源和条目'],
+  ['/admin/backup', '备份与恢复', '导入导出信源、条目、插件和 Pipeline'],
 ] as const
 
 export function SettingsLayout() {
@@ -81,8 +81,8 @@ export function ProxyPage() {
   const [globalProxy,setGlobalProxy]=useState('');const [proxyList,setProxyList]=useState('')
   const load=async()=>{const d=await api<{globalProxy?:string;proxyList?:string[]}>('/api/proxy');setGlobalProxy(d.globalProxy??'');setProxyList((d.proxyList??[]).join('\n'))}
   const save=async()=>{await api('/api/proxy',{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify({globalProxy,proxyList:proxyList.split('\n').map(x=>x.trim()).filter(Boolean)})})}
-  return <SavePage title="代理" description="维护可选代理并设置全局默认值" load={load} save={save}>
-    <label className="block text-sm">全局代理<input className={`${fieldClass} mt-1.5`} value={globalProxy} onChange={e=>setGlobalProxy(e.target.value)} placeholder="http://127.0.0.1:7890" /></label>
+  return <SavePage title="代理" description="维护信源可选代理；配置后不会自动应用，需在境外信源中选择默认或自定义代理" load={load} save={save}>
+    <label className="block text-sm">默认代理<input className={`${fieldClass} mt-1.5`} value={globalProxy} onChange={e=>setGlobalProxy(e.target.value)} placeholder="http://127.0.0.1:7890" /></label>
     <label className="block text-sm">代理列表（每行一个）<textarea className={`${fieldClass} mt-1.5 min-h-40 font-mono`} value={proxyList} onChange={e=>setProxyList(e.target.value)} /></label>
   </SavePage>
 }
@@ -101,13 +101,37 @@ export function TagsPage(){
 export function BackupPage() {
   const sourcesInput = useRef<HTMLInputElement>(null)
   const itemsInput = useRef<HTMLInputElement>(null)
+  const pluginsInput = useRef<HTMLInputElement>(null)
+  const pipelinesInput = useRef<HTMLInputElement>(null)
   const [sourcesMode, setSourcesMode] = useState<'merge' | 'replace'>('merge')
   const [itemsMode, setItemsMode] = useState<'merge' | 'replace'>('merge')
+  const [pluginsMode, setPluginsMode] = useState<'merge' | 'replace'>('merge')
+  const [pipelinesMode, setPipelinesMode] = useState<'merge' | 'replace'>('merge')
   const [busy, setBusy] = useState('')
   const [message, setMessage] = useState('')
   const [error, setError] = useState(false)
 
-  const exportBackup = async (kind: 'sources' | 'items') => {
+  type BackupKind = 'sources' | 'items' | 'plugins' | 'pipelines'
+  const backupLabel: Record<BackupKind, string> = {
+    sources: '信源列表',
+    items: 'FeedItem',
+    plugins: '插件（采集器）',
+    pipelines: 'Pipeline',
+  }
+  const inputFor = (kind: BackupKind) => ({
+    sources: sourcesInput,
+    items: itemsInput,
+    plugins: pluginsInput,
+    pipelines: pipelinesInput,
+  })[kind]
+  const modeFor = (kind: BackupKind) => ({
+    sources: sourcesMode,
+    items: itemsMode,
+    plugins: pluginsMode,
+    pipelines: pipelinesMode,
+  })[kind]
+
+  const exportBackup = async (kind: BackupKind) => {
     setBusy(`${kind}-export`); setMessage(''); setError(false)
     try {
       const response = await fetch(`/api/backup/${kind}`)
@@ -119,7 +143,7 @@ export function BackupPage() {
       const link = document.createElement('a')
       link.href = url; link.download = filename; link.click()
       URL.revokeObjectURL(url)
-      setMessage(kind === 'sources' ? '信源列表已导出' : 'FeedItem 已导出')
+      setMessage(`${backupLabel[kind]} 已导出`)
     } catch (e) {
       setError(true); setMessage(String(e))
     } finally {
@@ -127,49 +151,83 @@ export function BackupPage() {
     }
   }
 
-  const importFile = async (kind: 'sources' | 'items', file: File) => {
+  const importFile = async (kind: BackupKind, file: File) => {
     setBusy(`${kind}-import`); setMessage(''); setError(false)
     try {
       const backup = JSON.parse(await file.text()) as unknown
-      const mode = kind === 'sources' ? sourcesMode : itemsMode
-      const result = await api<{ sources?: number; items?: number; insertedItems?: number; updatedItems?: number }>(`/api/backup/${kind}/import`, {
+      const mode = modeFor(kind)
+      const result = await api<{ sources?: number; items?: number; insertedItems?: number; updatedItems?: number; plugins?: number; pipelines?: number; steps?: number }>(`/api/backup/${kind}/import`, {
         method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ mode, backup }),
       })
       setMessage(kind === 'sources'
         ? `信源导入完成：当前共 ${result.sources ?? 0} 个信源`
-        : `FeedItem 导入完成：处理 ${result.items ?? 0} 个条目（新增 ${result.insertedItems ?? 0}，更新 ${result.updatedItems ?? 0}）`)
+        : kind === 'items'
+          ? `FeedItem 导入完成：处理 ${result.items ?? 0} 个条目（新增 ${result.insertedItems ?? 0}，更新 ${result.updatedItems ?? 0}）`
+          : kind === 'plugins'
+            ? `插件导入完成：当前共 ${result.plugins ?? 0} 个采集器`
+            : `Pipeline 导入完成：当前共 ${result.pipelines ?? 0} 个用户 Pipeline，启用 ${result.steps ?? 0} 步`)
     } catch (e) {
       setError(true); setMessage(e instanceof SyntaxError ? '所选文件不是有效的 JSON' : String(e))
     } finally {
-      const input = kind === 'sources' ? sourcesInput.current : itemsInput.current
+      const input = inputFor(kind).current
       if (input) input.value = ''
       setBusy('')
     }
   }
 
-  return <Page title="备份与恢复" description="信源列表与 FeedItem 分别导入导出，互不影响">
-    <div className="space-y-5">
-      <section className="rounded-lg border bg-card p-4">
-        <h2 className="text-sm font-semibold">信源列表</h2>
-        <p className="mt-1 text-xs leading-5 text-muted-foreground">只处理信源配置，不读取或修改 FeedItem。</p>
-        <div className="mt-4 flex flex-wrap items-center gap-3">
-          <Button onClick={() => void exportBackup('sources')} disabled={Boolean(busy)}>{busy === 'sources-export' ? '导出中…' : '导出信源 JSON'}</Button>
-          <Button variant={sourcesMode === 'replace' ? 'destructive' : 'outline'} onClick={() => sourcesInput.current?.click()} disabled={Boolean(busy)}>{busy === 'sources-import' ? '导入中…' : '导入信源 JSON'}</Button>
+  return <Page title="备份与恢复" description="信源、FeedItem、插件和 Pipeline 可分别导入导出，互不影响" className="max-w-none [&>header]:mb-0 [&>header]:pb-6">
+    <div className="-mx-5 border-y sm:-mx-6">
+      <section className="flex w-full flex-col gap-4 px-5 py-5 sm:px-6 lg:flex-row lg:items-center lg:justify-between">
+        <div className="min-w-0 lg:max-w-md">
+          <h2 className="text-sm font-semibold">信源列表</h2>
+          <p className="mt-1 text-xs leading-5 text-muted-foreground">只处理信源配置，不读取或修改 FeedItem。</p>
+        </div>
+        <div className="ml-auto flex w-full shrink-0 flex-wrap items-center justify-end gap-3 lg:w-auto">
+          <Button onClick={() => void exportBackup('sources')} disabled={Boolean(busy)}>导出</Button>
+          <Button variant={sourcesMode === 'replace' ? 'destructive' : 'outline'} onClick={() => sourcesInput.current?.click()} disabled={Boolean(busy)}>导入</Button>
           <label className="flex items-center gap-2 text-sm"><input type="radio" checked={sourcesMode === 'merge'} onChange={() => setSourcesMode('merge')} />合并</label>
           <label className="flex items-center gap-2 text-sm"><input type="radio" checked={sourcesMode === 'replace'} onChange={() => setSourcesMode('replace')} />替换</label>
         </div>
         <input ref={sourcesInput} className="hidden" type="file" accept="application/json,.json" onChange={e => { const file = e.target.files?.[0]; if (file) void importFile('sources', file) }} />
       </section>
-      <section className="rounded-lg border bg-card p-4">
-        <h2 className="text-sm font-semibold">FeedItem 条目</h2>
-        <p className="mt-1 text-xs leading-5 text-muted-foreground">只处理全部条目及正文、标签、译文和时间字段，不修改信源列表。</p>
-        <div className="mt-4 flex flex-wrap items-center gap-3">
-          <Button onClick={() => void exportBackup('items')} disabled={Boolean(busy)}>{busy === 'items-export' ? '导出中…' : '导出 FeedItem JSON'}</Button>
-          <Button variant={itemsMode === 'replace' ? 'destructive' : 'outline'} onClick={() => itemsInput.current?.click()} disabled={Boolean(busy)}>{busy === 'items-import' ? '导入中…' : '导入 FeedItem JSON'}</Button>
+      <section className="flex w-full flex-col gap-4 border-t px-5 py-5 sm:px-6 lg:flex-row lg:items-center lg:justify-between">
+        <div className="min-w-0 lg:max-w-md">
+          <h2 className="text-sm font-semibold">FeedItem 条目</h2>
+          <p className="mt-1 text-xs leading-5 text-muted-foreground">只处理全部条目及正文、标签、译文和时间字段，不修改信源列表。</p>
+        </div>
+        <div className="ml-auto flex w-full shrink-0 flex-wrap items-center justify-end gap-3 lg:w-auto">
+          <Button onClick={() => void exportBackup('items')} disabled={Boolean(busy)}>导出</Button>
+          <Button variant={itemsMode === 'replace' ? 'destructive' : 'outline'} onClick={() => itemsInput.current?.click()} disabled={Boolean(busy)}>导入</Button>
           <label className="flex items-center gap-2 text-sm"><input type="radio" checked={itemsMode === 'merge'} onChange={() => setItemsMode('merge')} />合并</label>
           <label className="flex items-center gap-2 text-sm"><input type="radio" checked={itemsMode === 'replace'} onChange={() => setItemsMode('replace')} />替换</label>
         </div>
         <input ref={itemsInput} className="hidden" type="file" accept="application/json,.json" onChange={e => { const file = e.target.files?.[0]; if (file) void importFile('items', file) }} />
+      </section>
+      <section className="flex w-full flex-col gap-4 border-t px-5 py-5 sm:px-6 lg:flex-row lg:items-center lg:justify-between">
+        <div className="min-w-0 lg:max-w-md">
+          <h2 className="text-sm font-semibold">插件（采集器）</h2>
+          <p className="mt-1 text-xs leading-5 text-muted-foreground">导出或恢复运行时采集器源码。导入会执行插件代码，仅请选择可信备份；恢复仅允许从本机页面操作。</p>
+        </div>
+        <div className="ml-auto flex w-full shrink-0 flex-wrap items-center justify-end gap-3 lg:w-auto">
+          <Button onClick={() => void exportBackup('plugins')} disabled={Boolean(busy)}>导出</Button>
+          <Button variant={pluginsMode === 'replace' ? 'destructive' : 'outline'} onClick={() => pluginsInput.current?.click()} disabled={Boolean(busy)}>导入</Button>
+          <label className="flex items-center gap-2 text-sm"><input type="radio" checked={pluginsMode === 'merge'} onChange={() => setPluginsMode('merge')} />合并</label>
+          <label className="flex items-center gap-2 text-sm"><input type="radio" checked={pluginsMode === 'replace'} onChange={() => setPluginsMode('replace')} />替换</label>
+        </div>
+        <input ref={pluginsInput} className="hidden" type="file" accept="application/json,.json" onChange={e => { const file = e.target.files?.[0]; if (file) void importFile('plugins', file) }} />
+      </section>
+      <section className="flex w-full flex-col gap-4 border-t px-5 py-5 sm:px-6 lg:flex-row lg:items-center lg:justify-between">
+        <div className="min-w-0 lg:max-w-md">
+          <h2 className="text-sm font-semibold">Pipeline</h2>
+          <p className="mt-1 text-xs leading-5 text-muted-foreground">导出用户 Pipeline 源码及当前启用顺序。导入会执行 Pipeline 代码，仅请选择可信备份；恢复仅允许从本机页面操作。</p>
+        </div>
+        <div className="ml-auto flex w-full shrink-0 flex-wrap items-center justify-end gap-3 lg:w-auto">
+          <Button onClick={() => void exportBackup('pipelines')} disabled={Boolean(busy)}>导出</Button>
+          <Button variant={pipelinesMode === 'replace' ? 'destructive' : 'outline'} onClick={() => pipelinesInput.current?.click()} disabled={Boolean(busy)}>导入</Button>
+          <label className="flex items-center gap-2 text-sm"><input type="radio" checked={pipelinesMode === 'merge'} onChange={() => setPipelinesMode('merge')} />合并</label>
+          <label className="flex items-center gap-2 text-sm"><input type="radio" checked={pipelinesMode === 'replace'} onChange={() => setPipelinesMode('replace')} />替换</label>
+        </div>
+        <input ref={pipelinesInput} className="hidden" type="file" accept="application/json,.json" onChange={e => { const file = e.target.files?.[0]; if (file) void importFile('pipelines', file) }} />
       </section>
     </div>
     {message && <Notice error={error}>{message}</Notice>}

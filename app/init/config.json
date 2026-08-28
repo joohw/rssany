@@ -5,6 +5,7 @@
       "ref": "https://www.theinformation.com/",
       "label": "The Information",
       "description": "科技商业深度报道",
+      "group": ["资讯"],
       "refresh": "1h",
       "weight": 0.95
     },
@@ -12,6 +13,7 @@
       "ref": "https://techcrunch.com/feed/",
       "label": "TechCrunch AI",
       "description": "创业与产品资讯",
+      "group": ["资讯"],
       "refresh": "1h",
       "weight": 0.95
     },
@@ -19,6 +21,7 @@
       "ref": "https://www.technologyreview.com/feed/",
       "label": "MIT Technology Review",
       "description": "MIT 科技评论",
+      "group": ["资讯"],
       "refresh": "1h",
       "weight": 0.94
     },
@@ -26,6 +29,7 @@
       "ref": "https://venturebeat.com/category/ai/feed/",
       "label": "VentureBeat AI频道",
       "description": "VentureBeat AI频道",
+      "group": ["资讯"],
       "refresh": "1h",
       "weight": 0.82
     },
@@ -33,6 +37,7 @@
       "ref": "https://rss.slashdot.org/Slashdot/slashdotDevelopers",
       "label": "Slashdot开发者频道",
       "description": "科技新闻聚合",
+      "group": ["资讯"],
       "refresh": "1h",
       "weight": 0.62
     },
@@ -40,6 +45,7 @@
       "ref": "https://news.ycombinator.com/rss",
       "label": "HN newest",
       "description": "Hacker News 最新",
+      "group": ["资讯"],
       "refresh": "6h",
       "weight": 0.92
     },
@@ -47,6 +53,7 @@
       "ref": "https://x.com/elonmusk",
       "label": "elonmusk",
       "description": "Elon Musk 推文",
+      "group": ["人物动态"],
       "refresh": "1h",
       "weight": 0.88
     },
@@ -54,6 +61,7 @@
       "ref": "https://x.com/AIatMeta",
       "label": "Meta AI",
       "description": "Meta AI 官方",
+      "group": ["企业动态"],
       "refresh": "1h",
       "weight": 0.88
     },
@@ -61,6 +69,7 @@
       "ref": "https://x.com/OpenAI",
       "label": "OpenAI",
       "description": "OpenAI 官方推特",
+      "group": ["企业动态"],
       "refresh": "1h",
       "weight": 0.94
     },
@@ -68,6 +77,7 @@
       "ref": "https://x.com/GoogleAI",
       "label": "Google",
       "description": "Google AI 官方",
+      "group": ["企业动态"],
       "refresh": "1h",
       "weight": 0.9
     },
@@ -75,6 +85,7 @@
       "ref": "https://x.com/Microsoft",
       "label": "Microsoft",
       "description": "微软官方",
+      "group": ["企业动态"],
       "refresh": "1h",
       "weight": 0.84
     },
@@ -82,6 +93,7 @@
       "ref": "https://x.com/NVIDIA",
       "label": "NVIDIA",
       "description": "英伟达官方",
+      "group": ["企业动态"],
       "refresh": "1h",
       "weight": 0.9
     },
@@ -89,6 +101,7 @@
       "ref": "https://x.com/NVIDIARobotics",
       "label": "NVIDIA Robotics",
       "description": "NVIDIA 机器人",
+      "group": ["具身智能"],
       "refresh": "1h",
       "weight": 0.8
     },
@@ -96,6 +109,7 @@
       "ref": "https://x.com/xai",
       "label": "xAI",
       "description": "xAI 官方",
+      "group": ["企业动态"],
       "refresh": "1h",
       "weight": 0.88
     },
@@ -103,6 +117,7 @@
       "ref": "https://x.com/Figure_robot",
       "label": "Figure AI",
       "description": "Figure 人形机器人",
+      "group": ["具身智能"],
       "refresh": "1h",
       "weight": 0.78
     },
@@ -110,6 +125,7 @@
       "ref": "https://rss.arxiv.org/rss/cs.CL",
       "label": "arxiv cs.CL (NLP/LLM)",
       "description": "NLP/大模型论文",
+      "group": ["研究"],
       "refresh": "1day",
       "weight": 0.96
     },
@@ -117,6 +133,7 @@
       "ref": "https://rss.arxiv.org/rss/cs.LG",
       "label": "arxiv cs.LG (Machine Learning)",
       "description": "机器学习论文",
+      "group": ["研究"],
       "refresh": "1day",
       "weight": 0.93
     },
@@ -124,6 +141,7 @@
       "ref": "https://x.com/turingcom",
       "label": "Turing",
       "description": "Turing 数据标注",
+      "group": ["数据与评测"],
       "refresh": "1h",
       "weight": 0.52
     },
@@ -131,6 +149,7 @@
       "ref": "https://x.com/scale_ai",
       "label": "Scale AI 博客",
       "description": "Scale AI 数据标注",
+      "group": ["数据与评测"],
       "refresh": "1h",
       "weight": 0.72
     },
@@ -138,6 +157,7 @@
       "ref": "https://x.com/labelbox",
       "label": "Labelbox",
       "description": "Labelbox 数据标注平台",
+      "group": ["数据与评测"],
       "refresh": "1h",
       "weight": 0.54
     },
@@ -145,6 +165,7 @@
       "ref": "https://www.kognic.com/articles",
       "label": "Kognic",
       "description": "自动驾驶数据标注",
+      "group": ["数据与评测"],
       "refresh": "1h",
       "weight": 0.56
     },
@@ -152,6 +173,7 @@
       "ref": "https://x.com/geoffreyhinton",
       "label": "Geoffrey Hinton",
       "description": "图灵奖得主，深度学习教父",
+      "group": ["人物动态"],
       "refresh": "1h",
       "weight": 0.9
     },
@@ -159,6 +181,7 @@
       "ref": "https://x.com/AndrewYNg",
       "label": "Andrew Ng",
       "description": "Coursera 创始人，AI 教育",
+      "group": ["人物动态"],
       "refresh": "1h",
       "weight": 0.9
     },
@@ -166,7 +189,9 @@
       "ref": "https://x.com/drfeifei",
       "label": "李飞飞",
       "description": "斯坦福 AI 实验室主任",
+      "group": ["人物动态"],
       "refresh": "6h",
+      "proxyMode": "custom",
       "proxy": "http://192.168.34.247:30002",
       "weight": 0.95
     },
@@ -174,6 +199,7 @@
       "ref": "https://x.com/percyliang",
       "label": "Percy Liang",
       "description": "斯坦福 CRFM 主任",
+      "group": ["人物动态"],
       "refresh": "1h",
       "weight": 0.86
     },
@@ -181,6 +207,7 @@
       "ref": "https://x.com/ilyasut",
       "label": "Ilya Sutskever",
       "description": "OpenAI 联合创始人",
+      "group": ["人物动态"],
       "refresh": "1h",
       "weight": 0.9
     },
@@ -188,6 +215,7 @@
       "ref": "https://www.moonshot.ai/",
       "label": "Moonshot",
       "description": "月之暗面",
+      "group": ["企业动态"],
       "refresh": "1day",
       "weight": 0.85
     },
@@ -195,6 +223,7 @@
       "ref": "https://www.microsoft.com/en-us/research/blog/",
       "label": "Microsoft Research",
       "description": "微软研究院博客",
+      "group": ["研究"],
       "refresh": "1day",
       "weight": 0.88
     },
@@ -202,6 +231,7 @@
       "ref": "https://www.csail.mit.edu/research",
       "label": "MIT CSAIL",
       "description": "MIT 计算机与 AI 实验室",
+      "group": ["研究"],
       "refresh": "1day",
       "weight": 0.84
     },
@@ -209,6 +239,7 @@
       "ref": "https://www.anthropic.com/research",
       "label": "Anthropic Research",
       "description": "Anthropic 研究论文",
+      "group": ["研究"],
       "refresh": "1day",
       "weight": 0.95
     },
@@ -216,6 +247,7 @@
       "ref": "https://trendshift.io/github-trending-repositories?trending-range=1",
       "label": "Trendshift热门仓库",
       "description": "AI 趋势追踪",
+      "group": ["开发者生态"],
       "refresh": "1h",
       "weight": 0.74
     },
@@ -223,6 +255,7 @@
       "ref": "https://tech.meituan.com/feed/",
       "label": "美团技术",
       "description": "美团技术博客",
+      "group": ["开发者生态"],
       "refresh": "1day",
       "weight": 0.68
     },
@@ -230,6 +263,7 @@
       "ref": "https://research.google/",
       "label": "Google Research",
       "description": "Google 研究院",
+      "group": ["研究"],
       "refresh": "1day",
       "weight": 0.9
     },
@@ -237,6 +271,7 @@
       "ref": "https://research.google/resources/datasets/",
       "label": "Google Datasets",
       "description": "Google 公开数据集",
+      "group": ["数据与评测"],
       "refresh": "1day",
       "weight": 0.76
     },
@@ -244,6 +279,7 @@
       "ref": "https://paperswithcode.co/",
       "label": "Papers with Code",
       "description": "论文与代码检索",
+      "group": ["研究"],
       "refresh": "1day",
       "weight": 0.88
     },
@@ -251,6 +287,7 @@
       "ref": "https://opendrivelab.com/EmbodiedAI",
       "label": "OpenDriveLab Embodied",
       "description": "具身智能与自动驾驶",
+      "group": ["具身智能"],
       "refresh": "1day",
       "weight": 0.8
     },
@@ -258,6 +295,7 @@
       "ref": "https://opendatalab.org.cn",
       "label": "OpenDataLab",
       "description": "开放数据平台",
+      "group": ["数据与评测"],
       "refresh": "1day",
       "weight": 0.74
     },
@@ -265,6 +303,7 @@
       "ref": "https://mlcommons.org/research/",
       "label": "MLCommons",
       "description": "MLCommons 基准与研究",
+      "group": ["数据与评测"],
       "refresh": "1day",
       "weight": 0.76
     },
@@ -272,6 +311,7 @@
       "ref": "https://mila.quebec/en",
       "label": "Mila Quebec",
       "description": "蒙特利尔 AI 研究所",
+      "group": ["研究"],
       "refresh": "1day",
       "weight": 0.82
     },
@@ -279,6 +319,7 @@
       "ref": "https://lmsys.org/projects/",
       "label": "LMSys",
       "description": "大模型排行榜",
+      "group": ["数据与评测"],
       "refresh": "1day",
       "weight": 0.85
     },
@@ -286,6 +327,7 @@
       "ref": "https://huggingface.co/blog",
       "label": "Hugging Face Blog",
       "description": "Hugging Face 官方博客",
+      "group": ["开发者生态"],
       "refresh": "1day",
       "weight": 0.9
     },
@@ -293,6 +335,7 @@
       "ref": "https://flageval.baai.ac.cn/#/news",
       "label": "FlagEval",
       "description": "智源大模型评测",
+      "group": ["数据与评测"],
       "refresh": "1day",
       "weight": 0.7
     },
@@ -300,6 +343,7 @@
       "ref": "https://deepmind.google/blog/rss.xml",
       "label": "DeepMind Research",
       "description": "DeepMind 官方RSS",
+      "group": ["研究"],
       "refresh": "1day",
       "weight": 0.95
     },
@@ -307,6 +351,7 @@
       "ref": "https://dataverse.harvard.edu",
       "label": "Harvard Dataverse",
       "description": "哈佛学术数据集",
+      "group": ["数据与评测"],
       "refresh": "1day",
       "weight": 0.68
     },
@@ -314,6 +359,7 @@
       "ref": "https://bair.berkeley.edu/blog/feed.xml",
       "label": "Berkeley BAIR",
       "description": "伯克利 AI 研究院",
+      "group": ["研究"],
       "refresh": "1day",
       "weight": 0.88
     },
@@ -321,6 +367,7 @@
       "ref": "https://ai.meta.com/results/?content_types%5B0%5D=publication",
       "label": "Meta AI Publications",
       "description": "Meta AI 论文",
+      "group": ["研究"],
       "refresh": "1day",
       "weight": 0.88
     },
@@ -328,6 +375,7 @@
       "ref": "https://rss.arxiv.org/rss/cs.AI",
       "label": "arXiv cs.AI",
       "description": "arXiv cs.AI",
+      "group": ["研究"],
       "refresh": "1day",
       "weight": 0.95
     },
@@ -335,18 +383,21 @@
       "ref": "https://openai.com/news/rss.xml",
       "label": "OpenAI 博客",
       "description": "OpenAI 官方博客",
+      "group": ["企业动态"],
       "refresh": "1day",
       "weight": 0.97
     },
     {
       "ref": "https://www.reddit.com/r/LocalLLaMA.rss",
       "label": "Reddit 开源大模型板块",
+      "group": ["开发者生态"],
       "refresh": "1day",
       "weight": 0.82
     },
     {
       "ref": "https://datahub.com/feed",
       "label": "Datahub",
+      "group": ["数据与评测"],
       "refresh": "1day",
       "weight": 0.94
     }
