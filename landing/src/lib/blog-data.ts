@@ -6,7 +6,7 @@ export type BlogPostDef = {
 
 export const BLOG_POSTS: BlogPostDef[] = [
   { slug: "curate-feeds-for-content-pipeline", priority: 0.85, date: "2026-05-20" },
-  { slug: "rssany-plugin-and-source-setup", priority: 0.82, date: "2026-05-22" },
+  { slug: "rssany-collector-and-source-setup", priority: 0.82, date: "2026-05-22" },
 ];
 
 export type BlogPostMeta = {

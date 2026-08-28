@@ -1,13 +1,13 @@
 const SKILL_MARKDOWN = `# RssAny Agent Skill
 
-你是正在使用 RssAny 的 agent。RssAny 是自托管 RSS / 订阅管线：把网页列表、RSS/Atom、邮件等信源定时抓取，经插件解析、入库去重、固定 pipeline 加工后，输出 RSS XML、JSON API 和 MCP。
+你是正在使用 RssAny 的 agent。RssAny 是自托管 RSS / 订阅管线：把网页列表、RSS/Atom、邮件等信源定时抓取，经采集器解析、入库去重、固定 pipeline 加工后，输出 RSS XML、JSON API 和 MCP。
 
 ## 什么时候使用
 
 - 需要把网页列表、RSS/Atom、邮件等信源变成可订阅 feed。
 - 需要读取本机 RssAny 已入库的 feeds/items。
-- 需要为新网站编写或调整 RssAny 信源插件。
-- 需要配置 \`~/.rssany/config.json\` 或 \`~/.rssany/plugins/\`。
+- 需要为新网站编写或调整 RssAny 信源采集器。
+- 需要配置 \`~/.rssany/config.json\` 或 \`~/.rssany/collectors/\`。
 
 ## 安装与启动
 
@@ -138,7 +138,7 @@ curl "http://127.0.0.1:18473/api/items?limit=50"
 - \`label\`: 前端展示名称。
 - \`description\`: 信源说明。
 - \`refresh\`: 调度刷新间隔。稳定配置优先使用 \`10min\`、\`30min\`、\`1h\`、\`6h\`、\`12h\`、\`1day\`、\`3day\`、\`7day\`。
-- \`proxy\`: 单信源代理，优先级高于插件内 proxy 和环境变量 \`HTTP_PROXY\`。
+- \`proxy\`: 单信源代理，优先级高于采集器内 proxy 和环境变量 \`HTTP_PROXY\`。
 - \`weight\`: 可选权重，供排序或展示使用。
 
 代理优先级：
@@ -146,7 +146,7 @@ curl "http://127.0.0.1:18473/api/items?limit=50"
 \`\`\`text
 config.json 单源 proxy
   -> 调用方 FeederConfig.proxy
-  -> 插件 Source/Site.proxy
+  -> Collector.proxy
   -> process.env.HTTP_PROXY
 \`\`\`
 
@@ -158,14 +158,14 @@ config.json 单源 proxy
 ~/.rssany/config.json
 \`\`\`
 
-pipeline 是固定代码链，不是用户插件目录。通过 \`pipeline.steps\` 控制是否启用：
+内置 Pipeline 步骤位于 \`app/pipeline/\`，用户步骤位于 \`~/.rssany/pipelines/\`；通过 \`pipeline.steps\` 编排启用顺序：
 
 \`\`\`json
 {
   "pipeline": {
     "steps": [
-      { "id": "tagger", "enabled": true },
-      { "id": "translator", "enabled": false }
+      { "id": "tagger" },
+      { "id": "translator" }
     ]
   },
   "deliver": {
@@ -185,13 +185,13 @@ pipeline 是固定代码链，不是用户插件目录。通过 \`pipeline.steps
 
 没有单独的投递开关；有 \`deliver.url\` 就会投递。RssAny 不提供入站 Gateway，不要把它当作接收外部推送条目的 API。
 
-## 编写插件
+## 编写采集器
 
-插件位置：
+采集器位置：
 
 \`\`\`text
-app/plugins/builtin/          # 内置插件，随包发布
-~/.rssany/plugins/            # 用户插件，扁平放置，可覆盖同 id 内置插件
+app/collectors/builtin/          # 内置采集器，随包发布
+~/.rssany/collectors/            # 用户采集器，扁平放置，可覆盖同 id 内置采集器
 \`\`\`
 
 文件后缀必须是：
@@ -201,11 +201,11 @@ app/plugins/builtin/          # 内置插件，随包发布
 .rssany.ts
 \`\`\`
 
-插件是 ESM。推荐使用命名导出；也兼容 \`export default\` 导出对象。每个插件文件只导出一个合法 Site 或 Source。
+采集器是 ESM。推荐使用命名导出；也兼容 \`export default\` 导出对象。每个采集器文件只导出一个合法 SiteCollector 或 Collector。
 
-### Site 插件
+### SiteCollector
 
-Site 插件用于网页列表站点。它通过 \`listUrlPattern\` 匹配 \`config.json\` 的 \`sources[].ref\`，并在 \`fetchItems\` 内完成列表抓取、详情抓取和正文提取。
+SiteCollector 用于网页列表站点。它通过 \`listUrlPattern\` 匹配 \`config.json\` 的 \`sources[].ref\`，并在 \`fetchItems\` 内完成列表采集、详情采集和正文提取。
 
 \`\`\`js
 export const id = "example-site";
@@ -242,8 +242,8 @@ export async function fetchItems(sourceId, ctx) {
 - \`listUrlPattern\`: 必填，字符串或正则，用于匹配信源 ref。
 - \`fetchItems(sourceId, ctx)\`: 必填，返回 \`FeedItem[]\`。
 - \`refreshInterval\`: 可选，默认通常为 \`1day\`。
-- \`proxy\`: 可选，插件级代理。
-- \`checkAuth\`、\`loginUrl\`、\`domain\`: 可选，用于需要站点登录的插件。
+- \`proxy\`: 可选，采集器级代理。
+- \`checkAuth\`、\`loginUrl\`、\`domain\`: 可选，用于需要站点登录的采集器。
 
 可用上下文：
 
@@ -254,11 +254,11 @@ export async function fetchItems(sourceId, ctx) {
 - \`ctx.deps.RssParser\`: RSS parser。
 - \`ctx.deps.logger\`: 日志。
 
-用户插件尽量使用 \`ctx.deps\`，不要假设能从用户插件目录直接 import 项目依赖。
+用户采集器尽量使用 \`ctx.deps\`，不要假设能从用户采集器目录直接 import 项目依赖。
 
-### Source 插件
+### Collector
 
-Source 插件用于 RSS、邮件、自定义协议等更泛化的信源。它使用 \`pattern\` 或 \`match\` 匹配 \`sourceId\`，不要声明 \`listUrlPattern\`。
+Collector 用于 RSS、邮件、自定义协议等更泛化的信源。它使用 \`pattern\` 或 \`match\` 匹配 \`sourceId\`，不要声明 \`listUrlPattern\`。
 
 \`\`\`js
 export const id = "example-api";
@@ -302,23 +302,23 @@ export async function fetchItems(sourceId, ctx) {
 - \`content\`: 正文 HTML 或文本。
 - \`imageUrl\` 或 \`cover_img\`: 封面图 URL。
 - \`categories\`: RSS 分类。
-- \`tags\`: 系统或插件生成标签。
+- \`tags\`: 系统或采集器生成标签。
 - \`extra\`: 扩展字段。
 
 \`guid\` 要稳定，用原文 URL、源站 ID，或 \`ctx.deps.createHash("sha256").update(...).digest("hex")\` 生成。
 
-## 调试插件
+## 调试采集器
 
-1. 把插件文件放入 \`~/.rssany/plugins/example.rssany.js\`。
-2. 在 \`~/.rssany/config.json\` 的 sources 中添加匹配该插件的 \`ref\`。
+1. 把采集器文件放入 \`~/.rssany/collectors/example.rssany.js\`。
+2. 在 \`~/.rssany/config.json\` 的 sources 中添加匹配该采集器的 \`ref\`。
 3. 重启 \`rssany start\`，或在开发模式等待重载。
 4. 访问 \`/rss/<ref>\` 即时抓取，或访问 \`/api/feed?ref=<encoded-ref>\` 查看入库结果。
-5. 查看 Web UI 的插件、日志、信源页面；管理接口通常需要登录且用户角色为 admin。
+5. 查看 Web UI 的采集器、日志、信源页面；管理接口通常需要登录且用户角色为 admin。
 
 ## 不要做的事
 
 - 不要把 RSS XML 当作必须长期落盘的静态文件；它通常按请求或抓取流程生成。
-- 不要把 \`~/.rssany/plugins/\` 当作 pipeline 插件目录；pipeline 在 \`app/pipeline/\`。
+- 不要把 \`~/.rssany/collectors/\` 当作 Pipeline 目录；用户 Pipeline 位于 \`~/.rssany/pipelines/\`。
 - 不要新增旧 Gateway 或 research-only 路由命名。
 - 不要实现入站推送条目接口；RssAny 的投递是出站 \`deliver.url\`。
 - 不要在用户未明确要求时执行 \`rssany reset\` 或删除 \`~/.rssany/\`。

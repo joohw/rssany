@@ -1,10 +1,10 @@
-// API 路由汇总：server、rss、items、feed、sources、scheduler、plugins、logs、admin、tags、tasks
+// API 路由汇总：server、rss、items、feed、sources、scheduler、collectors、logs、admin、tags、tasks
 
 import type { Hono } from "hono";
 import { registerServerRoutes } from "./server.js";
 import { registerRssApiRoutes } from "./rss.js";
 import { registerSchedulerRoutes } from "./scheduler.js";
-import { registerPluginsRoutes } from "./plugins.js";
+import { registerCollectorsRoutes } from "./collectors.js";
 import { registerPipelineRoutes } from "./pipeline.js";
 import { registerFeedRoutes } from "./feed.js";
 import { registerItemsRoutes } from "./items.js";
@@ -21,17 +21,19 @@ import { registerCoverImgRoutes } from "./cover-img.js";
 import { registerInitializationRoutes } from "./initialization.js";
 import { registerBrowserRoutes } from "./browser.js";
 import { registerSkillRoutes } from "./skill.js";
+import { registerBackupRoutes } from "./backup.js";
 
 export function registerApiRoutes(app: Hono): void {
   registerServerRoutes(app);
   registerInitializationRoutes(app);
   registerBrowserRoutes(app);
   registerSkillRoutes(app);
+  registerBackupRoutes(app);
   registerFeedFaviconRoutes(app);
   registerCoverImgRoutes(app);
   registerRssApiRoutes(app);
   registerSchedulerRoutes(app);
-  registerPluginsRoutes(app);
+  registerCollectorsRoutes(app);
   registerPipelineRoutes(app);
   registerFeedRoutes(app);
   registerItemsRoutes(app);

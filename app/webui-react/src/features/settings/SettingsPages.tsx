@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { NavLink, Outlet } from 'react-router'
 import { api } from '@/api/client'
 import { Button } from '@/components/ui/button'
@@ -8,28 +8,27 @@ import { cn } from '@/lib/utils'
 const settingsNavigation = [
   ['/admin/update', '自动更新', '检查并安装新版本'],
   ['/admin/tags', '标签', '管理系统标签库'],
-  ['/admin/pipeline', 'Pipeline', '配置条目处理顺序与开关'],
   ['/admin/llm', 'LLM', 'OpenAI 兼容 API 配置'],
   ['/admin/proxy', '代理', '全局代理与代理列表'],
   ['/admin/deliver', '投递', '下游 URL 与 Bearer 令牌'],
-  ['/admin/logs', '日志', '查看运行与抓取日志'],
+  ['/admin/backup', '备份与恢复', '导入导出全部信源和条目'],
 ] as const
 
 export function SettingsLayout() {
   return <div className="master-detail-layout">
-    <aside className="min-h-0 border-r bg-card px-3 py-5 max-md:border-b max-md:border-r-0">
-      <header className="mb-5">
+    <aside className="flex min-h-0 flex-col overflow-hidden border-r bg-card max-md:border-b max-md:border-r-0">
+      <header className="flex h-[4.5rem] flex-col justify-center border-b px-3">
         <h1 className="text-base font-semibold tracking-tight">设置</h1>
         <p className="mt-1 text-xs text-muted-foreground">管理应用配置</p>
       </header>
-      <nav className="space-y-1" aria-label="设置项目">
+      <nav className="min-h-0 flex-1 overflow-y-auto" aria-label="设置项目">
         {settingsNavigation.map(([href, label, description]) =>
           <NavLink key={href} to={href} className={({ isActive }) => cn(
-            'block rounded-md px-3 py-2.5 transition-colors hover:bg-muted',
-            isActive && 'bg-primary/10 text-primary',
+            'skill-chapter-button',
+            isActive && 'skill-chapter-button--active',
           )}>
-            <span className="block text-sm font-medium">{label}</span>
-            <span className="mt-0.5 block truncate text-xs text-muted-foreground">{description}</span>
+            <span>{label}</span>
+            <small>{description}</small>
           </NavLink>)}
       </nav>
     </aside>
@@ -88,21 +87,6 @@ export function ProxyPage() {
   </SavePage>
 }
 
-type Step={id:string;enabled:boolean}
-export function PipelinePage(){
-  const [steps,setSteps]=useState<Step[]>([]);const [available,setAvailable]=useState<string[]>([])
-  const load=async()=>{const d=await api<{steps?:Step[];availableIds?:string[]}>('/api/pipeline');setSteps(d.steps??[]);setAvailable(d.availableIds??[])}
-  const save=async()=>{await api('/api/pipeline',{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify({steps})})}
-  const move=(i:number,d:number)=>{const n=[...steps];const [v]=n.splice(i,1);n.splice(i+d,0,v);setSteps(n)}
-  return <SavePage title="Pipeline" description="配置入库后的处理顺序" load={load} save={save}>
-    <div className="divide-y rounded-lg border">{steps.map((s,i)=><div key={s.id} className="flex items-center gap-3 px-4 py-3">
-      <input type="checkbox" checked={s.enabled} onChange={e=>setSteps(steps.map((x,j)=>j===i?{...x,enabled:e.target.checked}:x))}/><span className="flex-1 text-sm font-medium">{s.id}</span>
-      <Button size="sm" variant="ghost" disabled={i===0} onClick={()=>move(i,-1)}>↑</Button><Button size="sm" variant="ghost" disabled={i===steps.length-1} onClick={()=>move(i,1)}>↓</Button>
-    </div>)}</div>
-    {available.some(id=>!steps.some(s=>s.id===id))&&<Button variant="outline" onClick={()=>{const id=available.find(id=>!steps.some(s=>s.id===id));if(id)setSteps([...steps,{id,enabled:true}])}}>添加步骤</Button>}
-  </SavePage>
-}
-
 type TagStat={tag:string;count:number}
 export function TagsPage(){
   const [tags,setTags]=useState<string[]>([]);const [stats,setStats]=useState<TagStat[]>([]);const [newTag,setNewTag]=useState('')
@@ -112,4 +96,82 @@ export function TagsPage(){
     <form className="flex gap-2" onSubmit={e=>{e.preventDefault();const t=newTag.trim();if(t&&!tags.includes(t))setTags([...tags,t]);setNewTag('')}}><input className={fieldClass} value={newTag} onChange={e=>setNewTag(e.target.value)} placeholder="新标签" /><Button type="submit">添加</Button></form>
     <div className="flex flex-wrap gap-2">{tags.map(tag=><button key={tag} className="rounded-full border bg-card px-3 py-1.5 text-sm hover:border-destructive" title="点击移除" onClick={()=>setTags(tags.filter(t=>t!==tag))}>{tag}<span className="ml-1 text-muted-foreground">{stats.find(s=>s.tag===tag)?.count??0}</span></button>)}</div>
   </SavePage>
+}
+
+export function BackupPage() {
+  const sourcesInput = useRef<HTMLInputElement>(null)
+  const itemsInput = useRef<HTMLInputElement>(null)
+  const [sourcesMode, setSourcesMode] = useState<'merge' | 'replace'>('merge')
+  const [itemsMode, setItemsMode] = useState<'merge' | 'replace'>('merge')
+  const [busy, setBusy] = useState('')
+  const [message, setMessage] = useState('')
+  const [error, setError] = useState(false)
+
+  const exportBackup = async (kind: 'sources' | 'items') => {
+    setBusy(`${kind}-export`); setMessage(''); setError(false)
+    try {
+      const response = await fetch(`/api/backup/${kind}`)
+      if (!response.ok) throw new Error(`导出失败（HTTP ${response.status}）`)
+      const blob = await response.blob()
+      const disposition = response.headers.get('Content-Disposition') ?? ''
+      const filename = disposition.match(/filename="([^"]+)"/)?.[1] ?? `rssany-${kind}-${new Date().toISOString().slice(0, 10)}.json`
+      const url = URL.createObjectURL(blob)
+      const link = document.createElement('a')
+      link.href = url; link.download = filename; link.click()
+      URL.revokeObjectURL(url)
+      setMessage(kind === 'sources' ? '信源列表已导出' : 'FeedItem 已导出')
+    } catch (e) {
+      setError(true); setMessage(String(e))
+    } finally {
+      setBusy('')
+    }
+  }
+
+  const importFile = async (kind: 'sources' | 'items', file: File) => {
+    setBusy(`${kind}-import`); setMessage(''); setError(false)
+    try {
+      const backup = JSON.parse(await file.text()) as unknown
+      const mode = kind === 'sources' ? sourcesMode : itemsMode
+      const result = await api<{ sources?: number; items?: number; insertedItems?: number; updatedItems?: number }>(`/api/backup/${kind}/import`, {
+        method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ mode, backup }),
+      })
+      setMessage(kind === 'sources'
+        ? `信源导入完成：当前共 ${result.sources ?? 0} 个信源`
+        : `FeedItem 导入完成：处理 ${result.items ?? 0} 个条目（新增 ${result.insertedItems ?? 0}，更新 ${result.updatedItems ?? 0}）`)
+    } catch (e) {
+      setError(true); setMessage(e instanceof SyntaxError ? '所选文件不是有效的 JSON' : String(e))
+    } finally {
+      const input = kind === 'sources' ? sourcesInput.current : itemsInput.current
+      if (input) input.value = ''
+      setBusy('')
+    }
+  }
+
+  return <Page title="备份与恢复" description="信源列表与 FeedItem 分别导入导出，互不影响">
+    <div className="space-y-5">
+      <section className="rounded-lg border bg-card p-4">
+        <h2 className="text-sm font-semibold">信源列表</h2>
+        <p className="mt-1 text-xs leading-5 text-muted-foreground">只处理信源配置，不读取或修改 FeedItem。</p>
+        <div className="mt-4 flex flex-wrap items-center gap-3">
+          <Button onClick={() => void exportBackup('sources')} disabled={Boolean(busy)}>{busy === 'sources-export' ? '导出中…' : '导出信源 JSON'}</Button>
+          <Button variant={sourcesMode === 'replace' ? 'destructive' : 'outline'} onClick={() => sourcesInput.current?.click()} disabled={Boolean(busy)}>{busy === 'sources-import' ? '导入中…' : '导入信源 JSON'}</Button>
+          <label className="flex items-center gap-2 text-sm"><input type="radio" checked={sourcesMode === 'merge'} onChange={() => setSourcesMode('merge')} />合并</label>
+          <label className="flex items-center gap-2 text-sm"><input type="radio" checked={sourcesMode === 'replace'} onChange={() => setSourcesMode('replace')} />替换</label>
+        </div>
+        <input ref={sourcesInput} className="hidden" type="file" accept="application/json,.json" onChange={e => { const file = e.target.files?.[0]; if (file) void importFile('sources', file) }} />
+      </section>
+      <section className="rounded-lg border bg-card p-4">
+        <h2 className="text-sm font-semibold">FeedItem 条目</h2>
+        <p className="mt-1 text-xs leading-5 text-muted-foreground">只处理全部条目及正文、标签、译文和时间字段，不修改信源列表。</p>
+        <div className="mt-4 flex flex-wrap items-center gap-3">
+          <Button onClick={() => void exportBackup('items')} disabled={Boolean(busy)}>{busy === 'items-export' ? '导出中…' : '导出 FeedItem JSON'}</Button>
+          <Button variant={itemsMode === 'replace' ? 'destructive' : 'outline'} onClick={() => itemsInput.current?.click()} disabled={Boolean(busy)}>{busy === 'items-import' ? '导入中…' : '导入 FeedItem JSON'}</Button>
+          <label className="flex items-center gap-2 text-sm"><input type="radio" checked={itemsMode === 'merge'} onChange={() => setItemsMode('merge')} />合并</label>
+          <label className="flex items-center gap-2 text-sm"><input type="radio" checked={itemsMode === 'replace'} onChange={() => setItemsMode('replace')} />替换</label>
+        </div>
+        <input ref={itemsInput} className="hidden" type="file" accept="application/json,.json" onChange={e => { const file = e.target.files?.[0]; if (file) void importFile('items', file) }} />
+      </section>
+    </div>
+    {message && <Notice error={error}>{message}</Notice>}
+  </Page>
 }

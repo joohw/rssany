@@ -2,7 +2,6 @@
 
 import type { Hono } from "hono";
 import type { FeedItem } from "../../../types/feedItem.js";
-import { requireAdmin } from "../../../auth/middleware.js";
 import { getDeliverConfig, normalizeDeliverGateways, saveDeliverConfig } from "../../../config/deliver.js";
 import { getSourcesRaw } from "../../../scraper/subscription/index.js";
 import { feedItemsToPayload, postDeliverGatewayTest } from "../../../deliver/post.js";
@@ -21,12 +20,12 @@ function unknownArray(value: unknown): unknown[] {
 }
 
 export function registerDeliverRoutes(app: Hono): void {
-  app.get("/api/deliver", requireAdmin(), async (c) => {
+  app.get("/api/deliver", async (c) => {
     const { gateway, gateways, token } = await getDeliverConfig();
     return c.json({ gateway, gateways, token });
   });
 
-  app.put("/api/deliver", requireAdmin(), async (c) => {
+  app.put("/api/deliver", async (c) => {
     try {
       const body = await c.req.json<DeliverRequestBody>();
       const prev = await getDeliverConfig();
@@ -57,7 +56,7 @@ export function registerDeliverRoutes(app: Hono): void {
   });
 
   /** 合并测试：仅 POST 到 {gateway}/test，体含示例 items 批次与当前 sources 文档 */
-  app.post("/api/deliver/test", requireAdmin(), async (c) => {
+  app.post("/api/deliver/test", async (c) => {
     try {
       const body = await c.req.json<DeliverRequestBody>();
       const prev = await getDeliverConfig();

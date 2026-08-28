@@ -1,24 +1,24 @@
 // 站点抽象接口：声明 URL 模式及 fetchItems 能力（WebSource 专用）
 
-import type { PluginHostDeps } from "../../../plugins/hostDeps.js";
+import type { CollectorHostDeps } from "../../../collectors/hostDeps.js";
 import type { AuthFlow, CheckAuthFn } from "../../auth/index.js";
 import type { RefreshInterval } from "../../../utils/refreshInterval.js";
 import type { FeedItem } from "../../../types/feedItem.js";
 
 
-/** 框架注入给插件的调用上下文，提供浏览器抓取工具与默认正文提取 */
-export interface SiteContext {
+/** 框架注入给站点采集器的调用上下文，提供浏览器抓取工具与默认正文提取 */
+export interface SiteCollectorContext {
   /** 缓存目录 */
   cacheDir?: string;
   /** 是否无头浏览器 */
   headless?: boolean;
   /** 代理地址 */
   proxy?: string;
-  /** 与 SourceContext.deps 相同，宿主注入依赖，用户插件勿从 npm 直接 import */
-  deps: PluginHostDeps;
+  /** 与 CollectorContext.deps 相同，宿主注入依赖，用户采集器勿从 npm 直接 import */
+  deps: CollectorHostDeps;
   /**
    * 用浏览器抓取指定 URL，返回渲染后的 HTML。
-   * 插件需要访问网页时调用此方法，框架负责浏览器管理与 cookie 注入。
+   * 采集器需要访问网页时调用此方法，框架负责浏览器管理与 cookie 注入。
    */
   fetchHtml(
     url: string,
@@ -48,7 +48,7 @@ export interface SiteContext {
 
 
 /** 站点抽象接口：声明该站点支持的 URL 模式及数据获取能力 */
-export interface Site {
+export interface SiteCollector {
   /** 站点标识，如 "xiaohongshu"、"lingowhale" */
   readonly id: string;
   readonly name?: string;
@@ -60,9 +60,9 @@ export interface Site {
   readonly proxy?: string;
   /**
    * 核心能力：给定 sourceId，返回条目列表。
-   * 插件自行决定如何获取数据（调用 ctx.fetchHtml、直接 fetch API 等均可）。
+   * 采集器自行决定如何获取数据（调用 ctx.fetchHtml、直接 fetch API 等均可）。
    */
-  fetchItems(sourceId: string, ctx: SiteContext): Promise<FeedItem[]>;
+  fetchItems(sourceId: string, ctx: SiteCollectorContext): Promise<FeedItem[]>;
   /** 认证：检查是否已登录 */
   checkAuth?: CheckAuthFn | null;
   /** 认证：登录页 URL */
@@ -89,8 +89,8 @@ function patternToRegex(pattern: string | RegExp): RegExp {
 }
 
 
-/** 从 Site 扁平字段构建 AuthFlow，无需登录时返回 undefined */
-export function toAuthFlow(site: Site): AuthFlow | undefined {
+/** 从 SiteCollector 扁平字段构建 AuthFlow，无需登录时返回 undefined */
+export function toAuthFlow(site: SiteCollector): AuthFlow | undefined {
   if (!site.checkAuth || !site.loginUrl) return undefined;
   return {
     checkAuth: site.checkAuth,
@@ -103,7 +103,7 @@ export function toAuthFlow(site: Site): AuthFlow | undefined {
 
 
 /** 判断 URL 是否匹配站点的 listUrlPattern */
-export function matchesListUrl(site: Site, url: string): boolean {
+export function matchesListUrl(site: SiteCollector, url: string): boolean {
   try {
     return patternToRegex(site.listUrlPattern).test(url);
   } catch {
@@ -113,7 +113,7 @@ export function matchesListUrl(site: Site, url: string): boolean {
 
 
 /** 根据 listUrlPattern 自动计算 URL 匹配具体度（不匹配返回 -1） */
-export function computeSpecificity(site: Site, url: string): number {
+export function computeSpecificity(site: SiteCollector, url: string): number {
   if (!matchesListUrl(site, url)) return -1;
   const p = site.listUrlPattern;
   if (typeof p === "string") {
@@ -125,7 +125,7 @@ export function computeSpecificity(site: Site, url: string): number {
 
 
 /** 根据 URL 查找匹配的站点实例，返回具体度最高的站点 */
-export function getSiteByUrl(url: string, sites: Site[]): Site | undefined {
+export function getSiteByUrl(url: string, sites: SiteCollector[]): SiteCollector | undefined {
   const matched = sites
     .map((s) => ({ site: s, score: computeSpecificity(s, url) }))
     .filter((x) => x.score >= 0)

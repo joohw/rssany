@@ -15,7 +15,12 @@ describe("official RssAny skill API", () => {
     expect(body.skill).toContain("name: rssany");
     expect(body.downloadUrl).toBe("/api/skill.zip");
     expect(body.files.map((file) => file.path)).toContain("references/mcp.md");
-    expect(body.files.map((file) => file.path)).toContain("references/plugins.md");
+    expect(body.files.map((file) => file.path)).toContain("references/collectors.md");
+    expect(body.files.map((file) => file.path)).toContain("references/pipelines.md");
+    expect(body.chapters.find((chapter) => chapter.path === "references/pipelines.md")).toMatchObject({
+      title: "流水线",
+    });
+    expect(body.chapters.find((chapter) => chapter.path === "references/pipelines.md").content).toContain("/api/pipelines");
   });
 
   it("downloads a valid ZIP containing the complete skill folder", async () => {
@@ -33,6 +38,7 @@ describe("official RssAny skill API", () => {
     expect(names).toContain("rssany/SKILL.md");
     expect(names).toContain("rssany/agents/openai.yaml");
     expect(names).toContain("rssany/references/installation.md");
+    expect(names).toContain("rssany/references/pipelines.md");
     expect(names).toContain("rssany/references/troubleshooting.md");
   });
 });

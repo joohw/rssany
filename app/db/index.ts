@@ -654,6 +654,83 @@ export async function queryItems(opts: {
   })), total: count };
 }
 
+/** 导出条目库中的全部字段，供版本化备份使用。 */
+export async function exportAllItems(): Promise<DbItem[]> {
+  const db = await getDb();
+  const rows = db
+    .prepare(`
+      SELECT id, url, source_url, title, author, summary, content, image_url, tags,
+             translations, pub_date, fetched_at, pushed_at
+      FROM items
+      ORDER BY fetched_at ASC, id ASC
+    `)
+    .all();
+  return mapRowsToDbItems(rows.map((row) => {
+    const item: Record<string, unknown | null> = {};
+    for (const [key, value] of Object.entries(row)) item[key] = value;
+    return item;
+  }));
+}
+
+export type ImportItemsMode = "merge" | "replace";
+
+/** 原样恢复备份条目；merge 时以备份中的 id/url 为准，replace 时先清空现有条目。 */
+export async function importAllItems(
+  items: DbItem[],
+  mode: ImportItemsMode,
+): Promise<{ imported: number; inserted: number; updated: number }> {
+  return withWriteLock(async () => {
+    const db = await getDb();
+    const findExisting = db.prepare("SELECT id FROM items WHERE id = @id OR url = @url LIMIT 1");
+    const deleteExisting = db.prepare("DELETE FROM items WHERE id = @id OR url = @url");
+    const insert = db.prepare(`
+      INSERT INTO items (
+        id, url, source_url, title, author, summary, content, image_url, tags,
+        translations, pub_date, fetched_at, pushed_at
+      ) VALUES (
+        @id, @url, @sourceUrl, @title, @author, @summary, @content, @imageUrl, @tags,
+        @translations, @pubDate, @fetchedAt, @pushedAt
+      )
+    `);
+
+    let inserted = 0;
+    let updated = 0;
+    db.exec("BEGIN TRANSACTION");
+    try {
+      if (mode === "replace") db.exec("DELETE FROM items");
+      for (const item of items) {
+        const existed = mode === "merge" && Boolean(findExisting.get({ id: item.id, url: item.url }));
+        if (existed) {
+          deleteExisting.run({ id: item.id, url: item.url });
+          updated += 1;
+        } else {
+          inserted += 1;
+        }
+        insert.run({
+          id: item.id,
+          url: item.url,
+          sourceUrl: canonicalHttpSourceRef(item.source_url),
+          title: item.title,
+          author: item.author?.length ? JSON.stringify(item.author) : null,
+          summary: item.summary,
+          content: item.content,
+          imageUrl: item.image_url,
+          tags: item.tags?.length ? JSON.stringify(item.tags) : null,
+          translations: item.translations ? JSON.stringify(item.translations) : null,
+          pubDate: item.pub_date,
+          fetchedAt: item.fetched_at,
+          pushedAt: item.pushed_at,
+        });
+      }
+      db.exec("COMMIT");
+    } catch (error) {
+      db.exec("ROLLBACK");
+      throw error;
+    }
+    return { imported: items.length, inserted, updated };
+  });
+}
+
 /** 从所有条目移除指定标签 */
 export async function removeTagFromAllItems(tag: string): Promise<number> {
   const trimmed = String(tag ?? "").trim();
@@ -797,9 +874,10 @@ export async function queryLogs(opts: {
   limit?: number;
   offset?: number;
   since?: Date;
+  until?: Date;
 }): Promise<{ items: DbLog[]; total: number }> {
   const db = await getLogsDb();
-  const { level, category, limit = 50, offset = 0, since } = opts;
+  const { level, category, limit = 50, offset = 0, since, until } = opts;
   const conditions: string[] = [];
   const params: Record<string, unknown> = {};
   if (level) {
@@ -813,6 +891,10 @@ export async function queryLogs(opts: {
   if (since) {
     conditions.push("created_at >= @since");
     params.since = since.toISOString();
+  }
+  if (until) {
+    conditions.push("created_at < @until");
+    params.until = until.toISOString();
   }
   const where = conditions.length ? `WHERE ${conditions.join(" AND ")}` : "";
   const sqlParams = params as unknown as Record<string, string | number | null>;

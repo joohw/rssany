@@ -6,15 +6,29 @@ import { buildZip, type ZipEntry } from "./zip.js";
 const SKILL_RELATIVE_PATHS = [
   "SKILL.md",
   "agents/openai.yaml",
-  "references/architecture.md",
-  "references/configuration.md",
-  "references/http-api.md",
   "references/installation.md",
+  "references/http-api.md",
   "references/mcp.md",
+  "references/collectors.md",
+  "references/pipelines.md",
+  "references/configuration.md",
   "references/operations.md",
-  "references/plugins.md",
   "references/troubleshooting.md",
+  "references/architecture.md",
 ] as const;
+
+const CHAPTER_TITLES: Readonly<Record<string, string>> = {
+  "SKILL.md": "概览",
+  "references/installation.md": "安装与连接",
+  "references/http-api.md": "HTTP API",
+  "references/mcp.md": "MCP",
+  "references/collectors.md": "采集器",
+  "references/pipelines.md": "流水线",
+  "references/configuration.md": "配置",
+  "references/operations.md": "运行维护",
+  "references/troubleshooting.md": "故障排查",
+  "references/architecture.md": "架构",
+};
 
 export interface RssAnySkillFile {
   path: string;
@@ -26,6 +40,7 @@ export interface RssAnySkillBundle {
   description: string;
   skill: string;
   files: RssAnySkillFile[];
+  chapters: Array<{ path: string; title: string; content: string }>;
 }
 
 const SKILL_ROOT = join(PACKAGE_ROOT, "skills", "rssany");
@@ -48,6 +63,13 @@ export async function loadRssAnySkill(): Promise<RssAnySkillBundle> {
     description: frontmatterDescription(skill),
     skill,
     files,
+    chapters: files
+      .filter((file) => file.path in CHAPTER_TITLES)
+      .map((file) => ({
+        path: file.path,
+        title: CHAPTER_TITLES[file.path]!,
+        content: file.content.toString("utf8"),
+      })),
   };
 }
 

@@ -1,7 +1,7 @@
 // 认证路由：登录检查、打开登录页、ensureAuth
 
 import type { Hono } from "hono";
-import { getWebSite, getBestSite, toAuthFlow } from "../../scraper/sources/web/index.js";
+import { getSiteCollector, getBestSiteCollector, toAuthFlow } from "../../scraper/sources/web/index.js";
 import { ensureAuth, preCheckAuth, openBrowserPage, resolveProxy } from "../../scraper/sources/web/fetcher/index.js";
 import { CACHE_DIR } from "../../config/paths.js";
 import { resolveProxyForSite } from "../../config/globalProxy.js";
@@ -12,7 +12,7 @@ export function registerAuthRoutes(app: Hono): void {
     if (!siteIdParam) {
       return c.json({ ok: false, message: "请提供 siteId" }, 400);
     }
-    const site = getWebSite(siteIdParam);
+    const site = getSiteCollector(siteIdParam);
     if (!site) return c.json({ ok: false, message: "无此站点" }, 404);
     const authFlow = toAuthFlow(site);
     if (!authFlow) return c.json({ ok: false, message: "该站点无需登录" }, 400);
@@ -30,7 +30,7 @@ export function registerAuthRoutes(app: Hono): void {
     if (!siteIdParam) {
       return c.json({ ok: false, message: "请提供 siteId" }, 400);
     }
-    const site = getWebSite(siteIdParam);
+    const site = getSiteCollector(siteIdParam);
     if (!site) return c.json({ ok: false, message: "无此站点" }, 404);
     const authFlow = toAuthFlow(site);
     if (!authFlow) return c.json({ ok: false, message: "该站点无需登录" }, 400);
@@ -46,10 +46,10 @@ export function registerAuthRoutes(app: Hono): void {
     let site;
     if (urlParam) {
       const decoded = decodeURIComponent(urlParam);
-      site = getBestSite(decoded);
+      site = getBestSiteCollector(decoded);
       if (!site) return c.json({ ok: false, message: "无匹配站点" }, 404);
     } else if (siteIdParam) {
-      site = getWebSite(siteIdParam);
+      site = getSiteCollector(siteIdParam);
       if (!site) return c.json({ ok: false, message: "无此站点" }, 404);
     } else {
       return c.json({ ok: false, message: "请提供 url 或 siteId" }, 400);

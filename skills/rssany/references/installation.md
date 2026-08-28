@@ -1,6 +1,6 @@
 # Install RssAny, the Skill, and MCP
 
-Use the Skill ZIP to give an agent RssAny operating knowledge. Add MCP when the agent also needs live tools for querying items, inspecting sources, or managing user plugins.
+Use the Skill ZIP to give an agent RssAny operating knowledge. Add MCP when the agent also needs live tools for querying items, inspecting sources, or managing user collectors.
 
 ## Official project links
 

@@ -21,6 +21,7 @@ export interface SkillBundleMetadata {
   version: string
   description: string
   skill: string
+  chapters: Array<{ path: string; title: string; content: string }>
   files: Array<{ path: string; size: number }>
   downloadUrl: string
 }

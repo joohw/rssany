@@ -10,6 +10,7 @@ export function registerSkillRoutes(app: Hono): void {
       version: getAppVersion(),
       description: bundle.description,
       skill: bundle.skill,
+      chapters: bundle.chapters,
       files: bundle.files.map((file) => ({ path: file.path, size: file.content.length })),
       downloadUrl: "/api/skill.zip",
     });

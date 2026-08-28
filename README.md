@@ -18,9 +18,9 @@
 ## 功能概览
 
 - **统一订阅**：在 `.rssany/config.json` 的 `sources` 中配置网站列表、标准 RSS、IMAP 邮件等，由调度器按 `refresh` 策略拉取。
-- **可插拔信源**：**Site / Source** 插件（`.rssany.js` / `.rssany.ts`），见 **[插件配置说明](./docs/plugins.md)**。
+- **可扩展采集器**：站点、RSS、邮件与 API 采集器（`.rssany.js` / `.rssany.ts`），见 **[采集器开发与管理](./docs/collectors.md)**。
 - **正文与解析**：在信源 `fetchItems`（及需要的 `ctx.extractItem` 等）内完成；入库后跑 pipeline。
-- **固定 pipeline**：`app/pipeline/` 中打标签、翻译等，由 `.rssany/config.json` 的 `pipeline.steps` 开关（**不是**用户目录下的 pipeline 插件）。
+- **Pipeline**：`app/pipeline/` 中的内置步骤及 `.rssany/pipelines/` 中的用户步骤，由 `.rssany/config.json` 的 `pipeline.steps` 编排。
 - **LLM 辅助**：解析、提取、标签、翻译等可按配置走 OpenAI 兼容接口。
 - **站点登录**：需登录的站点通过 Puppeteer 管理 Cookie（与产品用户账号无关）。
 - **可选远端投递**：若 `config.json` 中 `**deliver.url`** 非空，在写库与 pipeline 完成后将条目以 `**{ sourceRef, items }**` JSON **POST** 到该 URL（由 `app/deliver/post.ts` 发送）；留空则仅本地消费。
@@ -109,7 +109,7 @@ npm run dev
 ## 数据流（简图）
 
 ```
-config.json sources / 信源插件
+config.json sources / 信源采集器
   → 调度器触发 fetchItems
   → upsertItems
   → pipeline（每条一次）
@@ -126,7 +126,7 @@ config.json sources / 信源插件
 
 - `GET /api/skill`：返回官方 `SKILL.md`、版本和完整文件清单。
 - `GET /api/skill.zip`：下载可直接解压到 Agent skills 目录的完整知识包。
-- Web UI 的 `/skill` 页面支持复制核心说明和下载 ZIP；知识包覆盖 HTTP API、本地 MCP、插件开发、配置、运维、排错与架构。
+- Web UI 的 `/skill` 页面支持复制核心说明和下载 ZIP；知识包覆盖 HTTP API、本地 MCP、采集器开发、配置、运维、排错与架构。
 
 ### RSS 输出
 
@@ -137,7 +137,7 @@ config.json sources / 信源插件
 
 ## 配置
 
-**信源插件（Site / Source）**：目录约定、`listUrlPattern` / `pattern`、`fetchItems`、与 `config.json` 中 `sources` 的关系等，见 **[docs/plugins.md](./docs/plugins.md)**。
+**采集器（SiteCollector / Collector）**：目录约定、`listUrlPattern` / `pattern`、`fetchItems`、与 `config.json` 中 `sources` 的关系等，见 **[docs/collectors.md](./docs/collectors.md)**。
 
 ### Pipeline（固定代码）
 
@@ -177,15 +177,15 @@ config.json sources / 信源插件
 
 ```
 ├── app/                 # 后端：路由、feeder、scraper、pipeline、db、auth…
-│   └── plugins/builtin/ # 内置信源 *.rssany.js
-├── docs/                # 用户文档（如 plugins.md）
+│   └── collectors/builtin/ # 内置信源 *.rssany.js
+├── docs/                # 用户文档（如 collectors.md）
 └── webui-react/         # React + Vite 前端
 
 ~/.rssany/               # 运行时用户数据（首次启动创建；或 RSSANY_USER_DIR）
     ├── config.json      # sources、sites、tags、pipeline、deliver、llm 等统一配置
     ├── data/rssany.db   # SQLite 主库
     ├── cache/
-    └── plugins/         # 用户插件覆盖内置
+    └── collectors/         # 用户采集器覆盖内置
 ```
 
 更细的模块说明见 **[AGENTS.md](./AGENTS.md)**（与代码迭代同步，若有出入以代码为准）。

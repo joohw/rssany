@@ -1,15 +1,14 @@
 // GET/PUT /api/proxy — config.json globalProxy / proxyList (admin)
 
 import type { Hono } from "hono";
-import { requireAdmin } from "../../../auth/middleware.js";
 import { readProxySettingsFromConfig, saveProxySettingsToConfig } from "../../../config/globalProxy.js";
 
 export function registerProxySettingsRoutes(app: Hono): void {
-  app.get("/api/proxy", requireAdmin(), async (c) => {
+  app.get("/api/proxy", async (c) => {
     return c.json(await readProxySettingsFromConfig());
   });
 
-  app.put("/api/proxy", requireAdmin(), async (c) => {
+  app.put("/api/proxy", async (c) => {
     try {
       const body = (await c.req.json().catch(() => ({}))) as {
         globalProxy?: unknown;

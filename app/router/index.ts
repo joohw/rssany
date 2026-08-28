@@ -6,9 +6,9 @@ import { networkInterfaces } from "node:os";
 import { serve } from "@hono/node-server";
 import { Hono } from "hono";
 import { cors } from "hono/cors";
-import { initSources as initSites } from "../scraper/sources/index.js";
+import { initCollectors } from "../scraper/sources/index.js";
 import { initScheduler } from "../scraper/scheduler/index.js";
-import { initUserDir, USER_PLUGINS_DIR, CACHE_DIR } from "../config/paths.js";
+import { initUserDir, USER_COLLECTORS_DIR, USER_PIPELINES_DIR, CACHE_DIR } from "../config/paths.js";
 import { logger } from "../core/logger/index.js";
 import { registerApiRoutes } from "./routes/api/index.js";
 import { registerAuthRoutes } from "./routes/auth.js";
@@ -21,10 +21,11 @@ import { initAutoUpdate } from "../update/index.js";
 import { getDb } from "../db/index.js";
 import { closeSharedBrowsers } from "../scraper/sources/web/fetcher/index.js";
 import { initSourcesCache } from "../scraper/subscription/index.js";
+import { reloadUserPipelines } from "../pipeline/index.js";
 
 const PORT = Number(process.env.PORT) || 18473;
 const IS_DEV = process.env.NODE_ENV === "development" || process.argv.includes("--watch");
-const PLUGIN_WATCH_EXTS = [".rssany.js", ".rssany.ts"];
+const COLLECTOR_WATCH_EXTS = [".rssany.js", ".rssany.ts"];
 
 function createApp(): Hono {
   const app = new Hono();
@@ -48,24 +49,40 @@ function createApp(): Hono {
   return app;
 }
 
-function watchPlugins(): void {
+function watchCollectors(): void {
   let reloadTimer: NodeJS.Timeout | null = null;
   const debouncedReload = async () => {
     if (reloadTimer) clearTimeout(reloadTimer);
     reloadTimer = setTimeout(async () => {
       try {
-        await initSites();
+        await initCollectors();
       } catch (err) {
-        logger.error("plugin", "插件重新加载失败", { err: err instanceof Error ? err.message : String(err) });
+        logger.error("collector", "采集器重新加载失败", { err: err instanceof Error ? err.message : String(err) });
       }
     }, 300);
   };
-  const watcher = watch(USER_PLUGINS_DIR, { recursive: true }, (eventType, filename) => {
-    if (!filename || !PLUGIN_WATCH_EXTS.some((ext) => filename.endsWith(ext))) return;
+  const watcher = watch(USER_COLLECTORS_DIR, { recursive: true }, (eventType, filename) => {
+    if (!filename || !COLLECTOR_WATCH_EXTS.some((ext) => filename.endsWith(ext))) return;
     if (eventType === "rename" || eventType === "change") debouncedReload();
   });
   watcher.on("error", (err) => {
-    logger.warn("plugin", "插件目录监听错误", { dir: USER_PLUGINS_DIR, err: err.message });
+    logger.warn("collector", "采集器目录监听错误", { dir: USER_COLLECTORS_DIR, err: err.message });
+  });
+}
+
+function watchPipelines(): void {
+  let reloadTimer: NodeJS.Timeout | null = null;
+  const watcher = watch(USER_PIPELINES_DIR, { recursive: true }, (_eventType, filename) => {
+    if (!filename || !filename.endsWith(".rssany.js")) return;
+    if (reloadTimer) clearTimeout(reloadTimer);
+    reloadTimer = setTimeout(() => {
+      void reloadUserPipelines().catch((error) => {
+        logger.error("pipeline", "用户 Pipeline 重新加载失败", { error: error instanceof Error ? error.message : String(error) });
+      });
+    }, 300);
+  });
+  watcher.on("error", (error) => {
+    logger.warn("pipeline", "Pipeline 目录监听错误", { dir: USER_PIPELINES_DIR, error: error.message });
   });
 }
 
@@ -73,7 +90,8 @@ async function main(): Promise<void> {
   await initUserDir();
   await initSourcesCache();
   await getDb();
-  await initSites();
+  await initCollectors();
+  await reloadUserPipelines();
   await initScheduler(CACHE_DIR);
   initAutoUpdate();
   const app = createApp();
@@ -108,7 +126,8 @@ async function main(): Promise<void> {
   const lanIp = Object.values(networkInterfaces()).flat().find((iface) => iface?.family === "IPv4" && !iface.internal)?.address;
   if (lanIp) console.log(`局域网访问 http://${lanIp}:${PORT}/`);
   if (IS_DEV) {
-    watchPlugins();
+    watchCollectors();
+    watchPipelines();
   }
 }
 main();

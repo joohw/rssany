@@ -24,18 +24,21 @@ const LEGACY_SITES_CONFIG_PATH = join(USER_DIR, "sites.json");
 const LEGACY_TAGS_CONFIG_PATH = join(USER_DIR, "tags.json");
 const LEGACY_SUBSCRIPTIONS_PATH = join(USER_DIR, "subscriptions.json");
 
-/** 内置信源插件目录：app/plugins/builtin/（随包发布 *.rssany.js） */
-export const BUILTIN_PLUGINS_DIR = join(PACKAGE_ROOT, "app/plugins/builtin");
+/** 内置采集器目录：app/collectors/builtin/（随包发布 *.rssany.js） */
+export const BUILTIN_COLLECTORS_DIR = join(PACKAGE_ROOT, "app/collectors/builtin");
 
-/** 用户插件目录：.rssany/plugins/（扁平 *.rssany.js / *.rssany.ts） */
-export const USER_PLUGINS_DIR = join(USER_DIR, "plugins");
+/** 用户采集器目录：.rssany/collectors/（扁平 *.rssany.js / *.rssany.ts） */
+export const USER_COLLECTORS_DIR = join(USER_DIR, "collectors");
 
-/** 首次复制内置插件完成标记；存在时不再补回被用户修改或删除的插件。 */
-export const BUILTIN_PLUGINS_SEED_MARKER_PATH = join(USER_PLUGINS_DIR, ".builtin-plugins-initialized.json");
+/** 用户 Pipeline 目录：.rssany/pipelines/（扁平 *.rssany.js） */
+export const USER_PIPELINES_DIR = join(USER_DIR, "pipelines");
+
+/** 首次复制内置采集器完成标记；存在时不再补回被用户修改或删除的采集器。 */
+export const BUILTIN_COLLECTORS_SEED_MARKER_PATH = join(USER_COLLECTORS_DIR, ".builtin-collectors-initialized.json");
 
 /** 限定 .rssany 下动态 import 的模块类型，避免 Node 一直向上解析到用户主目录的 package.json 并触发 MODULE_TYPELESS_PACKAGE_JSON */
 const USER_DIR_PACKAGE_JSON = join(USER_DIR, "package.json");
-const USER_DIR_PACKAGE_JSON_MINIMAL = `${JSON.stringify({ type: "module", private: true, description: "RssAny user data root; marks plugins as ESM for Node" })}\n`;
+const USER_DIR_PACKAGE_JSON_MINIMAL = `${JSON.stringify({ type: "module", private: true, description: "RssAny user data root; marks collectors as ESM for Node" })}\n`;
 
 function logConfig(level: "info" | "warn", message: string, meta: Record<string, unknown>): void {
   void import("../core/logger/index.js").then(({ logger }) => {
@@ -43,8 +46,8 @@ function logConfig(level: "info" | "warn", message: string, meta: Record<string,
   });
 }
 
-/** 管理页「添加插件」所用模板（非 Site，不参与加载） */
-export const PLUGIN_SITE_TEMPLATE_PATH = join(PACKAGE_ROOT, "app/plugins/site.rssany.js");
+/** 管理页「添加采集器」所用模板（非 SiteCollector，不参与加载） */
+export const COLLECTOR_SITE_TEMPLATE_PATH = join(PACKAGE_ROOT, "app/collectors/site.rssany.js");
 
 async function pathExists(p: string): Promise<boolean> {
   try {
@@ -144,12 +147,12 @@ async function mergeLegacyConfigFiles(): Promise<void> {
   }
 }
 
-/** 若尚无文件则写入最小 package.json，使用户插件目录下的 *.rssany.js 被明确视为 ESM */
-async function ensureUserDirPackageJsonForPlugins(): Promise<void> {
+/** 若尚无文件则写入最小 package.json，使用户采集器目录下的 *.rssany.js 被明确视为 ESM */
+async function ensureUserDirPackageJsonForCollectors(): Promise<void> {
   if (await pathExists(USER_DIR_PACKAGE_JSON)) return;
   try {
     await writeFile(USER_DIR_PACKAGE_JSON, USER_DIR_PACKAGE_JSON_MINIMAL, "utf-8");
-    logConfig("info", "已写入 .rssany/package.json（type: module，消除插件 ESM 歧义）", { path: USER_DIR_PACKAGE_JSON });
+    logConfig("info", "已写入 .rssany/package.json（type: module，消除采集器 ESM 歧义）", { path: USER_DIR_PACKAGE_JSON });
   } catch (err) {
     logConfig("warn", "写入 .rssany/package.json 失败", {
       path: USER_DIR_PACKAGE_JSON,
@@ -158,11 +161,11 @@ async function ensureUserDirPackageJsonForPlugins(): Promise<void> {
   }
 }
 
-/** 首次初始化时将随包插件复制到用户目录；已有同名文件不覆盖，后续启动不再同步。 */
-async function seedBuiltinPluginsOnce(): Promise<void> {
-  if (await pathExists(BUILTIN_PLUGINS_SEED_MARKER_PATH)) return;
+/** 首次初始化时将随包采集器复制到用户目录；已有同名文件不覆盖，后续启动不再同步。 */
+async function seedBuiltinCollectorsOnce(): Promise<void> {
+  if (await pathExists(BUILTIN_COLLECTORS_SEED_MARKER_PATH)) return;
 
-  const entries = await readdir(BUILTIN_PLUGINS_DIR, { withFileTypes: true, encoding: "utf-8" });
+  const entries = await readdir(BUILTIN_COLLECTORS_DIR, { withFileTypes: true, encoding: "utf-8" });
   const availableFiles = entries
     .filter((entry) => entry.isFile() && [".rssany.js", ".rssany.ts"].some((ext) => entry.name.endsWith(ext)))
     .map((entry) => String(entry.name))
@@ -170,8 +173,8 @@ async function seedBuiltinPluginsOnce(): Promise<void> {
   const copiedFiles: string[] = [];
 
   for (const fileName of availableFiles) {
-    const sourcePath = join(BUILTIN_PLUGINS_DIR, fileName);
-    const targetPath = join(USER_PLUGINS_DIR, fileName);
+    const sourcePath = join(BUILTIN_COLLECTORS_DIR, fileName);
+    const targetPath = join(USER_COLLECTORS_DIR, fileName);
     try {
       await copyFile(sourcePath, targetPath, constants.COPYFILE_EXCL);
       copiedFiles.push(fileName);
@@ -181,7 +184,7 @@ async function seedBuiltinPluginsOnce(): Promise<void> {
   }
 
   await writeFile(
-    BUILTIN_PLUGINS_SEED_MARKER_PATH,
+    BUILTIN_COLLECTORS_SEED_MARKER_PATH,
     JSON.stringify(
       {
         initializedAt: new Date().toISOString(),
@@ -193,8 +196,8 @@ async function seedBuiltinPluginsOnce(): Promise<void> {
     ) + "\n",
     "utf-8",
   );
-  logConfig("info", "内置插件已初始化到用户目录", {
-    path: USER_PLUGINS_DIR,
+  logConfig("info", "内置采集器已初始化到用户目录", {
+    path: USER_COLLECTORS_DIR,
     copied: copiedFiles.length,
     preserved: availableFiles.length - copiedFiles.length,
   });
@@ -223,9 +226,10 @@ export async function initUserDir(): Promise<void> {
   await mkdir(USER_DIR, { recursive: true });
   await mkdir(DATA_DIR, { recursive: true });
   await mkdir(CACHE_DIR, { recursive: true });
-  await mkdir(USER_PLUGINS_DIR, { recursive: true });
-  await ensureUserDirPackageJsonForPlugins();
-  await seedBuiltinPluginsOnce();
+  await mkdir(USER_COLLECTORS_DIR, { recursive: true });
+  await mkdir(USER_PIPELINES_DIR, { recursive: true });
+  await ensureUserDirPackageJsonForCollectors();
+  await seedBuiltinCollectorsOnce();
   await seedExampleConfigsIfMissing();
   await mergeLegacyConfigFiles();
 }

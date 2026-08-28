@@ -61,7 +61,7 @@ export async function saveGlobalProxyToConfig(proxy: string): Promise<void> {
   await saveProxySettingsToConfig({ ...current, globalProxy: proxy });
 }
 
-/** Plugin Site.proxy takes precedence over config globalProxy. */
+/** Collector proxy takes precedence over config globalProxy. */
 export async function resolveProxyForSite(site: { proxy?: string }): Promise<string | undefined> {
   const s = site.proxy?.trim();
   if (s) return s;

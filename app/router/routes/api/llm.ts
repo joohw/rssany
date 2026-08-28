@@ -1,14 +1,13 @@
 // /api/llm — 读写 LLM 配置（config.json.llm）；GET 不返回完整 Key
 
 import type { Hono } from "hono";
-import { requireAdmin } from "../../../auth/middleware.js";
 import { getLLMConfig } from "../../../core/llmConfig.js";
 import { chatText } from "../../../core/llm.js";
 import {readLlmFileConfig,saveLlmSettings} from "../../../config/llmSettings.js";
 
 
 export function registerLlmRoutes(app: Hono): void {
-  app.get("/api/llm", requireAdmin(), async (c) => {
+  app.get("/api/llm", async (c) => {
     const resolved = getLLMConfig();
     const file = await readLlmFileConfig();
     const hasApiKey = !!resolved.apiKey;
@@ -22,7 +21,7 @@ export function registerLlmRoutes(app: Hono): void {
   });
 
   
-  app.put("/api/llm", requireAdmin(), async (c) => {
+  app.put("/api/llm", async (c) => {
     try {
       const body = await c.req.json<{
         baseUrl?: unknown;
@@ -54,7 +53,7 @@ export function registerLlmRoutes(app: Hono): void {
     }
   });
 
-  app.post("/api/llm/test", requireAdmin(), async (c) => {
+  app.post("/api/llm/test", async (c) => {
     const t0 = Date.now();
     try {
       const cfg = getLLMConfig();

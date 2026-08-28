@@ -3,7 +3,16 @@ import tseslint from "typescript-eslint";
 import globals from "globals";
 
 export default tseslint.config(
-  { ignores: ["dist/**", "node_modules/**", "app/webui-react/dist/**"] },
+  {
+    ignores: [
+      ".rssany/**",
+      "dist/**",
+      "node_modules/**",
+      "app/webui/**",
+      "app/webui-react/**",
+      "landing/**",
+    ],
+  },
   js.configs.recommended,
   ...tseslint.configs.recommended,
   {

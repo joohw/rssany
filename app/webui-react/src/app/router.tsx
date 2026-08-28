@@ -2,13 +2,14 @@ import { createBrowserRouter, Navigate } from 'react-router'
 import { AppShell } from '@/app/AppShell'
 import { InitializePage } from '@/features/initialize/InitializePage'
 import { LogsPage } from '@/features/logs/LogsPage'
-import { NewPluginPage, PluginEditorPage, PluginsLayout, PluginsPage } from '@/features/plugins/PluginPages'
+import { CollectorEditorPage, CollectorsLayout, CollectorsPage, NewCollectorPage } from '@/features/collectors/CollectorPages'
+import { PipelinePage } from '@/features/pipeline/PipelinePage'
 import { SkillPage } from '@/features/skill/SkillPage'
 import { SourcesPage } from '@/features/sources/SourcesPage'
 import {
+  BackupPage,
   DeliverPage,
   LlmPage,
-  PipelinePage,
   ProxyPage,
   SettingsLayout,
   TagsPage,
@@ -20,16 +21,17 @@ export const router = createBrowserRouter([
     element: <AppShell />,
     children: [
       { path: '/', element: <SourcesPage /> },
-      { path: '/logs', element: <Navigate to="/admin/logs" replace /> },
+      { path: '/logs', element: <LogsPage /> },
       {
-        path: '/plugins',
-        element: <PluginsLayout />,
+        path: '/collectors',
+        element: <CollectorsLayout />,
         children: [
-          { index: true, element: <PluginsPage /> },
-          { path: 'new', element: <NewPluginPage /> },
-          { path: ':id', element: <PluginEditorPage /> },
+          { index: true, element: <CollectorsPage /> },
+          { path: 'new', element: <NewCollectorPage /> },
+          { path: ':id', element: <CollectorEditorPage /> },
         ],
       },
+      { path: '/pipeline', element: <PipelinePage /> },
       { path: '/skill', element: <SkillPage /> },
       {
         path: '/admin',
@@ -38,11 +40,12 @@ export const router = createBrowserRouter([
           { index: true, element: <Navigate to="/admin/update" replace /> },
           { path: 'update', element: <UpdateSettingsPage /> },
           { path: 'tags', element: <TagsPage /> },
-          { path: 'pipeline', element: <PipelinePage /> },
+          { path: 'pipeline', element: <Navigate to="/pipeline" replace /> },
           { path: 'llm', element: <LlmPage /> },
           { path: 'proxy', element: <ProxyPage /> },
           { path: 'deliver', element: <DeliverPage /> },
-          { path: 'logs', element: <LogsPage /> },
+          { path: 'backup', element: <BackupPage /> },
+          { path: 'logs', element: <Navigate to="/logs" replace /> },
           { path: 'sources', element: <Navigate to="/" replace /> },
         ],
       },

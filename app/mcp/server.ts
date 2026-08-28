@@ -61,7 +61,7 @@ export async function handleMcpJsonRpc(input: unknown): Promise<JsonRpcResponse 
         capabilities: { tools: { listChanged: false } },
         serverInfo: { name: "rssany-local", version: getAppVersion() },
         instructions:
-          "Access local RssAny sources and indexed items. Plugin tools can read, create, update, and delete user plugins.",
+          "Access local RssAny sources and indexed items. Collector tools can read, create, update, and delete user collectors.",
       },
     };
   }

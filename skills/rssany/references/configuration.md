@@ -9,7 +9,8 @@ RssAny stores its unified runtime configuration in `config.json` under the user 
 - `RSSANY_USER_DIR`: override the user data root.
 - `CACHE_DIR`: override cache storage, including Chrome profiles.
 - Database: `data/rssany.db`.
-- User plugins: `plugins/`.
+- User collectors: `collectors/`.
+- User pipelines: `pipelines/*.rssany.js`.
 - Browser/fetch cache: `cache/`.
 
 Parallel RssAny instances must use different user/cache directories unless they intentionally share the same local service resources.
@@ -35,11 +36,11 @@ Each source supports:
 
 ## Other sections
 
-- `pipeline.steps`: fixed built-in steps such as tagging or translation, represented as `{ id, enabled }`.
+- `pipeline.steps`: ordered active steps represented as `{ id }`. A step can be built in or loaded from the user pipeline directory. Use the pipeline management API instead of editing this list when possible.
 - `deliver`: configured gateways/token; configured destinations receive outbound items after persistence and pipeline processing.
 - `llm`: optional provider/model/key settings used by extraction and pipeline features.
 - `tags`: system tag definitions.
-- proxy settings: global fallback proxy; source and plugin values may override it.
+- proxy settings: global fallback proxy; source and collector values may override it.
 - update settings: automatic update/restart preferences.
 
 ## Environment variables

@@ -2,7 +2,7 @@
 
 ## Startup reports incomplete
 
-Check the log, PID, and `GET /api/server-info`. Initialization loads the user directory, database, plugins, and scheduler before listening. A healthy process that becomes reachable shortly after the CLI timeout is a readiness-delay warning, not a crash.
+Check the log, PID, and `GET /api/server-info`. Initialization loads the user directory, database, collectors, and scheduler before listening. A healthy process that becomes reachable shortly after the CLI timeout is a readiness-delay warning, not a crash.
 
 ## Chrome profile is already in use
 
@@ -13,7 +13,7 @@ If an explicit headed browser is required while another process owns the profile
 ## Empty feed or no new items
 
 1. Confirm the source exists in `list_sources` or `/api/sources/raw`.
-2. Check plugin matching.
+2. Check collector matching.
 3. Trigger a manual pull and poll its task.
 4. Inspect logs and source pull status.
 5. Check date filters, source ref canonicalization, guid duplication, and pipeline drops.
@@ -21,11 +21,11 @@ If an explicit headed browser is required while another process owns the profile
 
 ## Authentication required
 
-Use `/auth/check`, then `/auth/open` or `/auth/ensure`. Complete login in the RssAny-managed browser. Do not copy cookies or credentials into chat, logs, or plugin source.
+Use `/auth/check`, then `/auth/open` or `/auth/ensure`. Complete login in the RssAny-managed browser. Do not copy cookies or credentials into chat, logs, or collector source.
 
 ## Parser or extractor failure
 
-Use `/admin/parse/<url>` for list parsing and `/admin/extractor/<url>` for detail extraction. Compare purified and raw HTML when a plugin supports the option. Prefer stable structured APIs over brittle selectors.
+Use `/admin/parse/<url>` for list parsing and `/admin/extractor/<url>` for detail extraction. Compare purified and raw HTML when a collector supports the option. Prefer stable structured APIs over brittle selectors.
 
 ## Scheduler warnings or delays
 
@@ -38,6 +38,6 @@ Inspect `/api/scheduler/stats`. Manual pulls are independent of saturated schedu
 3. Ensure the client follows the SSE endpoint event for message posts.
 4. Confirm the request originates from loopback unless remote MCP was explicitly enabled.
 
-## Plugin write fails
+## Collector write fails
 
 Check that filename/id and exported `id` agree, the module is ESM, matching metadata is valid, `fetchItems` is exported, and source size is at most 2 MiB. Management writes validate by loading the module and roll back on failure.

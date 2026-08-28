@@ -1,26 +1,26 @@
-// Source 抽象接口：所有信源类型的统一契约，输出 FeedItem[]
+// Collector 抽象接口：所有采集器的统一契约，输出 FeedItem[]
 
-import type { PluginHostDeps } from "../../plugins/hostDeps.js";
+import type { CollectorHostDeps } from "../../collectors/hostDeps.js";
 import type { FeedItem } from "../../types/feedItem.js";
 import type { RefreshInterval } from "../../utils/refreshInterval.js";
 
 
-/** Source 调用上下文 */
-export interface SourceContext {
+/** 采集器调用上下文 */
+export interface CollectorContext {
   /** 缓存目录 */
   cacheDir?: string;
   /** 是否使用无头浏览器，false 时显示浏览器窗口 */
   headless?: boolean;
-  /** 本次抓取使用的代理（由 feeder 合并 config sources 与 Source，或管理端调试传入） */
+  /** 本次采集使用的代理（由 feeder 合并 config sources 与 Collector，或管理端调试传入） */
   proxy?: string;
   /**
    * 宿主注入依赖（node-html-parser、rss-parser、imapflow 等）。
-   * 用户目录下插件勿从 npm 直接 import，应使用 ctx.deps。
+   * 用户目录下采集器勿从 npm 直接 import，应使用 ctx.deps。
    */
-  deps: PluginHostDeps;
+  deps: CollectorHostDeps;
   /**
-   * 与 Site 插件一致：用浏览器（Puppeteer）拉取 URL；内置 RSS 等 Source 插件使用。
-   * 未注入时（极少见）插件需自行处理抓取。
+   * 与 SiteCollector 一致：用浏览器（Puppeteer）拉取 URL；内置 RSS 等采集器使用。
+   * 未注入时（极少见）采集器需自行处理抓取。
    */
   fetchHtml?: (
     url: string,
@@ -35,9 +35,9 @@ export interface SourceContext {
 }
 
 
-/** 统一信源接口：不论是网页、RSS Feed、邮件还是 API，均实现此接口产出 FeedItem[] */
-export interface Source {
-  /** 信源唯一标识，如 "xiaohongshu"、"__rss__"、"__email__" */
+/** 统一采集器接口：不论是网页、RSS Feed、邮件还是 API，均实现此接口产出 FeedItem[] */
+export interface Collector {
+  /** 采集器唯一标识，如 "xiaohongshu"、"__rss__"、"__email__" */
   readonly id: string;
   readonly name?: string;
   /** 匹配 sourceId 的模式（URL、email://、api:// 等协议均可）；若提供 match 则优先用 match */
@@ -51,7 +51,7 @@ export interface Source {
   /** 代理地址，如 http://127.0.0.1:7890 或 socks5://127.0.0.1:1080；未设置则使用 env HTTP_PROXY */
   readonly proxy?: string;
   /** 可选：fetchItems 前的预检（如认证验证），失败时抛 AuthRequiredError */
-  preCheck?(ctx: SourceContext): Promise<void>;
+  preCheck?(ctx: CollectorContext): Promise<void>;
   /** 核心契约：给定 sourceId，产出条目列表 */
-  fetchItems(sourceId: string, ctx: SourceContext): Promise<FeedItem[]>;
+  fetchItems(sourceId: string, ctx: CollectorContext): Promise<FeedItem[]>;
 }

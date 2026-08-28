@@ -36,13 +36,13 @@ Real HTTP requests are accepted only from loopback by default. `RSSANY_MCP_ALLOW
 - `query_items { q?, source_url?, tags?, author?, since?, until?, limit?, offset? }`: indexed search; limit 1-200.
 - `get_item { id }`: one item including full content.
 - `get_source_stats {}`: item counts and latest timestamps grouped by source.
-- `list_plugins {}`: loaded user plugins.
-- `read_plugin { id }`: complete effective plugin source.
+- `list_collectors {}`: loaded user collectors.
+- `read_collector { id }`: complete effective collector source.
 
 ### Mutating
 
-- `write_plugin { id, content }`: create/update a plugin, reload immediately, validate, and roll back on failure. Maximum source size is 2 MiB.
-- `delete_plugin { id }`: delete a user plugin. Require explicit authorization.
+- `write_collector { id, content }`: create/update a collector, reload immediately, validate, and roll back on failure. Maximum source size is 2 MiB.
+- `delete_collector { id }`: delete a user collector. Require explicit authorization.
 
 ## Agent query workflow
 
@@ -50,4 +50,4 @@ Real HTTP requests are accepted only from loopback by default. `RSSANY_MCP_ALLOW
 2. Call `query_items` with the narrowest useful filters.
 3. Call `get_item` only for selected records that need full content.
 4. Verify consequential claims against the original item link.
-5. Read a plugin before editing it. Preserve unrelated user code and use `write_plugin` only after validating the full replacement source.
+5. Read a collector before editing it. Preserve unrelated user code and use `write_collector` only after validating the full replacement source.

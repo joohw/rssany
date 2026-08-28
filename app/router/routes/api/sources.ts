@@ -1,10 +1,10 @@
-// /api/sources/stats、/api/sources/raw、/api/sources/plugin-match（admin）
+// /api/sources/stats、/api/sources/raw、/api/sources/collector-match（admin）
 
 import type { Hono } from "hono";
 import { streamSSE } from "hono/streaming";
 import { getSourceStats } from "../../../db/index.js";
-import { getSource } from "../../../scraper/sources/index.js";
-import { getPluginSites } from "../../../scraper/sources/web/index.js";
+import { getCollector } from "../../../scraper/sources/index.js";
+import { getCollectorSites } from "../../../scraper/sources/web/index.js";
 import { getAllSources, getSourcesRaw, saveSourcesFile, getEffectiveProxyForListUrl } from "../../../scraper/subscription/index.js";
 import { openBrowserPage, resolveProxy } from "../../../scraper/sources/web/fetcher/index.js";
 import { CACHE_DIR } from "../../../config/paths.js";
@@ -86,15 +86,15 @@ export function registerSourcesRoutes(app: Hono): void {
     });
   });
 
-  app.post("/api/sources/plugin-match", async (c) => {
+  app.post("/api/sources/collector-match", async (c) => {
     try {
       const body = await c.req.json<{ refs?: string[] }>();
       const refs = Array.isArray(body?.refs) ? body.refs : [];
-      const pluginIds = new Set(getPluginSites().map((s) => s.id));
+      const collectorIds = new Set(getCollectorSites().map((collector) => collector.id));
       const result: Record<string, string | null> = {};
       for (const ref of refs) {
-        const source = getSource(ref);
-        result[ref] = pluginIds.has(source.id) ? source.id : null;
+        const collector = getCollector(ref);
+        result[ref] = collectorIds.has(collector.id) ? collector.id : null;
       }
       return c.json(result);
     } catch {
@@ -116,7 +116,7 @@ export function registerSourcesRoutes(app: Hono): void {
         return c.json({ ok: false, message: "仅支持 http(s) URL" }, 400);
       }
       const url = raw;
-      const source = getSource(url);
+      const source = getCollector(url);
       const merged = await getEffectiveProxyForListUrl(url, source);
       const proxy = resolveProxy({ proxy: merged });
       void openBrowserPage(url, CACHE_DIR, { proxy }).catch(() => {});

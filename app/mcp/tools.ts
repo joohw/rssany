@@ -1,12 +1,12 @@
-// MCP 工具：读取本地 sources / SQLite，并管理用户插件。
+// MCP 工具：读取本地 sources / SQLite，并管理用户采集器。
 
 import { getItemById, getSourceStats, queryItems } from "../db/index.js";
 import {
-  deleteManagedPlugin,
-  listManagedPlugins,
-  readManagedPlugin,
-  writeManagedPlugin,
-} from "../plugins/management.js";
+  deleteManagedCollector,
+  listManagedCollectors,
+  readManagedCollector,
+  writeManagedCollector,
+} from "../collectors/management.js";
 import { getAllSources } from "../scraper/subscription/index.js";
 
 export interface McpToolDefinition {
@@ -85,8 +85,8 @@ const tools: McpToolDefinition[] = [
     annotations: { readOnlyHint: true, destructiveHint: false, openWorldHint: false },
   },
   {
-    name: "list_plugins",
-    description: "List plugins loaded from the local RssAny user plugin directory.",
+    name: "list_collectors",
+    description: "List collectors loaded from the local RssAny user collector directory.",
     inputSchema: {
       type: "object",
       properties: {},
@@ -95,12 +95,12 @@ const tools: McpToolDefinition[] = [
     annotations: { readOnlyHint: true, destructiveHint: false, openWorldHint: false },
   },
   {
-    name: "read_plugin",
-    description: "Read the effective source code of one loaded plugin.",
+    name: "read_collector",
+    description: "Read the effective source code of one loaded collector.",
     inputSchema: {
       type: "object",
       properties: {
-        id: { type: "string", minLength: 1, description: "Plugin id." },
+        id: { type: "string", minLength: 1, description: "Collector id." },
       },
       required: ["id"],
       additionalProperties: false,
@@ -108,14 +108,14 @@ const tools: McpToolDefinition[] = [
     annotations: { readOnlyHint: true, destructiveHint: false, openWorldHint: false },
   },
   {
-    name: "write_plugin",
+    name: "write_collector",
     description:
-      "Create or update a plugin in the RssAny user plugin directory and reload it immediately.",
+      "Create or update a collector in the RssAny user collector directory and reload it immediately.",
     inputSchema: {
       type: "object",
       properties: {
-        id: { type: "string", minLength: 1, description: "Plugin id exported by the source code." },
-        content: { type: "string", description: "Complete ESM plugin source code, up to 2 MiB." },
+        id: { type: "string", minLength: 1, description: "Collector id exported by the source code." },
+        content: { type: "string", description: "Complete ESM collector source code, up to 2 MiB." },
       },
       required: ["id", "content"],
       additionalProperties: false,
@@ -123,13 +123,13 @@ const tools: McpToolDefinition[] = [
     annotations: { readOnlyHint: false, destructiveHint: true, idempotentHint: true, openWorldHint: false },
   },
   {
-    name: "delete_plugin",
+    name: "delete_collector",
     description:
-      "Delete a plugin from the RssAny user plugin directory.",
+      "Delete a collector from the RssAny user collector directory.",
     inputSchema: {
       type: "object",
       properties: {
-        id: { type: "string", minLength: 1, description: "User plugin id." },
+        id: { type: "string", minLength: 1, description: "User collector id." },
       },
       required: ["id"],
       additionalProperties: false,
@@ -233,28 +233,28 @@ export async function callMcpTool(name: string, rawArgs: unknown): Promise<McpTo
       return textResult({ sources, total: sources.length });
     }
 
-    if (name === "list_plugins") {
-      const plugins = listManagedPlugins();
-      return textResult({ plugins, total: plugins.length });
+    if (name === "list_collectors") {
+      const collectors = listManagedCollectors();
+      return textResult({ collectors, total: collectors.length });
     }
 
-    if (name === "read_plugin") {
+    if (name === "read_collector") {
       const id = optionalString(args, "id");
       if (!id) throw new Error("id 不能为空");
-      return textResult(await readManagedPlugin(id));
+      return textResult(await readManagedCollector(id));
     }
 
-    if (name === "write_plugin") {
+    if (name === "write_collector") {
       const id = optionalString(args, "id");
       if (!id) throw new Error("id 不能为空");
       if (typeof args.content !== "string") throw new Error("content 必须是字符串");
-      return textResult({ ok: true, plugin: await writeManagedPlugin(id, args.content) });
+      return textResult({ ok: true, collector: await writeManagedCollector(id, args.content) });
     }
 
-    if (name === "delete_plugin") {
+    if (name === "delete_collector") {
       const id = optionalString(args, "id");
       if (!id) throw new Error("id 不能为空");
-      return textResult(await deleteManagedPlugin(id));
+      return textResult(await deleteManagedCollector(id));
     }
 
     return textResult({ error: `未知工具: ${name}` }, true);

@@ -3,7 +3,7 @@
 import { readConfigFile, updateConfigFile } from "../../config/configFile.js";
 import type { SubscriptionSource } from "./types.js";
 import { resolveRef } from "./types.js";
-import type { Source } from "../sources/types.js";
+import type { Collector } from "../sources/types.js";
 import { readGlobalProxyFromConfig } from "../../config/globalProxy.js";
 
 export type { SubscriptionSource, SourcesFile } from "./types.js";
@@ -75,15 +75,15 @@ export async function saveSourcesFile(sources: SubscriptionSource[]): Promise<vo
 
 
 /**
- * 代理优先级：config.json 单源 → 插件 Source.proxy → config.json globalProxy →（未写入则由 fetcher resolveProxy 使用 HTTP_PROXY）
+ * 代理优先级：config.json 单源 → Collector.proxy → config.json globalProxy →（未写入则由 fetcher resolveProxy 使用 HTTP_PROXY）
  */
-export async function getEffectiveProxyForListUrl(listUrl: string, source: Source): Promise<string | undefined> {
+export async function getEffectiveProxyForListUrl(listUrl: string, source: Collector): Promise<string | undefined> {
   const list = await getAllSources();
   const sub = list.find((s) => resolveRef(s) === listUrl);
   const fromSub = sub?.proxy?.trim();
   if (fromSub) return fromSub;
-  const fromPlugin = source.proxy?.trim();
-  if (fromPlugin) return fromPlugin;
+  const fromCollector = source.proxy?.trim();
+  if (fromCollector) return fromCollector;
   return readGlobalProxyFromConfig();
 }
 

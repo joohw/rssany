@@ -49,7 +49,7 @@ export function HomeFooter() {
             npm
           </a>
           <a
-            href="https://github.com/joohw/rssany/blob/main/docs/plugins.md"
+            href="https://github.com/joohw/rssany/blob/main/docs/collectors.md"
             target="_blank"
             rel="noopener noreferrer"
             className="text-muted-foreground hover:text-foreground"

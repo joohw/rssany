@@ -17,7 +17,7 @@ const en = {
   home: {
     title: "Curate dedicated information sources",
     subtitle:
-      "Self-hosted pipeline for content production and news workflows: ingest web, RSS, and email, parse with plugins, store in SQLite, enrich on demand, then publish RSS, JSON API, and MCP for editorial and distribution tools.",
+      "Self-hosted pipeline for content production and news workflows: ingest web, RSS, and email, parse with collectors, store in SQLite, enrich on demand, then publish RSS, JSON API, and MCP for editorial and distribution tools.",
     quickStart: "Quick start",
     quickStartHint: "First run creates ~/.rssany/config.json and opens the initialization page",
     useCaseAlt: "RssAny web UI to curate sources, browse items, and feed content pipelines",
@@ -33,9 +33,9 @@ const en = {
         title: "Curated sources",
         description: "Configure web lists, RSS feeds, and IMAP mail in config.json sources; the scheduler keeps your news intake on refresh intervals.",
       },
-      plugins: {
+      collectors: {
         title: "Pluggable sources",
-        description: "Many built-in Site plugins; override or extend under ~/.rssany/plugins with .rssany.js/.ts files.",
+        description: "Many built-in collectors; override or extend under ~/.rssany/collectors with .rssany.js/.ts files.",
       },
       pipeline: {
         title: "Fixed pipeline",
@@ -63,7 +63,7 @@ const en = {
     pipelineItems: {
       fetch: {
         title: "fetchItems",
-        description: "Scheduler triggers source plugins for list fetch, body extraction, and site login when needed.",
+        description: "Scheduler triggers source collectors for list fetch, body extraction, and site login when needed.",
       },
       upsert: {
         title: "upsertItems",
@@ -83,7 +83,7 @@ const en = {
   },
   blog: {
     indexTitle: "Blog",
-    indexSubtitle: "Feed curation, plugin parsing, pipeline enrichment, and RSS / JSON API / MCP publishing.",
+    indexSubtitle: "Feed curation, collector parsing, pipeline enrichment, and RSS / JSON API / MCP publishing.",
     empty: "No posts yet.",
     backToBlog: "← Back to blog",
     viewPipeline: "Explore pipeline →",

@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import { NavLink, Outlet, useLocation, useNavigate } from 'react-router'
-import { Bot, Puzzle, Rss, Settings } from 'lucide-react'
+import { Bot, Inbox, Rss, ScrollText, Settings, Workflow } from 'lucide-react'
 import { Toaster } from '@/components/ui/sonner'
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip'
 import { getInitialization } from '@/api/server'
@@ -8,8 +8,10 @@ import { cn } from '@/lib/utils'
 
 const navigation = [
   { to: '/', label: '信源', icon: Rss, end: true },
-  { to: '/plugins', label: '插件', icon: Puzzle },
+  { to: '/collectors', label: '采集器', icon: Inbox },
+  { to: '/pipeline', label: '流水线', icon: Workflow },
   { to: '/skill', label: 'Skill', icon: Bot },
+  { to: '/logs', label: '日志', icon: ScrollText },
   { to: '/admin', label: '设置', icon: Settings },
 ]
 
@@ -76,7 +78,7 @@ export function AppShell() {
           </aside>
           <main className={cn(
             'min-h-0 min-w-0 flex-1',
-            pathname === '/' || pathname.startsWith('/admin') || pathname.startsWith('/plugins') ? 'overflow-hidden' : 'overflow-auto px-5 py-6 sm:px-8',
+            pathname === '/' || pathname.startsWith('/admin') || pathname.startsWith('/collectors') || pathname.startsWith('/pipeline') || pathname.startsWith('/skill') || pathname.startsWith('/logs') ? 'overflow-hidden' : 'overflow-auto px-5 py-6 sm:px-8',
           )}><Outlet /></main>
         </div>
       </div>

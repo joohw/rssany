@@ -12,7 +12,6 @@ import { getEffectiveItemFields, type ItemTranslationFields } from "../../../typ
 
 import { queryItems, getPendingPushItems, markPushed, deleteItem, deleteItemsBySourceUrl } from "../../../db/index.js";
 
-import { requireAdmin } from "../../../auth/middleware.js";
 
 import { canonicalHttpSourceRef } from "../../../utils/httpSourceRef.js";
 
@@ -64,7 +63,7 @@ export function registerItemsRoutes(app: Hono): void {
 
   /** 清空指定信源（source_url）下所有已入库条目 — 必须早于 /api/items/:id，否则 "by-source" 会被当成 id */
 
-  app.delete("/api/items/by-source", requireAdmin(), async (c) => {
+  app.delete("/api/items/by-source", async (c) => {
 
     const sourceUrl = (c.req.query("source_url") ?? "").trim();
 

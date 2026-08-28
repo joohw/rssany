@@ -1,6 +1,6 @@
 /**
  * 系统内部统一的 Feed Item 定义
- * 插件 → Normalizer → RSS Generator
+ * 采集器 → Normalizer → RSS Generator
  * 自包含：携带 sourceRef 后，入库 / Signal 投递等无需再单独传 ref。
  */
 
@@ -50,7 +50,7 @@ export function pubDateToIsoOrNull(pubDate: unknown): string | null {
     return null;
 }
 
-/** 将 author 规范为 string[]，兼容 string 输入（插件等） */
+/** 将 author 规范为 string[]，兼容 string 输入（采集器等） */
 export function normalizeAuthor(author: string | string[] | null | undefined): string[] | undefined {
     if (author == null) return undefined;
     if (Array.isArray(author)) return author.filter((s) => typeof s === "string" && s.trim()).map((s) => s.trim());
@@ -100,7 +100,7 @@ export interface FeedItem {
      */
     translations?: Record<string, ItemTranslationFields>;
     /**
-     * 扩展字段，给插件留后门。
+     * 扩展字段，给采集器保留扩展空间。
      * 框架保留键：`_rssanyPipelineDrop` 为 true 表示 pipeline 质量过滤丢弃，feeder 会删库并移出 RSS。
      */
     extra?: Record<string, unknown>;

@@ -1,13 +1,13 @@
-// 统一信源注册表：汇聚 WebSource 插件、Source 插件（RSS/Email）、genericWebSource，提供 getSource 查找入口
+// 统一采集器注册表：汇聚站点采集器、通用采集器与 genericWebCollector，提供匹配入口
 
-import { createWebSource, genericWebSource, setLoadedSites } from "./web/index.js";
-import { loadSiteAndSourcePlugins } from "../../plugins/loader.js";
-import type { Source } from "./types.js";
+import { createWebCollector, genericWebCollector, setLoadedSiteCollectors } from "./web/index.js";
+import { loadAllCollectors } from "../../collectors/loader.js";
+import type { Collector } from "./types.js";
 import { logger } from "../../core/logger/index.js";
-export { buildSourceContext } from "./context.js";
+export { buildCollectorContext } from "./context.js";
 
-/** 所有已注册的信源（按 priority 排序后迭代匹配） */
-export const registeredSources: Source[] = [];
+/** 所有已注册的采集器（按 priority 排序后迭代匹配） */
+export const registeredCollectors: Collector[] = [];
 
 /** 将字符串 URL 模式转为正则：{placeholder} 匹配单个路径段，末尾允许 query */
 function sourcePatternToRegex(pattern: string | RegExp): RegExp {
@@ -22,45 +22,44 @@ function sourcePatternToRegex(pattern: string | RegExp): RegExp {
 }
 
 
-/** 根据 sourceId 查找匹配度最高的 Source；按 priority 升序，优先用 match 否则用 pattern */
-export function getSource(sourceId: string): Source {
-  for (const source of registeredSources) {
-    const matches = source.match ? source.match(sourceId) : (() => {
+/** 根据 sourceId 查找匹配度最高的采集器；按 priority 升序，优先用 match 否则用 pattern */
+export function getCollector(sourceId: string): Collector {
+  for (const collector of registeredCollectors) {
+    const matches = collector.match ? collector.match(sourceId) : (() => {
       try {
-        return sourcePatternToRegex(source.pattern).test(sourceId);
+        return sourcePatternToRegex(collector.pattern).test(sourceId);
       } catch {
         return false;
       }
     })();
-    if (matches) return source;
+    if (matches) return collector;
   }
-  return genericWebSource;
+  return genericWebCollector;
 }
 
 
-/** 根据 id 精确查找 Source（用于内部调试） */
-export function getSourceById(id: string): Source | undefined {
-  return registeredSources.find((s) => s.id === id);
+/** 根据 id 精确查找采集器（用于内部调试） */
+export function getCollectorById(id: string): Collector | undefined {
+  return registeredCollectors.find((collector) => collector.id === id);
 }
 
 
-/** 初始化所有信源：加载 sources 插件、构建注册表（pipeline 为固定流程，见 app/pipeline/） */
-export async function initSources(): Promise<void> {
-  const siteResult = await loadSiteAndSourcePlugins();
-  const { sites, sources: sourcePlugins } = siteResult;
-  setLoadedSites(sites);
-  registeredSources.length = 0;
-  const webSources = sites.map((s) => createWebSource(s));
-  const all: Source[] = [
-    ...sourcePlugins,
-    ...webSources,
-    genericWebSource,
+/** 初始化所有采集器并构建注册表。 */
+export async function initCollectors(): Promise<void> {
+  const { sites, collectors } = await loadAllCollectors();
+  setLoadedSiteCollectors(sites);
+  registeredCollectors.length = 0;
+  const webCollectors = sites.map((site) => createWebCollector(site));
+  const all: Collector[] = [
+    ...collectors,
+    ...webCollectors,
+    genericWebCollector,
   ];
   all.sort((a, b) => (a.priority ?? 100) - (b.priority ?? 100));
-  registeredSources.push(...all);
-  logger.info("scheduler", "信源已注册", {
-    total: registeredSources.length,
+  registeredCollectors.push(...all);
+  logger.info("scheduler", "采集器已注册", {
+    total: registeredCollectors.length,
     siteCount: sites.length,
-    sourcePluginCount: sourcePlugins.length,
+    collectorCount: collectors.length,
   });
 }

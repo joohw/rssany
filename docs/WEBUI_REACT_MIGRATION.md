@@ -23,7 +23,7 @@ Lucide React
 ## 已迁移页面
 
 1. 信源列表、信源编辑与条目面板。
-2. 日志、插件管理、插件编辑器和 Skill。
+2. 日志、采集器管理、采集器编辑器和 Skill。
 3. update、deliver、llm、proxy、pipeline、tags、parse 设置页。
 4. 初始化路由为 `/init`，不再提供 `/initialize` 前端路由。
 

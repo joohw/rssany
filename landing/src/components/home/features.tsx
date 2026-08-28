@@ -2,7 +2,7 @@
 
 import { useTranslation } from "react-i18next";
 
-const FEATURE_KEYS = ["sources", "plugins", "pipeline", "llm", "output", "selfhost"] as const;
+const FEATURE_KEYS = ["sources", "collectors", "pipeline", "llm", "output", "selfhost"] as const;
 
 export function HomeFeatures() {
   const { t } = useTranslation();

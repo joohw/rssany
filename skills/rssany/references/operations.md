@@ -31,7 +31,7 @@ Stop the managed service before taking a consistent filesystem backup. Preserve 
 
 - `config.json`
 - `data/rssany.db`
-- `plugins/`
+- `collectors/`
 
 Cache and browser profile directories are optional but may contain authentication cookies. Protect backups accordingly.
 

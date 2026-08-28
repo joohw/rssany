@@ -64,9 +64,10 @@ The response contains `taskId`. Poll `GET /api/tasks/:id` or subscribe to `GET /
 
 ## Management APIs
 
-- Sources: `GET /api/sources`, `GET/PUT /api/sources/raw`, `POST /api/sources/plugin-match`, `POST /api/sources/open-browser`.
-- Plugins: `GET/POST /api/plugins`, `GET/PUT/DELETE /api/plugins/:id`.
-- Settings: `GET/PUT /api/proxy`, `/api/pipeline`, `/api/tags`, `/api/llm`, `/api/deliver`, `/api/update-settings`.
+- Sources: `GET /api/sources`, `GET/PUT /api/sources/raw`, `POST /api/sources/collector-match`, `POST /api/sources/open-browser`.
+- Collectors: `GET/POST /api/collectors`, `GET/PUT/DELETE /api/collectors/:id`.
+- Pipelines: `GET/POST /api/pipelines`, `POST /api/pipelines/validate`, `GET/PUT/DELETE /api/pipelines/:id`, and `GET/PUT /api/pipeline` for arrangement.
+- Settings: `GET/PUT /api/proxy`, `/api/tags`, `/api/llm`, `/api/deliver`, `/api/update-settings`.
 - Diagnostics: `GET /admin/parse/*`, `GET /admin/extractor/*`, `GET /auth/check`, `POST /auth/open`, `POST /auth/ensure`.
 
 ## Destructive endpoints
@@ -75,7 +76,8 @@ Require explicit user authorization before calling:
 
 - `DELETE /api/items/:id`
 - `DELETE /api/items/by-source`
-- `DELETE /api/plugins/:id`
+- `DELETE /api/collectors/:id`
+- `DELETE /api/pipelines/:id`
 - `DELETE /api/logs`
 - `POST /api/admin/browser/close`
 

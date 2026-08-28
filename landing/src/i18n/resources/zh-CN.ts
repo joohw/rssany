@@ -17,7 +17,7 @@ const zhCN = {
   home: {
     title: "定制专属信息源",
     subtitle:
-      "面向内容生产与资讯管线的自托管订阅系统：接入网页、RSS、邮件等信源，定时抓取与插件解析后统一入库，按需加工并输出 RSS、JSON API 与 MCP，喂给创作与分发流程。",
+      "面向内容生产与资讯管线的自托管订阅系统：接入网页、RSS、邮件等信源，定时抓取与采集器解析后统一入库，按需加工并输出 RSS、JSON API 与 MCP，喂给创作与分发流程。",
     quickStart: "快速开始",
     quickStartHint: "首次运行会生成 ~/.rssany/config.json 并打开初始化页面",
     useCaseAlt: "RssAny Web 界面：定制信源、浏览资讯条目并输出到内容管线",
@@ -33,9 +33,9 @@ const zhCN = {
         title: "定制信源",
         description: "在 config.json 的 sources 中配置网站列表、标准 RSS、IMAP 邮件等，调度器按 refresh 策略持续拉取资讯。",
       },
-      plugins: {
+      collectors: {
         title: "可插拔信源",
-        description: "内置大量 Site 插件，用户可在 ~/.rssany/plugins 覆盖同名内置或扩展新站点。",
+        description: "内置大量站点采集器，用户可在 ~/.rssany/collectors 覆盖同名内置采集器或扩展新站点。",
       },
       pipeline: {
         title: "固定 pipeline",
@@ -63,7 +63,7 @@ const zhCN = {
     pipelineItems: {
       fetch: {
         title: "抓取 fetchItems",
-        description: "调度器触发信源插件，完成列表抓取、正文提取与必要站点登录。",
+        description: "调度器触发信源采集器，完成列表抓取、正文提取与必要站点登录。",
       },
       upsert: {
         title: "入库 upsertItems",
@@ -83,7 +83,7 @@ const zhCN = {
   },
   blog: {
     indexTitle: "博客",
-    indexSubtitle: "信息源定制、插件解析、pipeline 加工与 RSS / JSON API / MCP 输出实践。",
+    indexSubtitle: "信息源定制、采集器解析、pipeline 加工与 RSS / JSON API / MCP 输出实践。",
     empty: "暂无文章。",
     backToBlog: "← 返回博客",
     viewPipeline: "了解管线 →",

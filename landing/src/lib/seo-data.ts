@@ -17,7 +17,7 @@ export const SEO_COPY: Record<AppLanguage, Record<SeoPageKey, SeoCopy>> = {
     home: {
       title: "定制专属信息源 · 内容生产与资讯管线 · rssany",
       description:
-        "RssAny 面向内容生产与资讯工作流，帮你定制网页、RSS、邮件等信源，定时抓取与插件解析后统一入库，再输出 RSS、JSON API 与 MCP，接入创作与分发管线。",
+        "RssAny 面向内容生产与资讯工作流，帮你定制网页、RSS、邮件等信源，定时抓取与采集器解析后统一入库，再输出 RSS、JSON API 与 MCP，接入创作与分发管线。",
       ogImage: "/use-case-zh.png",
       keywords: [
         "RssAny",
@@ -36,7 +36,7 @@ export const SEO_COPY: Record<AppLanguage, Record<SeoPageKey, SeoCopy>> = {
     blog: {
       title: "博客 · RssAny 信息源定制与内容管线",
       description:
-        "RssAny 博客：网页/RSS/邮件信源定制、插件解析、pipeline 加工与 RSS / JSON API / MCP 输出实践。",
+        "RssAny 博客：网页/RSS/邮件信源定制、采集器解析、pipeline 加工与 RSS / JSON API / MCP 输出实践。",
       ogImage: "/use-case-zh.png",
       keywords: [
         "RssAny 博客",
@@ -71,7 +71,7 @@ export const SEO_COPY: Record<AppLanguage, Record<SeoPageKey, SeoCopy>> = {
     blog: {
       title: "Blog · RssAny feed curation & content pipelines",
       description:
-        "RssAny blog: curating web/RSS/email sources, plugin parsing, pipeline enrichment, and RSS / JSON API / MCP publishing.",
+        "RssAny blog: curating web/RSS/email sources, collector parsing, pipeline enrichment, and RSS / JSON API / MCP publishing.",
       ogImage: "/use-case-en.png",
       keywords: [
         "RssAny blog",
@@ -102,7 +102,7 @@ export const FAQ_ITEMS: Record<AppLanguage, FaqItem[]> = {
     {
       question: "支持哪些信源类型？",
       answer:
-        "内置大量 Site 插件（.rssany.js），也支持标准 RSS/Atom 与邮件信源。用户可在 ~/.rssany/plugins 覆盖或扩展插件，并在 config.json 的 sources 中配置刷新间隔与代理。",
+        "内置大量站点采集器（.rssany.js），也支持标准 RSS/Atom 与邮件信源。用户可在 ~/.rssany/collectors 覆盖或扩展采集器，并在 config.json 的 sources 中配置刷新间隔与代理。",
     },
     {
       question: "需要数据库吗？数据存在哪里？",
@@ -112,7 +112,7 @@ export const FAQ_ITEMS: Record<AppLanguage, FaqItem[]> = {
     {
       question: "可以接 LLM 或自动打标签吗？",
       answer:
-        "可以。解析、正文提取、pipeline 中的标签与翻译等步骤可按 config.json 启用，并配置 OpenAI 兼容接口。pipeline 是固定代码链，不是用户插件目录。",
+        "可以。解析、正文提取、pipeline 中的标签与翻译等步骤可按 config.json 启用，并配置 OpenAI 兼容接口。pipeline 是固定代码链，不是用户采集器目录。",
     },
     {
       question: "如何安装与启动？",
@@ -129,7 +129,7 @@ export const FAQ_ITEMS: Record<AppLanguage, FaqItem[]> = {
     {
       question: "Which source types are supported?",
       answer:
-        "Dozens of built-in Site plugins (.rssany.js), standard RSS/Atom feeds, and email sources. Drop custom plugins in ~/.rssany/plugins and tune refresh intervals and proxies in config.json sources.",
+        "Dozens of built-in collectors (.rssany.js), standard RSS/Atom feeds, and email sources. Add custom collectors under ~/.rssany/collectors and tune refresh intervals and proxies in config.json sources.",
     },
     {
       question: "Where is data stored?",
@@ -224,7 +224,7 @@ export function buildHomeJsonLdGraph(options: {
         softwareHelp: `${GITHUB_URL}#readme`,
         featureList: [
           language === "zh-CN" ? "定制网页、RSS、邮件等信息源" : "Curate web, RSS, and email sources",
-          language === "zh-CN" ? "可插拔信源插件" : "Pluggable source plugins",
+          language === "zh-CN" ? "可插拔信源采集器" : "Pluggable source collectors",
           language === "zh-CN" ? "固定 pipeline 打标签与翻译" : "Fixed pipeline for tagging and translation",
           language === "zh-CN" ? "RSS / JSON API / MCP 输出" : "RSS, JSON API, and MCP outputs",
           language === "zh-CN" ? "自托管与 SQLite 本地存储" : "Self-hosted storage with SQLite",

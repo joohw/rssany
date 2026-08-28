@@ -38,7 +38,7 @@
 - 公共类型用 `interface` / `type`，放在同目录 `types.ts` 或与模块同文件（与现有模块一致即可）
 - 避免 `any`，优先 `unknown` 再收窄
 - 异步统一 `async/await`
-- 应用代码以**命名导出**为主；**插件**（`*.rssany.{js,ts}`）必须 **`export default`** 一个符合 `Site` 的对象
+- 应用代码以**命名导出**为主；**采集器**（`*.rssany.{js,ts}`）必须 **`export default`** 一个符合 `Site` 的对象
 
 ### 命名约定
 
@@ -47,8 +47,8 @@
 | 变量 / 函数 | camelCase | `fetchItems`, `cacheKey` |
 | 类 / 接口 | PascalCase | `FeedItem`, `Source` |
 | 常量 | camelCase（非强制 UPPER_SNAKE） | `defaultRefreshInterval` |
-| 文件名 | kebab-case 或 camelCase（与目录内已有风格一致） | `pluginLoader.ts` |
-| 插件文件 | `{id}.rssany.{js,ts}` | `rss.rssany.js` |
+| 文件名 | kebab-case 或 camelCase（与目录内已有风格一致） | `collectorLoader.ts` |
+| 采集器文件 | `{id}.rssany.{js,ts}` | `rss.rssany.js` |
 
 ---
 
@@ -63,7 +63,7 @@
 
 ```
 HTTP / 调度器 → feeder 协调
-  → getSource() → fetchItems()（列表抓取与解析）
+  → getCollector() → fetchItems()（列表采集与解析）
   → upsertItems()（写库、去重）
   → pipeline（固定链，每条一次）→ updateItemContent()
   → buildRssXml() / API 返回

@@ -19,7 +19,7 @@ export type SourceType = "web" | "rss" | "email";
  *              （用户名含 @ 时用 %40 编码；Gmail 需使用「应用专用密码」）
  */
 export interface SubscriptionSource {
-  /** 信源标识符：HTTP(S) URL、imaps?:// 连接串、或插件自定义协议（如 lingowhale://） */
+  /** 信源标识符：HTTP(S) URL、imaps?:// 连接串、或采集器自定义协议（如 lingowhale://） */
   ref: string;
   /** 信源类型（省略时由 getSource 自动识别） */
   type?: SourceType;
@@ -27,11 +27,11 @@ export interface SubscriptionSource {
   label?: string;
   /** 简短描述，用于界面展示信源用途或内容说明 */
   description?: string;
-  /** 单源有效时间窗口覆盖：优先级高于 Source 声明；不填则使用 Source 声明 */
+  /** 单源有效时间窗口覆盖：优先级高于 Collector 声明；不填则使用 Collector 声明 */
   refresh?: RefreshInterval;
   /** 单源 cron 表达式（如 "0 9 * * *" 每天 9:00）；有值时优先于 refresh */
   cron?: string;
-  /** 单源代理覆盖：优先级高于 Source.proxy；不填则使用 Source.proxy 或 env HTTP_PROXY */
+  /** 单源代理覆盖：优先级高于 Collector.proxy；不填则使用 Collector.proxy 或 env HTTP_PROXY */
   proxy?: string;
   /** 信源权重，用于排序与优先级控制；默认 0，值越大优先级越高 */
   weight?: number;

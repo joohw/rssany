@@ -22,7 +22,7 @@ async function readSseEvent(reader, expectedEvent) {
 }
 
 describe("local MCP SSE", () => {
-  it("advertises local plugin mutation support", async () => {
+  it("advertises local collector mutation support", async () => {
     const app = new Hono();
     registerMcpRoutes(app);
     const response = await app.request("/mcp");
@@ -122,12 +122,12 @@ describe("local MCP SSE", () => {
       "query_items",
       "get_item",
       "get_source_stats",
-      "list_plugins",
-      "read_plugin",
-      "write_plugin",
-      "delete_plugin",
+      "list_collectors",
+      "read_collector",
+      "write_collector",
+      "delete_collector",
     ]);
-    expect(tools.find((tool) => tool.name === "write_plugin")?.annotations).toMatchObject({
+    expect(tools.find((tool) => tool.name === "write_collector")?.annotations).toMatchObject({
       readOnlyHint: false,
       destructiveHint: true,
     });

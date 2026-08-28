@@ -1,7 +1,7 @@
 {
   "name": "rssany",
-  "version": "0.4.1",
-  "description": "Universal RSS/Atom/JSON Feed pipeline — fetches, extracts, parses and converts any web content into consumable feeds with plugin support",
+  "version": "0.5.0",
+  "description": "Universal RSS/Atom/JSON Feed pipeline — collectors turn web, feed, API, and email sources into consumable feeds",
   "author": "Joo",
   "homepage": "https://rssany.com",
   "repository": {
@@ -23,8 +23,8 @@
     "dist",
     "bin",
     "scripts/user-dir.mjs",
-    "app/plugins/builtin",
-    "app/plugins/site.rssany.js",
+    "app/collectors/builtin",
+    "app/collectors/site.rssany.js",
     "statics",
     "app/webui-react/dist",
     "skills/rssany",

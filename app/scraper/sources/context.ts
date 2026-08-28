@@ -1,17 +1,17 @@
-import { PLUGIN_HOST_DEPS } from "../../plugins/hostDeps.js";
-import type { SourceContext } from "./types.js";
+import { COLLECTOR_HOST_DEPS } from "../../collectors/hostDeps.js";
+import type { CollectorContext } from "./types.js";
 import { fetchHtml as fetchHtmlFn } from "./web/fetcher/index.js";
 
-/** 构造带 deps 的信源上下文（抓取、preCheck、插件 fetchItems 均须使用） */
-export function buildSourceContext(partial: {
+/** 构造带 deps 的采集器上下文（抓取、preCheck、fetchItems 均须使用） */
+export function buildCollectorContext(partial: {
   cacheDir?: string;
   headless?: boolean;
   proxy?: string;
-}): SourceContext {
+}): CollectorContext {
   const { cacheDir, headless, proxy } = partial;
   return {
     ...partial,
-    deps: PLUGIN_HOST_DEPS,
+    deps: COLLECTOR_HOST_DEPS,
     async fetchHtml(url, opts) {
       const res = await fetchHtmlFn(url, {
         cacheDir,

@@ -354,16 +354,7 @@
   "sites": {},
   "tags": [],
   "pipeline": {
-    "steps": [
-      {
-        "id": "tagger",
-        "enabled": false
-      },
-      {
-        "id": "translator",
-        "enabled": false
-      }
-    ]
+    "steps": []
   },
   "deliver": {
     "gateway": "",

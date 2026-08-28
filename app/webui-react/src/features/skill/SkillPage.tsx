@@ -1,15 +1,16 @@
-import { useEffect, useState } from 'react'
-import type { ReactNode } from 'react'
-import { FileArchive, Server } from 'lucide-react'
+import { useEffect, useMemo, useState } from 'react'
+import type { MouseEvent } from 'react'
+import { marked } from 'marked'
+import { BookOpen } from 'lucide-react'
 import { getSkill, type SkillBundleMetadata } from '@/api/server'
 import { Button } from '@/components/ui/button'
-import { Notice, Page } from '@/components/Page'
 
 export function SkillPage() {
   const [bundle, setBundle] = useState<SkillBundleMetadata | null>(null)
   const [error, setError] = useState('')
   const [loading, setLoading] = useState(true)
   const [copied, setCopied] = useState(false)
+  const [selectedPath, setSelectedPath] = useState('SKILL.md')
 
   const load = async () => {
     setLoading(true)
@@ -27,52 +28,68 @@ export function SkillPage() {
     void load()
   }, [])
 
+  const activeChapter = bundle?.chapters.find(chapter => chapter.path === selectedPath) ?? bundle?.chapters[0]
+  const renderedChapter = useMemo(() => {
+    if (!activeChapter) return ''
+    const markdown = activeChapter.content.replace(/^---\r?\n[\s\S]*?\r?\n---\r?\n/u, '')
+    return marked.parse(markdown, { async: false }) as string
+  }, [activeChapter])
+
   const copy = async () => {
-    if (!bundle) return
-    await navigator.clipboard.writeText(bundle.skill)
+    if (!activeChapter) return
+    await navigator.clipboard.writeText(activeChapter.content)
     setCopied(true)
     setTimeout(() => setCopied(false), 1500)
   }
 
-  const actions = <div className="flex flex-wrap items-center justify-end gap-2">
-    <Button variant="outline" onClick={() => void copy()} disabled={!bundle}>
-      {copied ? '已复制' : '复制 SKILL.md'}
-    </Button>
-    {bundle
-      ? <Button asChild><a href={bundle.downloadUrl} download>下载完整 ZIP</a></Button>
-      : <Button disabled>下载完整 ZIP</Button>}
-  </div>
+  const openMarkdownLink = (event: MouseEvent<HTMLElement>) => {
+    const anchor = (event.target as HTMLElement).closest('a')
+    const href = anchor?.getAttribute('href')
+    if (!href || !bundle) return
+    const target = activeChapter?.path === 'SKILL.md'
+      ? href
+      : `references/${href.replace(/^\.\//u, '')}`
+    if (!bundle.chapters.some(chapter => chapter.path === target)) return
+    event.preventDefault()
+    setSelectedPath(target)
+  }
 
-  return <Page
-    title="RssAny Skill"
-    description="供 Agent 使用的官方操作、MCP、插件开发与排错知识包"
-    actions={actions}
-    className="flex h-full min-h-0 flex-col"
-  >
-    {error && <Notice error>{error}</Notice>}
-
-    {bundle && <div className="flex min-h-0 flex-1 flex-col">
-      <div className="mb-5 grid gap-3 sm:grid-cols-2">
-        <InfoCard icon={<FileArchive />} label="Skill 版本" value={bundle.version} />
-        <InfoCard icon={<Server />} label="本地 MCP" value={`${window.location.origin}/mcp/sse`} />
-      </div>
-
-      <section className="flex min-h-0 flex-1 flex-col">
-        <div className="mb-2 flex items-center justify-between gap-3">
-          <h2 className="text-sm font-semibold">SKILL.md</h2>
-          <span className="text-xs text-muted-foreground">详细内容按需读取 references/</span>
+  return <div className="skill-split">
+    <aside className="skill-chapter-pane">
+      <header className="skill-chapter-header">
+        <div><h1>RssAny Skill</h1><p>供 Agent 使用的操作知识包</p></div>
+      </header>
+      <div className="skill-chapter-heading"><BookOpen aria-hidden="true" /><span>章节</span></div>
+      <nav aria-label="Skill 章节">
+        {bundle?.chapters.map(chapter => <button
+          key={chapter.path}
+          type="button"
+          className={chapter.path === activeChapter?.path ? 'skill-chapter-button skill-chapter-button--active' : 'skill-chapter-button'}
+          onClick={() => setSelectedPath(chapter.path)}
+        >
+          <span>{chapter.title}</span>
+          <small>{chapter.path}</small>
+        </button>)}
+        {loading && !bundle && <p className="skill-pane-state">正在读取…</p>}
+      </nav>
+    </aside>
+    <section className="skill-preview-pane">
+      <header>
+        <div><h2>{activeChapter?.title ?? '预览'}</h2><p>{activeChapter?.path ?? '选择左侧章节'}</p></div>
+        <div className="skill-preview-actions">
+          <Button variant="outline" onClick={() => void copy()} disabled={!activeChapter}>{copied ? '已复制' : '复制本章'}</Button>
+          {bundle
+            ? <Button asChild><a href={bundle.downloadUrl} download>下载 ZIP</a></Button>
+            : <Button disabled>下载 ZIP</Button>}
         </div>
-        <pre className="min-h-0 flex-1 overflow-auto whitespace-pre-wrap rounded-lg border bg-card p-5 text-sm leading-6">{bundle.skill}</pre>
-      </section>
-    </div>}
-
-    {loading && !bundle && <p className="py-16 text-center text-sm text-muted-foreground">正在读取官方 Skill…</p>}
-  </Page>
-}
-
-function InfoCard({ icon, label, value }: { icon: ReactNode; label: string; value: string }) {
-  return <div className="min-w-0 rounded-lg border bg-card p-4">
-    <div className="mb-2 flex items-center gap-2 text-xs text-muted-foreground">{icon}{label}</div>
-    <p className="truncate text-sm font-medium" title={value}>{value}</p>
+      </header>
+      {error
+        ? <p className="skill-pane-state text-destructive" role="alert">{error}</p>
+        : <div
+            className="skill-markdown"
+            onClick={openMarkdownLink}
+            dangerouslySetInnerHTML={{ __html: renderedChapter }}
+          />}
+    </section>
   </div>
 }

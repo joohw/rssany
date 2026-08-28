@@ -1,15 +1,15 @@
-// Feeder：根据 URL 生成 RSS，直接通过 Source 接口驱动，与具体信源解耦
+// Feeder：根据 URL 生成 RSS，直接通过 Collector 接口驱动，与具体采集器解耦
 
 import { cacheKey, cacheKeyFromCron } from "../core/cacher/index.js";
-import { getSource } from "../scraper/sources/index.js";
+import { getCollector } from "../scraper/sources/index.js";
 import { runPipeline } from "../pipeline/index.js";
 import { AuthRequiredError } from "../scraper/auth/index.js";
 import { buildRssXml } from "./rss.js";
 import type { RssChannel, RssEntry } from "./types.js";
 import type { FeedItem } from "../types/feedItem.js";
-import { normalizeAuthor, getEffectiveItemFields, isPipelineDroppedItem, pubDateToIsoOrNull } from "../types/feedItem.js";
+import { normalizeAuthor, getEffectiveItemFields, pubDateToIsoOrNull } from "../types/feedItem.js";
 import type { FeederConfig } from "./types.js";
-import { buildSourceContext } from "../scraper/sources/context.js";
+import { buildCollectorContext } from "../scraper/sources/context.js";
 import { upsertItems, updateItemContent, getSystemTags, deleteItem } from "../db/index.js";
 import { emitFeedUpdated } from "../core/events/index.js";
 import { chatJson, chatText } from "../core/llm.js";
@@ -68,7 +68,7 @@ const pipelineCtx: PipelineContext = {
 };
 
 /** 单条 pipeline */
-async function runPipelineOnItem(item: FeedItem, ctx: { sourceUrl: string }): Promise<FeedItem> {
+async function runPipelineOnItem(item: FeedItem, ctx: { sourceUrl: string }): Promise<FeedItem | null> {
   return runPipeline(item, { ...pipelineCtx, ...ctx });
 }
 
@@ -82,8 +82,8 @@ async function generateAndCache(
 ): Promise<{ items: FeedItem[] }> {
   const { cacheDir = "cache" } = config;
   const headless = resolveHeadlessForFeeder(config);
-  const source = getSource(listUrl);
-  const ctx = buildSourceContext({ cacheDir, headless, proxy });
+  const source = getCollector(listUrl);
+  const ctx = buildCollectorContext({ cacheDir, headless, proxy });
   let items: FeedItem[];
   try {
     items = await source.fetchItems(listUrl, ctx);
@@ -113,18 +113,20 @@ async function generateAndCache(
   newIds = upsertResult.newIds;
 
   let pipelineDroppedNew = 0;
+  const pipelineDroppedGuids = new Set<string>();
   const shouldRunPipelineRow = (guid: string) => newIds.has(guid);
 
   for (let i = 0; i < items.length; i++) {
     if (!shouldRunPipelineRow(items[i].guid)) continue;
     const processed = await runPipelineOnItem(items[i], { sourceUrl: sourceRefStored });
-    items[i] = processed;
-    if (isPipelineDroppedItem(processed)) {
-      await deleteItem(processed.guid).catch((err) =>
+    if (!processed) {
+      pipelineDroppedGuids.add(items[i].guid);
+      await deleteItem(items[i].guid).catch((err) =>
         logger.warn("db", "质量过滤后删除条目失败", { source_url: listUrl, err: err instanceof Error ? err.message : String(err) })
       );
       pipelineDroppedNew++;
     } else {
+      items[i] = processed;
       updateItemContent(processed).catch((err) =>
         logger.warn("db", "updateItemContent 失败", { source_url: listUrl, err: err instanceof Error ? err.message : String(err) })
       );
@@ -133,7 +135,7 @@ async function generateAndCache(
   if (newCount > 0) {
     emitFeedUpdated({ sourceUrl: sourceRefStored, newCount: newCount - pipelineDroppedNew });
   }
-  const out = items.filter((i) => !isPipelineDroppedItem(i));
+  const out = items.filter((item) => !pipelineDroppedGuids.has(item.guid));
   if (deliverGateways.length > 0 && out.length > 0) {
     await Promise.all(
       deliverGateways.map((gateway) =>
@@ -151,7 +153,7 @@ async function generateAndCache(
 export async function crawlSource(listUrl: string, config: FeederConfig = {}): Promise<{ items: FeedItem[] }> {
   beginSourcePull(listUrl);
   try {
-    const source = getSource(listUrl);
+    const source = getCollector(listUrl);
     const proxy = await getEffectiveProxyForListUrl(listUrl, source);
     const headless = resolveHeadlessForFeeder(config);
     const key = config.cron
@@ -159,7 +161,7 @@ export async function crawlSource(listUrl: string, config: FeederConfig = {}): P
       : cacheKey(listUrl, config.refreshInterval ?? source.refreshInterval ?? "1day");
     if (source.preCheck != null) {
       await source.preCheck(
-        buildSourceContext({
+        buildCollectorContext({
           cacheDir: config.cacheDir ?? "cache",
           headless,
           proxy,
