@@ -1,6 +1,6 @@
 {
   "name": "rssany",
-  "version": "0.5.1",
+  "version": "0.5.3",
   "description": "Universal RSS/Atom/JSON Feed pipeline — collectors turn web, feed, API, and email sources into consumable feeds",
   "author": "Joo",
   "homepage": "https://rssany.com",

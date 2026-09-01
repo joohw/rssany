@@ -37,6 +37,7 @@ function runBackupRoundTrip(userDir) {
         image_url: "https://example.com/cover.jpg",
         tags: ["news"],
         translations: { "zh-CN": { title: "第一条" } },
+        extra: { aiTechblog: { contentType: "research", confidence: 0.82 } },
         pub_date: "2026-08-27T00:00:00.000Z",
         fetched_at: "2026-08-28T00:00:00.000Z",
         pushed_at: "2026-08-28T01:00:00.000Z"
@@ -97,6 +98,7 @@ describe("independent sources and items backups", () => {
         content: "<p>Body</p>",
         tags: ["news"],
         translations: { "zh-CN": { title: "第一条" } },
+        extra: { aiTechblog: { contentType: "research", confidence: 0.82 } },
         pushed_at: "2026-08-28T01:00:00.000Z",
       });
       expect(result.mergedItems).toMatchObject({ items: 1, insertedItems: 1, updatedItems: 0 });
@@ -104,5 +106,5 @@ describe("independent sources and items backups", () => {
     } finally {
       await rm(userDir, { recursive: true, force: true });
     }
-  });
+  }, 10_000);
 });

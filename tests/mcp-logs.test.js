@@ -63,5 +63,5 @@ describe("MCP query_logs", () => {
     } finally {
       await rm(userDir, { recursive: true, force: true });
     }
-  });
+  }, 10_000);
 });

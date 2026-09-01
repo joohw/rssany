@@ -88,13 +88,14 @@ export async function listPipelineSummaries(): Promise<PipelineSummary[]> {
 }
 
 /** 根据配置解析出要执行的步骤（按配置顺序，仅启用且存在的） */
-async function getResolvedSteps(): Promise<PipelineDefinition[]> {
+async function getResolvedSteps(stepIds?: string[]): Promise<PipelineDefinition[]> {
   await ensurePipelinesLoaded();
-  const config = await loadPipelineConfig();
+  const configuredIds = stepIds ?? (await loadPipelineConfig()).steps.map((step) => step.id);
   const out: PipelineDefinition[] = [];
-  for (const { id } of config.steps) {
+  for (const id of configuredIds) {
     const step = registry.get(id);
     if (!step) {
+      if (stepIds) throw new Error(`未知 Pipeline: ${id}`);
       logger.debug("pipeline", "未知步骤已跳过", { id });
       continue;
     }
@@ -108,9 +109,10 @@ async function getResolvedSteps(): Promise<PipelineDefinition[]> {
  */
 export async function runPipeline(
   item: FeedItem,
-  ctx: PipelineContext
+  ctx: PipelineContext,
+  stepIds?: string[],
 ): Promise<FeedItem | null> {
-  const steps = await getResolvedSteps();
+  const steps = await getResolvedSteps(stepIds);
   let current = item;
   for (const step of steps) {
     try {

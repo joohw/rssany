@@ -4,6 +4,9 @@ import { getConnInfo } from "@hono/node-server/conninfo";
 import type { Context, Hono } from "hono";
 import { loadPipelineConfig, savePipelineConfig } from "../../../pipeline/config.js";
 import { listPipelineSummaries, reloadUserPipelines } from "../../../pipeline/index.js";
+import { rerunPipeline } from "../../../pipeline/reprocess.js";
+import * as taskStore from "../../../tasks/index.js";
+import * as scheduler from "../../../scheduler/index.js";
 import {
   deleteManagedPipeline,
   PipelineManagementError,
@@ -13,6 +16,8 @@ import {
 } from "../../../pipeline/management.js";
 
 type StepInput = { id: string; enabled?: boolean };
+const PIPELINE_RUN_GROUP = "pipeline-run";
+const PIPELINE_RUN_MAX_ITEMS = 500;
 
 function parseSteps(rawSteps: unknown[]): Array<{ id: string }> {
   const seen = new Set<string>();
@@ -59,6 +64,14 @@ function managementError(c: Context, error: unknown) {
   return c.json({ error: error instanceof Error ? error.message : String(error) }, 500);
 }
 
+function parseOptionalDate(value: unknown, field: string): Date | undefined {
+  if (value == null || value === "") return undefined;
+  if (typeof value !== "string") throw new Error(`${field} 必须是 ISO 日期字符串`);
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) throw new Error(`${field} 不是有效日期`);
+  return date;
+}
+
 export function registerPipelineRoutes(app: Hono): void {
   app.get("/api/pipeline", async (c) => {
     await reloadUserPipelines();
@@ -82,6 +95,63 @@ export function registerPipelineRoutes(app: Hono): void {
       if (unknown) return c.json({ error: `未知 Pipeline: ${unknown.id}` }, 400);
       await savePipelineConfig({ steps });
       return c.json({ ok: true, steps });
+    } catch (error) {
+      return c.json({ error: error instanceof Error ? error.message : String(error) }, 400);
+    }
+  });
+
+  app.post("/api/pipeline/run", async (c) => {
+    const denied = requireLocalRequest(c);
+    if (denied) return denied;
+    try {
+      const body = await c.req.json<{
+        itemIds?: unknown;
+        sourceRef?: unknown;
+        since?: unknown;
+        until?: unknown;
+        limit?: unknown;
+        stepIds?: unknown;
+      }>();
+      const itemIds = Array.isArray(body.itemIds)
+        ? [...new Set(body.itemIds.filter((id): id is string => typeof id === "string").map((id) => id.trim()).filter(Boolean))]
+        : [];
+      const sourceRef = typeof body.sourceRef === "string" ? body.sourceRef.trim() : "";
+      if ((itemIds.length > 0) === Boolean(sourceRef)) {
+        return c.json({ error: "必须且只能提供 itemIds 或 sourceRef" }, 400);
+      }
+      if (itemIds.length > PIPELINE_RUN_MAX_ITEMS) {
+        return c.json({ error: `itemIds 最多 ${PIPELINE_RUN_MAX_ITEMS} 条` }, 400);
+      }
+      const requestedLimit = typeof body.limit === "number" && Number.isFinite(body.limit) ? Math.floor(body.limit) : 100;
+      const limit = Math.max(1, Math.min(PIPELINE_RUN_MAX_ITEMS, requestedLimit));
+      const stepIds = Array.isArray(body.stepIds)
+        ? [...new Set(body.stepIds.filter((id): id is string => typeof id === "string").map((id) => id.trim()).filter(Boolean))]
+        : undefined;
+      if (Array.isArray(body.stepIds) && (!stepIds || stepIds.length === 0)) {
+        return c.json({ error: "stepIds 不能为空数组" }, 400);
+      }
+      if (stepIds) {
+        const availableIds = new Set((await listPipelineSummaries()).map((pipeline) => pipeline.id));
+        const unknown = stepIds.find((id) => !availableIds.has(id));
+        if (unknown) return c.json({ error: `未知 Pipeline: ${unknown}` }, 400);
+      }
+      const since = parseOptionalDate(body.since, "since");
+      const until = parseOptionalDate(body.until, "until");
+      if (since && until && since >= until) return c.json({ error: "since 必须早于 until" }, 400);
+
+      const taskId = taskStore.createTask();
+      scheduler.schedule(PIPELINE_RUN_GROUP, taskId, async () => {
+        taskStore.setTaskRunning(taskId);
+        try {
+          const result = await rerunPipeline({ itemIds, sourceRef, since, until, limit, stepIds });
+          taskStore.setTaskDone(taskId, result);
+        } catch (error) {
+          const message = error instanceof Error ? error.message : String(error);
+          taskStore.setTaskError(taskId, message);
+          throw error;
+        }
+      }, { concurrency: 1 }).catch(() => {});
+      return c.json({ taskId, limit, stepIds: stepIds ?? null }, 202);
     } catch (error) {
       return c.json({ error: error instanceof Error ? error.message : String(error) }, 400);
     }

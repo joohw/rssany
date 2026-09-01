@@ -173,6 +173,17 @@ function toDbItem(row: Record<string, unknown>): DbItem {
     }
   };
   const tags = parseJsonArr(row.tags);
+  let extra: Record<string, unknown> | null = null;
+  try {
+    if (row.extra && typeof row.extra === "string") {
+      const parsed = JSON.parse(row.extra) as unknown;
+      if (parsed && typeof parsed === "object" && !Array.isArray(parsed)) {
+        extra = parsed as Record<string, unknown>;
+      }
+    }
+  } catch {
+    /* ignore */
+  }
   let translations: Record<string, { title?: string; summary?: string; content?: string }> | null = null;
   try {
     if (row.translations && typeof row.translations === "string") {
@@ -182,7 +193,7 @@ function toDbItem(row: Record<string, unknown>): DbItem {
   } catch {
     /* ignore */
   }
-  return { ...row, author, tags, translations } as DbItem;
+  return { ...row, author, tags, translations, extra } as DbItem;
 }
 
 function mapRowsToDbItems(rows: Record<string, unknown>[]): DbItem[] {
@@ -282,6 +293,7 @@ function initSchema(db: DatabaseSync): void {
       image_url   TEXT,
       tags        TEXT,
       translations TEXT,
+      extra       TEXT,
       pub_date    TEXT,
       fetched_at  TEXT NOT NULL,
       pushed_at   TEXT
@@ -360,6 +372,7 @@ function ensureItemsColumns(db: DatabaseSync): void {
     ["image_url", "TEXT"],
     ["tags", "TEXT"],
     ["translations", "TEXT"],
+    ["extra", "TEXT"],
     ["pushed_at", "TEXT"],
   ] as const;
   const missing = additions.filter(([name]) => !existing.has(name));
@@ -415,8 +428,8 @@ export async function upsertItems(items: FeedItem[], sourceUrlOverride?: string)
     const newIds = new Set<string>();
 
     const insertStmt = db.prepare(`
-      INSERT OR IGNORE INTO items (id, url, source_url, title, author, summary, image_url, tags, pub_date, fetched_at)
-      VALUES (@id, @url, @sourceUrl, @title, @author, @summary, @imageUrl, @tags, @pubDate, @fetchedAt)
+      INSERT OR IGNORE INTO items (id, url, source_url, title, author, summary, image_url, tags, extra, pub_date, fetched_at)
+      VALUES (@id, @url, @sourceUrl, @title, @author, @summary, @imageUrl, @tags, @extra, @pubDate, @fetchedAt)
     `);
     const selectExistingStmt = db.prepare(`
       SELECT title, author, summary, image_url, pub_date, fetched_at
@@ -435,6 +448,7 @@ export async function upsertItems(items: FeedItem[], sourceUrlOverride?: string)
       const nextAuthor = nextAuthorArr?.length ? JSON.stringify(nextAuthorArr) : null;
       const nextPubDate = pubDateToIsoOrNull(item.pubDate);
       const nextTags = item.tags?.length ? JSON.stringify(item.tags) : null;
+      const nextExtra = item.extra && Object.keys(item.extra).length > 0 ? JSON.stringify(item.extra) : null;
       const rawImageUrl = item.imageUrl ?? item.coverImg ?? item.cover_img;
       const nextImageUrl = typeof rawImageUrl === "string" && rawImageUrl.trim() ? rawImageUrl.trim() : null;
 
@@ -447,6 +461,7 @@ export async function upsertItems(items: FeedItem[], sourceUrlOverride?: string)
         summary: nextSummary,
         imageUrl: nextImageUrl,
         tags: nextTags,
+        extra: nextExtra,
         pubDate: nextPubDate,
         fetchedAt: now,
       });
@@ -534,7 +549,8 @@ export async function updateItemContent(item: FeedItem): Promise<void> {
         author = COALESCE(@author, author),
         pub_date = COALESCE(@pubDate, pub_date),
         tags = @tags,
-        translations = COALESCE(@translations, translations)
+        translations = COALESCE(@translations, translations),
+        extra = COALESCE(@extra, extra)
       WHERE id = @id
     `).run({
       id: item.guid,
@@ -547,6 +563,7 @@ export async function updateItemContent(item: FeedItem): Promise<void> {
       pubDate: pubDateToIsoOrNull(item.pubDate),
       tags: item.tags?.length ? JSON.stringify(item.tags) : null,
       translations: item.translations && Object.keys(item.translations).length > 0 ? JSON.stringify(item.translations) : null,
+      extra: item.extra && Object.keys(item.extra).length > 0 ? JSON.stringify(item.extra) : null,
     });
   });
 }
@@ -640,7 +657,7 @@ export async function queryItems(opts: {
   const sqlParams = params as unknown as Record<string, string | number | null>;
   const rows = db
     .prepare(`
-      SELECT i.id, i.url, i.source_url, i.title, i.author, i.summary, i.content, i.image_url, i.tags, i.translations, i.pub_date, i.fetched_at, i.pushed_at
+      SELECT i.id, i.url, i.source_url, i.title, i.author, i.summary, i.content, i.image_url, i.tags, i.translations, i.extra, i.pub_date, i.fetched_at, i.pushed_at
       FROM items i ${where}
       ORDER BY COALESCE(i.pub_date, i.fetched_at) DESC
       LIMIT ${limit} OFFSET ${offset}
@@ -654,13 +671,47 @@ export async function queryItems(opts: {
   })), total: count };
 }
 
+/** Pipeline 重跑后覆盖可变内容字段；输入由完整 DB 条目构造，因此允许步骤显式清空字段。 */
+export async function updateItemAfterPipeline(item: FeedItem): Promise<void> {
+  return withWriteLock(async () => {
+    const db = await getDb();
+    const rawImageUrl = item.imageUrl ?? item.coverImg ?? item.cover_img;
+    const imageUrl = typeof rawImageUrl === "string" && rawImageUrl.trim() ? rawImageUrl.trim() : null;
+    const authors = normalizeAuthor(item.author);
+    db.prepare(`
+      UPDATE items SET
+        title = @title,
+        summary = @summary,
+        content = @content,
+        image_url = @imageUrl,
+        author = @author,
+        pub_date = @pubDate,
+        tags = @tags,
+        translations = @translations,
+        extra = @extra
+      WHERE id = @id
+    `).run({
+      id: item.guid,
+      title: item.title || null,
+      summary: item.summary ?? null,
+      content: item.content ?? null,
+      imageUrl,
+      author: authors?.length ? JSON.stringify(authors) : null,
+      pubDate: pubDateToIsoOrNull(item.pubDate),
+      tags: item.tags?.length ? JSON.stringify(item.tags) : null,
+      translations: item.translations && Object.keys(item.translations).length > 0 ? JSON.stringify(item.translations) : null,
+      extra: item.extra && Object.keys(item.extra).length > 0 ? JSON.stringify(item.extra) : null,
+    });
+  });
+}
+
 /** 导出条目库中的全部字段，供版本化备份使用。 */
 export async function exportAllItems(): Promise<DbItem[]> {
   const db = await getDb();
   const rows = db
     .prepare(`
       SELECT id, url, source_url, title, author, summary, content, image_url, tags,
-             translations, pub_date, fetched_at, pushed_at
+             translations, extra, pub_date, fetched_at, pushed_at
       FROM items
       ORDER BY fetched_at ASC, id ASC
     `)
@@ -686,10 +737,10 @@ export async function importAllItems(
     const insert = db.prepare(`
       INSERT INTO items (
         id, url, source_url, title, author, summary, content, image_url, tags,
-        translations, pub_date, fetched_at, pushed_at
+        translations, extra, pub_date, fetched_at, pushed_at
       ) VALUES (
         @id, @url, @sourceUrl, @title, @author, @summary, @content, @imageUrl, @tags,
-        @translations, @pubDate, @fetchedAt, @pushedAt
+        @translations, @extra, @pubDate, @fetchedAt, @pushedAt
       )
     `);
 
@@ -717,6 +768,7 @@ export async function importAllItems(
           imageUrl: item.image_url,
           tags: item.tags?.length ? JSON.stringify(item.tags) : null,
           translations: item.translations ? JSON.stringify(item.translations) : null,
+          extra: item.extra ? JSON.stringify(item.extra) : null,
           pubDate: item.pub_date,
           fetchedAt: item.fetched_at,
           pushedAt: item.pushed_at,
@@ -1065,6 +1117,7 @@ export interface DbItem {
   image_url: string | null;
   tags: string[] | null;
   translations: Record<string, { title?: string; summary?: string; content?: string }> | null;
+  extra: Record<string, unknown> | null;
   pub_date: string | null;
   fetched_at: string;
   pushed_at: string | null;

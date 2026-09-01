@@ -147,6 +147,12 @@ function parseTranslations(value: unknown, field: string): DbItem["translations"
   return value as DbItem["translations"];
 }
 
+function parseExtra(value: unknown, field: string): DbItem["extra"] {
+  if (value === undefined || value === null) return null;
+  if (!isRecord(value)) throw new Error(`${field} 必须是对象或 null`);
+  return value;
+}
+
 function parseItem(value: unknown, index: number): DbItem {
   if (!isRecord(value)) throw new Error(`items[${index}] 必须是对象`);
   return {
@@ -160,6 +166,7 @@ function parseItem(value: unknown, index: number): DbItem {
     image_url: nullableString(value.image_url, `items[${index}].image_url`),
     tags: parseStringArray(value.tags, `items[${index}].tags`),
     translations: parseTranslations(value.translations, `items[${index}].translations`),
+    extra: parseExtra(value.extra, `items[${index}].extra`),
     pub_date: nullableString(value.pub_date, `items[${index}].pub_date`),
     fetched_at: requiredString(value.fetched_at, `items[${index}].fetched_at`),
     pushed_at: nullableString(value.pushed_at, `items[${index}].pushed_at`),

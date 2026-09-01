@@ -14,6 +14,8 @@ function runPipelineScenario(userDir) {
       import { initUserDir } from "./app/config/paths.ts";
       import { registerPipelineRoutes } from "./app/router/routes/api/pipeline.ts";
       import { reloadUserPipelines, runPipeline } from "./app/pipeline/index.ts";
+      import { getItemById, upsertItems } from "./app/db/index.ts";
+      import { getTask } from "./app/tasks/index.ts";
 
       const app = new Hono();
       registerPipelineRoutes(app);
@@ -64,6 +66,24 @@ function runPipelineScenario(userDir) {
       const dropItem = { guid: "drop", title: "drop", link: "https://example.com/drop", pubDate: new Date() };
       const processedFirst = await runPipeline(item, {});
       const processedDrop = await runPipeline(dropItem, {});
+      await upsertItems([
+        { ...item, sourceRef: "https://example.com/feed" },
+        { ...dropItem, sourceRef: "https://example.com/feed" },
+      ]);
+      const rerunResponse = await request("/api/pipeline/run", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ itemIds: ["keep", "drop", "missing"], stepIds: ["pipeline-api-test"] }),
+      });
+      const rerunAccepted = await rerunResponse.json();
+      let rerunTask;
+      for (let attempt = 0; attempt < 100; attempt += 1) {
+        rerunTask = getTask(rerunAccepted.taskId);
+        if (rerunTask?.status === "done" || rerunTask?.status === "error") break;
+        await new Promise((resolve) => setTimeout(resolve, 10));
+      }
+      const rerunKeep = await getItemById("keep");
+      const rerunDrop = await getItemById("drop");
 
       const invalidUpdateResponse = await request("/api/pipelines/pipeline-api-test", {
         method: "PUT",
@@ -92,6 +112,10 @@ function runPipelineScenario(userDir) {
         arrangeStatus: arrangeResponse.status,
         firstTitle: processedFirst?.title,
         dropResult: processedDrop,
+        rerunStatus: rerunResponse.status,
+        rerunTask,
+        rerunKeepTitle: rerunKeep?.title,
+        rerunDrop,
         invalidUpdateStatus: invalidUpdateResponse.status,
         rollbackPreserved: afterRollback.content.includes('"first:"'),
         updateStatus: updateResponse.status,
@@ -138,6 +162,13 @@ describe("pipeline management", () => {
         arrangeStatus: 200,
         firstTitle: "first:keep",
         dropResult: null,
+        rerunStatus: 202,
+        rerunTask: {
+          status: "done",
+          result: { selected: 2, processed: 2, updated: 1, dropped: 1, missing: 1, stepIds: ["pipeline-api-test"] },
+        },
+        rerunKeepTitle: "first:keep",
+        rerunDrop: null,
         invalidUpdateStatus: 422,
         rollbackPreserved: true,
         updateStatus: 200,

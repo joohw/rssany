@@ -29,9 +29,11 @@ export default {
 
 建议保留条目的 `guid`、`link`、`sourceRef`；这些字段用于入库与去重。步骤抛出异常时，运行器记录警告并保留进入该步骤前的条目。
 
+`item.extra` 用于 Pipeline 间共享和持久化结构化扩展数据，并会随条目通过数据库、JSON API、备份与投递链路传递。各 Pipeline 应使用独立命名空间（如 `item.extra.myPipeline`），合并已有对象而不是覆盖整个 `extra`。需要作为查询条件的高频扁平信号仍应同时写入 `item.tags`。
+
 ## HTTP API
 
-上传与源码管理会执行任意 Node.js 代码，因此 `POST`、源码 `GET`、`PUT`、`DELETE` 和校验接口只接受本机 socket 连接；带 `Origin` 的浏览器请求还必须来自 `localhost`、`127.0.0.1` 或 `::1`，防止外部网页借开放 CORS 调用本机接口。列表与编排接口可正常供 WebUI 使用。
+上传、源码管理与重跑会执行任意 Node.js 代码，因此相关接口只接受本机 socket 连接；带 `Origin` 的浏览器请求还必须来自 `localhost`、`127.0.0.1` 或 `::1`，防止外部网页借开放 CORS 调用本机接口。列表与编排接口可正常供 WebUI 使用。
 
 | 方法 | 路径 | 作用 |
 |------|------|------|
@@ -43,6 +45,7 @@ export default {
 | `DELETE` | `/api/pipelines/:id` | 删除用户 Pipeline，并从编排移除 |
 | `GET` | `/api/pipeline` | 获取当前编排和可用 Pipeline |
 | `PUT` | `/api/pipeline` | 保存 `{ steps: [{ id }] }` 编排 |
+| `POST` | `/api/pipeline/run` | 为已有条目创建异步重跑任务，返回 `taskId` |
 
 上传示例：
 
@@ -53,3 +56,28 @@ curl -X POST http://127.0.0.1:18473/api/pipelines \
 ```
 
 写入采用临时文件和原子替换。新代码无法导入、导出字段无效或导出 `id` 不一致时，API 返回 `422` 并恢复先前文件。上传成功后注册表立即刷新，无需重启服务。
+
+## 重跑已有条目
+
+正常抓取只对本次新入库条目执行当前编排。强制重新抓取不会让数据库中的旧条目再次进入 Pipeline；需要回填或重算 `extra`、标签、译文等字段时，调用 `POST /api/pipeline/run`。
+
+请求必须且只能选择一种范围：
+
+- `itemIds`：条目 guid 数组。
+- `sourceRef`：信源标识；可搭配 `since`、`until` 和 `limit`。日期为 ISO 字符串，默认 `limit` 为 100，上限为 500。
+
+`stepIds` 可选。省略时按当前全局编排执行；指定后只按给出的顺序执行这些步骤，适合为某个消费流程单独回填预处理字段。返回 `null` 的步骤仍会删除条目，因此调用前应确认步骤语义。
+
+```http
+POST /api/pipeline/run
+Content-Type: application/json
+
+{
+  "sourceRef": "https://example.com/feed",
+  "since": "2026-08-01T00:00:00Z",
+  "limit": 100,
+  "stepIds": ["aiTechblogPrefilter"]
+}
+```
+
+接口返回 `202` 和 `{ taskId, limit, stepIds }`。通过 `GET /api/tasks/:id` 轮询；完成结果包含 `selected`、`processed`、`updated`、`dropped`、`missing` 和实际选择的 `stepIds`。同一时刻只运行一个重跑任务，避免多个 LLM 批次争用本机服务。

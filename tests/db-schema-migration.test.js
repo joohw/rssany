@@ -81,6 +81,7 @@ describe("database schema migration", () => {
         "image_url",
         "tags",
         "translations",
+        "extra",
         "pushed_at",
       ]));
       expect(result).toMatchObject({
@@ -90,6 +91,7 @@ describe("database schema migration", () => {
           title: "Legacy item",
           tags: null,
           translations: null,
+          extra: null,
         },
       });
     } finally {
