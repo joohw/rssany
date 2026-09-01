@@ -2,8 +2,10 @@
 
 import Link from "next/link";
 import { useTranslation } from "react-i18next";
+import { HomeFooter } from "@/components/home/footer";
 import { blogPathname, type BlogPostMeta } from "@/lib/blog-data";
 import { localizedPath, type AppLanguage } from "@/i18n/config";
+import styles from "./blog-index-content.module.css";
 
 type BlogIndexContentProps = {
   language: AppLanguage;
@@ -14,35 +16,38 @@ export function BlogIndexContent({ language, posts }: BlogIndexContentProps) {
   const { t } = useTranslation();
 
   return (
-    <div className="page-wrap relative">
-      <div className="page-content page-content--with-bottom relative z-[1] mx-auto max-w-6xl px-5 sm:px-6">
-        <h1 className="text-3xl font-bold tracking-tight text-foreground sm:text-4xl">{t("blog.indexTitle")}</h1>
-        <p className="mt-3 max-w-2xl text-base leading-relaxed text-muted-foreground">{t("blog.indexSubtitle")}</p>
+    <div className={styles.blogRoot}>
+      <main className={styles.blogFrame}>
+        <header className={styles.blogHeader}>
+          <h1>{t("blog.indexTitle")}</h1>
+          <p>{t("blog.indexSubtitle")}</p>
+        </header>
 
         {posts.length === 0 ? (
-          <p className="mt-10 text-sm text-muted-foreground">{t("blog.empty")}</p>
+          <p className={styles.emptyState}>{t("blog.empty")}</p>
         ) : (
-          <div className="mt-10 grid grid-cols-1 gap-4 sm:grid-cols-2">
-            {posts.map((post) => (
+          <div className={styles.postList}>
+            {posts.map((post, index) => (
               <Link
                 key={post.slug}
                 href={localizedPath(language, blogPathname(post.slug))}
-                className="group rounded-lg border border-border/60 bg-background p-5 transition-colors hover:border-border hover:bg-muted/20"
+                className={styles.postRow}
               >
-                {post.date ? (
-                  <time dateTime={post.date} className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
-                    {post.date}
-                  </time>
-                ) : null}
-                <h2 className="mt-2 font-semibold text-foreground group-hover:underline">{post.title}</h2>
-                {post.description ? (
-                  <p className="mt-2 line-clamp-3 text-sm leading-relaxed text-muted-foreground">{post.description}</p>
-                ) : null}
+                <div className={styles.postMeta}>
+                  <span>{String(index + 1).padStart(2, "0")}</span>
+                  {post.date ? <time dateTime={post.date}>{post.date}</time> : null}
+                </div>
+                <div className={styles.postCopy}>
+                  <h2>{post.title}</h2>
+                  {post.description ? <p>{post.description}</p> : null}
+                </div>
+                <span className={styles.postArrow} aria-hidden="true">↗</span>
               </Link>
             ))}
           </div>
         )}
-      </div>
+      </main>
+      <HomeFooter />
     </div>
   );
 }

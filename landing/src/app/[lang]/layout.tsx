@@ -1,4 +1,5 @@
 import { notFound } from "next/navigation";
+import { Outfit } from "next/font/google";
 import { AppShell } from "@/components/app-shell";
 import { I18nProvider } from "@/components/i18n-provider";
 import { ServerScripts } from "@/components/server-scripts";
@@ -7,6 +8,12 @@ import { isAppLanguage, SUPPORTED_LANGUAGES } from "@/i18n/config";
 import { buildSiteJsonLdGraph } from "@/lib/seo";
 import { PUBLIC_SITE_URL } from "@/lib/site";
 import "../globals.css";
+
+const outfit = Outfit({
+  variable: "--font-outfit",
+  subsets: ["latin"],
+  display: "swap",
+});
 
 export const dynamicParams = false;
 
@@ -28,7 +35,7 @@ export default async function LanguageLayout({
   const jsonLdScript = JSON.stringify(jsonLd).replace(/</g, "\\u003c");
 
   return (
-    <html lang={lang} suppressHydrationWarning className="h-full antialiased">
+    <html lang={lang} suppressHydrationWarning className={`${outfit.variable} h-full antialiased`}>
       <body className="min-h-full flex flex-col">
         <ServerScripts jsonLd={jsonLdScript} />
         <I18nProvider language={lang}>

@@ -9,18 +9,18 @@ export function HomeFaq() {
   const items = FAQ_ITEMS[language];
 
   return (
-    <section id="faq" className="relative z-[1] border-t border-border/40 px-5 py-12 sm:px-6 md:py-16">
-      <div className="mx-auto max-w-6xl">
+    <section id="faq" className="relative z-[1] px-4 py-14 sm:px-5 md:py-20">
+      <div className="mx-auto max-w-[78rem] border-t border-border px-4 pt-10 sm:px-6 md:pt-14">
         <h2 className="text-2xl font-bold tracking-tight text-foreground md:text-3xl">
           {language === "en" ? "FAQ" : "常见问题"}
         </h2>
         <p className="mt-2 max-w-2xl text-sm leading-relaxed text-muted-foreground sm:text-base">
           {language === "en"
-            ? "Quick answers about RssAny, sources, storage, and installation."
-            : "关于 RssAny、信源类型、数据存储与安装的常见问题。"}
+            ? "A few things you may want to know before getting started."
+            : "开始使用前，你可能关心的几个问题。"}
         </p>
 
-        <dl className="mt-8 divide-y divide-border/60 rounded-lg border border-border/60">
+        <dl className="-mx-4 mt-8 divide-y divide-border border border-border sm:-mx-6">
           {items.map((item) => (
             <div key={item.question} className="px-5 py-5 sm:px-6">
               <dt className="font-semibold text-foreground">{item.question}</dt>

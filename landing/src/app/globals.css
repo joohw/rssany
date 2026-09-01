@@ -11,7 +11,7 @@
   --border: oklch(0.922 0 0);
   --app-primary-surface-bg: var(--card);
   --main-padding-top: 1.5rem;
-  --app-header-height: 3.5rem;
+  --app-header-height: 5rem;
   --app-header-float-top: 1.25rem;
   --app-header-float-gap: 0rem;
   --app-main-padding-top: calc(
@@ -130,6 +130,11 @@ body {
   margin: 0;
 }
 
+::selection {
+  background-color: var(--foreground);
+  color: var(--background);
+}
+
 a {
   color: inherit;
   text-decoration: none;
@@ -137,6 +142,11 @@ a {
 
 a:visited {
   color: inherit;
+}
+
+a.header-download-button,
+a.header-download-button:visited {
+  color: var(--background);
 }
 
 .app-shell {
@@ -216,6 +226,26 @@ a:visited {
   color: var(--foreground);
 }
 
+.header-wordmark {
+  display: inline-flex;
+  align-items: baseline;
+  color: var(--foreground);
+  font-family: var(--font-outfit), ui-sans-serif, system-ui, sans-serif;
+  font-size: 0.92rem;
+  font-weight: 700;
+  letter-spacing: 0.075em;
+  line-height: 1;
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+
+.header-frame {
+  width: min(calc(100% - 2.5rem), 78rem);
+  border-right: 1px solid var(--border);
+  border-bottom: 1px solid var(--border);
+  border-left: 1px solid var(--border);
+}
+
 @media (max-width: 639px) {
   .header-brand {
     margin-right: 0.25rem;
@@ -224,6 +254,10 @@ a:visited {
 
   .header-brand-wordmark {
     display: none;
+  }
+
+  .header-frame {
+    width: calc(100% - 2rem);
   }
 }
 

@@ -1,0 +1,453 @@
+.homeRoot {
+  --home-max: 78rem;
+  position: relative;
+  overflow: clip;
+  background: var(--background);
+}
+
+.homeRoot::before,
+.homeRoot::after {
+  content: "";
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  z-index: 5;
+  width: 1px;
+  background: rgb(128 128 128 / 0.28);
+  pointer-events: none;
+}
+
+.homeRoot::before {
+  left: max(1.25rem, calc(50% - 39rem));
+}
+
+.homeRoot::after {
+  right: max(1.25rem, calc(50% - 39rem));
+}
+
+.hero {
+  position: relative;
+  min-height: calc(100svh - var(--app-header-height));
+  display: flex;
+  align-items: center;
+  padding: clamp(4.75rem, 10vh, 7rem) 0 0;
+}
+
+.hero::after,
+.story::after {
+  content: "";
+  position: absolute;
+  right: 50%;
+  bottom: 0;
+  width: min(calc(100% - 2.5rem), var(--home-max));
+  height: 1px;
+  transform: translateX(50%);
+  background: var(--border);
+}
+
+.heroInner,
+.storyInner,
+.capabilities,
+.launchSection {
+  width: min(calc(100% - 2.5rem), var(--home-max));
+  margin-inline: auto;
+}
+
+.heroInner {
+  --hero-pad: clamp(1.25rem, 3vw, 2.5rem);
+  padding: 0 var(--hero-pad);
+}
+
+.announcement {
+  width: fit-content;
+  display: flex;
+  align-items: center;
+  gap: 1.25rem;
+  color: var(--muted-foreground);
+  font-family: var(--font-mono);
+  font-size: 0.72rem;
+  line-height: 1.4;
+}
+
+.announcement span:first-child {
+  padding: 0.27rem 0.42rem;
+  background: var(--foreground);
+  color: var(--background);
+}
+
+.announcement span:last-child { opacity: 0.56; }
+.announcement:hover span:last-child { opacity: 1; }
+
+.heroCopy { margin-top: clamp(1.5rem, 3vw, 2.5rem); }
+
+.heroCopy h1,
+.storyIntro h2,
+.sectionHeading h2,
+.launchCopy h2 {
+  margin: 0;
+  color: var(--foreground);
+  font-weight: 570;
+  letter-spacing: -0.045em;
+  text-wrap: balance;
+}
+
+.heroCopy h1 {
+  max-width: 19ch;
+  font-size: clamp(2.65rem, 5vw, 4.85rem);
+  line-height: 1.03;
+}
+
+.heroCopy > p {
+  max-width: 45rem;
+  margin: 1.2rem 0 0;
+  color: var(--muted-foreground);
+  font-family: var(--font-mono);
+  font-size: clamp(0.84rem, 1.15vw, 0.98rem);
+  line-height: 1.8;
+}
+
+.installPanel {
+  max-width: none;
+  margin-top: clamp(2.1rem, 4vw, 3.15rem);
+  margin-right: calc(var(--hero-pad) * -1);
+  margin-left: calc(var(--hero-pad) * -1);
+  border: 1px solid var(--border);
+}
+
+.installTabs {
+  min-height: 3.2rem;
+  display: flex;
+  align-items: stretch;
+  gap: 0.4rem;
+  padding-inline: 1.15rem;
+  border-bottom: 1px solid var(--border);
+}
+
+.installTabs button {
+  position: relative;
+  min-width: 4.5rem;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: var(--muted-foreground);
+  font-family: var(--font-mono);
+  font-size: 0.78rem;
+  cursor: pointer;
+}
+
+.installTabs button::after {
+  content: "";
+  position: absolute;
+  right: 0;
+  bottom: -1px;
+  left: 0;
+  height: 1px;
+  transform: scaleX(0);
+  background: var(--foreground);
+}
+
+.installTabs button:hover,
+.installTabs .installTabActive { color: var(--foreground); }
+.installTabs .installTabActive::after { transform: scaleX(1); }
+
+.installCommand {
+  min-height: 4.55rem;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1.5rem;
+  padding: 1rem 1.25rem;
+}
+
+.installCommand code {
+  overflow-wrap: anywhere;
+  color: var(--foreground);
+  font-family: var(--font-mono);
+  font-size: clamp(0.82rem, 1.3vw, 0.98rem);
+}
+
+.installCommand button {
+  flex: 0 0 auto;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: var(--muted-foreground);
+  font-family: var(--font-mono);
+  font-size: 0.7rem;
+  cursor: pointer;
+}
+
+.installCommand button:hover { color: var(--foreground); }
+
+.eyebrow {
+  margin: 0;
+  color: var(--muted-foreground);
+  font-family: var(--font-mono);
+  font-size: 0.65rem;
+  font-weight: 600;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+}
+
+.story {
+  position: relative;
+  background: var(--background);
+  color: var(--foreground);
+}
+
+.story::after {
+  background: var(--border);
+}
+
+.storyInner {
+  padding: clamp(5rem, 10vw, 9rem) 1.25rem;
+}
+
+.storyHeader {
+  display: flex;
+  justify-content: flex-start;
+}
+
+.storyIntro {
+  width: min(100%, 39rem);
+}
+
+.story .eyebrow,
+.storyIntro > p,
+.stageIndex,
+.stageMeta { color: var(--muted-foreground); }
+
+.storyIntro h2 {
+  max-width: 18ch;
+  margin-top: 0.75rem;
+  color: var(--foreground);
+  font-size: clamp(1.35rem, 2vw, 1.85rem);
+  line-height: 1.2;
+}
+
+.storyIntro > p:last-of-type {
+  max-width: 34rem;
+  margin: 1rem 0 0;
+  font-size: 0.9rem;
+  line-height: 1.72;
+}
+
+.storyStageList {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  margin-top: clamp(2.75rem, 5vw, 4.5rem);
+  margin-right: -1.25rem;
+  margin-left: -1.25rem;
+  border-top: 1px solid var(--border);
+  border-left: 1px solid var(--border);
+}
+
+.stageIndex,
+.stageMeta {
+  font-family: var(--font-mono);
+  font-size: 0.64rem;
+  letter-spacing: 0.1em;
+}
+
+.storyRow {
+  min-width: 0;
+  min-height: 17rem;
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  padding: clamp(1.5rem, 2.5vw, 2rem);
+  border-right: 1px solid var(--border);
+  border-bottom: 1px solid var(--border);
+}
+
+.storyRowMeta {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 1rem;
+}
+
+.storyRow h3 {
+  max-width: 21ch;
+  margin: clamp(2.25rem, 4vw, 3.5rem) 0 0;
+  color: var(--foreground);
+  font-size: clamp(1.05rem, 1.35vw, 1.25rem);
+  font-weight: 600;
+  letter-spacing: -0.02em;
+  line-height: 1.25;
+  text-wrap: balance;
+}
+
+.storyRow > p {
+  max-width: 39rem;
+  margin: 0.85rem 0 0;
+  color: var(--muted-foreground);
+  font-size: 0.82rem;
+  line-height: 1.68;
+}
+
+.capabilities {
+  padding: clamp(5rem, 9vw, 8rem) 1.25rem;
+}
+
+.sectionHeading {
+  display: grid;
+  grid-template-columns: minmax(16rem, 0.7fr) minmax(0, 1.3fr);
+  gap: 1rem clamp(3rem, 8vw, 7rem);
+}
+
+.sectionHeading .eyebrow { grid-column: 1 / -1; }
+
+.sectionHeading h2 {
+  font-size: clamp(1.35rem, 2vw, 1.85rem);
+  line-height: 1.2;
+}
+
+.sectionHeading > p:last-child {
+  max-width: 38rem;
+  margin: 0;
+  align-self: end;
+  color: var(--muted-foreground);
+  font-size: 0.92rem;
+  line-height: 1.72;
+}
+
+.featureGrid {
+  margin-top: clamp(3rem, 6vw, 5rem);
+  margin-right: -1.25rem;
+  margin-left: -1.25rem;
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  border-top: 1px solid var(--border);
+  border-left: 1px solid var(--border);
+}
+
+.featureCard {
+  min-height: 18.5rem;
+  display: flex;
+  flex-direction: column;
+  padding: clamp(1.4rem, 2.5vw, 2rem);
+  border-right: 1px solid var(--border);
+  border-bottom: 1px solid var(--border);
+}
+
+.featureMeta {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+}
+
+.featureMeta span,
+.featureMeta code {
+  color: var(--muted-foreground);
+  font-family: var(--font-mono);
+  font-size: 0.63rem;
+  letter-spacing: 0.1em;
+}
+
+.featureMeta code {
+  overflow-wrap: anywhere;
+  letter-spacing: 0;
+  text-align: right;
+}
+
+.featureCard h3 {
+  margin: clamp(2.5rem, 5vw, 4.5rem) 0 0;
+  color: var(--foreground);
+  font-size: clamp(1.25rem, 1.8vw, 1.65rem);
+  font-weight: 590;
+  letter-spacing: -0.035em;
+}
+
+.featureCard p {
+  max-width: 43rem;
+  margin: 0.85rem 0 0;
+  color: var(--muted-foreground);
+  font-size: 0.86rem;
+  line-height: 1.7;
+}
+
+.launchSection {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 1.25rem;
+  padding: 1rem 1.25rem clamp(6rem, 10vw, 9rem);
+}
+
+.launchCopy {
+  width: min(100%, 39rem);
+}
+
+.launchCopy h2 {
+  max-width: 19ch;
+  font-size: clamp(2.1rem, 3.8vw, 3.6rem);
+  line-height: 1.05;
+}
+
+.launchCopy > p {
+  max-width: 38rem;
+  margin: 1rem 0 0;
+  color: var(--muted-foreground);
+  font-size: 0.92rem;
+  line-height: 1.72;
+}
+
+.launchCopy > div {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 1.5rem;
+  margin-top: 1.5rem;
+}
+
+.launchCopy a {
+  color: var(--foreground);
+  font-family: var(--font-mono);
+  font-size: 0.72rem;
+}
+
+.launchCopy a:hover { opacity: 0.58; }
+
+@media (max-width: 899px) {
+  .hero { min-height: auto; }
+  .sectionHeading,
+  .launchSection { grid-template-columns: 1fr; }
+  .storyStageList { grid-template-columns: 1fr; }
+  .storyRow { min-height: auto; }
+  .featureGrid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
+
+@media (max-width: 639px) {
+  .homeRoot::before { left: 1rem; }
+  .homeRoot::after { right: 1rem; }
+  .hero::after,
+  .story::after { width: calc(100% - 2rem); }
+  .heroInner,
+  .storyInner,
+  .capabilities,
+  .launchSection { width: calc(100% - 2rem); }
+  .storyInner,
+  .capabilities,
+  .launchSection { padding-left: 1rem; padding-right: 1rem; }
+  .storyStageList,
+  .featureGrid { margin-right: -1rem; margin-left: -1rem; }
+  .hero { padding-top: 4rem; }
+  .announcement { align-items: flex-start; flex-direction: column; gap: 0.65rem; }
+  .heroCopy h1 { font-size: clamp(2.45rem, 12vw, 3.7rem); }
+  .installTabs { padding-inline: 0.7rem; }
+  .installTabs button { min-width: 3.8rem; }
+  .installCommand { align-items: flex-start; flex-direction: column; gap: 0.85rem; }
+  .featureGrid { grid-template-columns: 1fr; }
+  .featureCard { min-height: 15rem; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .homeRoot *,
+  .homeRoot *::before,
+  .homeRoot *::after {
+    scroll-behavior: auto !important;
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+}

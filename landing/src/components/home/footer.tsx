@@ -10,12 +10,12 @@ export function HomeFooter() {
   const homePath = localizedPath(language);
 
   return (
-    <footer className="relative z-[1] border-t border-border/40 px-5 py-10 sm:px-6">
-      <div className="mx-auto flex max-w-6xl flex-col gap-6 sm:flex-row sm:items-start sm:justify-between">
+    <footer className="relative z-[1] px-4 py-10 sm:px-5">
+      <div className="mx-auto flex max-w-[78rem] flex-col gap-6 border-t border-border px-4 pt-8 sm:flex-row sm:items-start sm:justify-between sm:px-6">
         <div>
-          <p className="text-base font-bold tracking-tight text-foreground">
+          <p className="header-wordmark text-foreground">
             <a href={homePath} className="transition-colors hover:text-muted-foreground">
-              RSSANY
+              rssany
             </a>
           </p>
           <p className="mt-2 text-xs text-muted-foreground">{t("home.footerTagline")}</p>

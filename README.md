@@ -72,12 +72,28 @@ rssany start
 
 安装包内已包含构建好的后端与 Web 界面；用 **`rssany start`** 后台启动并直接返回访问地址（默认 **`http://127.0.0.1:18473/`**，端口可在**运行命令时当前目录**下的 `.env` 里设置 `PORT`）；用 **`rssany stop`** 关闭后台服务并输出执行状态。
 
-- **数据目录**：全局安装时落在 **npm prefix 下的 `var/rssany/`**（例如 `~/.local/var/rssany/` 或 nvm 的 `.../node/v22.x/var/rssany/`），与 `lib/node_modules/rssany` 同级，升级 npm 包不会覆盖配置与数据库。源码开发时使用仓库内 **`.rssany/`**。仍可用 **`RSSANY_USER_DIR`** 覆盖。
+- **数据目录**：全局安装时落在 **npm prefix 下的 `var/rssany/`**（例如 `~/.local/var/rssany/` 或 nvm 的 `.../node/v22.x/var/rssany/`），与 `lib/node_modules/rssany` 同级，升级 npm 包不会覆盖配置与数据库。源码开发时使用仓库内 **`.rssany/`**。可用 CLI 参数 **`--user-dir <path>`**（简写 **`--dir <path>`**）或环境变量 **`RSSANY_USER_DIR`** 覆盖，CLI 参数优先。
 - **从 `~/.rssany` 迁移**：若新目录尚不存在且旧目录有数据，首次启动会自动迁移。
 - **可选配置**：在启动 `rssany start` 时的**当前目录**放置 `.env`（可参考仓库里的 `.env.example`），用于 JWT、OAuth、SMTP、LLM（如 `OPENAI_API_KEY` / `OPENAI_BASE_URL` / `OPENAI_MODEL`）等。
-- **重置全部本地数据**（结束占用 `PORT` 的进程并删除用户目录，慎用）：执行 **`rssany reset`**；在含 `.env` 的目录下运行可读取 `PORT` / `RSSANY_USER_DIR`，或事先在环境里导出这些变量。
+- **重置全部本地数据**（结束占用 `PORT` 的进程并删除用户目录，慎用）：执行 **`rssany reset`**；可用 `rssany reset --user-dir <path>` 指定目标，也可在含 `.env` 的目录下运行以读取 `PORT` / `RSSANY_USER_DIR`。
 
-CLI 名为 **`rssany`**；裸 `rssany` 只显示用法，不再直接进入服务运行状态。
+CLI 名为 **`rssany`**；裸 `rssany` 与 `rssany start` 一样会启动服务。
+
+指定用户数据目录启动时，首次启动会在该目录初始化 `config.json`、`data/`、`cache/`、`collectors/` 和 `pipelines/`：
+
+```bash
+rssany --user-dir /srv/rssany-data start
+# 也可写成
+rssany start --dir /srv/rssany-data
+```
+
+Windows PowerShell 示例：
+
+```powershell
+rssany start --user-dir 'D:\rssany-data'
+```
+
+`--user-dir` / `--dir` 是全局参数，同样适用于 `status`、`stop`、`reset`、`crawl` 和 `update`。如果希望在有旧 `~/.rssany` 数据时初始化一个全新实例，请先创建目标目录，避免触发自动迁移。
 
 ### 从源码运行（开发 / 贡献）
 

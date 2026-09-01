@@ -65,4 +65,39 @@ describe("rssany status", () => {
     expect(result.stdout).toContain("Gateway: 已配置 (https://example.com/api/gateway)");
     expect(result.stderr).toBe("");
   });
+
+  it("accepts a CLI user directory override before the command", async () => {
+    const envUserDir = await mkdtemp(join(tmpdir(), "rssany-status-env-test-"));
+    const parentDir = await mkdtemp(join(tmpdir(), "rssany-status-cli-test-"));
+    const cliUserDir = join(parentDir, "user data");
+    await mkdir(cliUserDir, { recursive: true });
+    await writeFile(join(cliUserDir, "rssany.pid"), `${process.pid}\n`, "utf-8");
+
+    const result = await runRssAny(["--user-dir", cliUserDir, "status"], envUserDir);
+
+    expect(result.code).toBe(0);
+    expect(result.stdout).toContain(`RssAny: 运行中 (pid ${process.pid})`);
+    expect(result.stderr).toBe("");
+  });
+
+  it("accepts the --dir alias after the command", async () => {
+    const envUserDir = await mkdtemp(join(tmpdir(), "rssany-status-env-test-"));
+    const cliUserDir = await mkdtemp(join(tmpdir(), "rssany-status-cli-test-"));
+    await writeFile(join(cliUserDir, "rssany.pid"), `${process.pid}\n`, "utf-8");
+
+    const result = await runRssAny(["status", `--dir=${cliUserDir}`], envUserDir);
+
+    expect(result.code).toBe(0);
+    expect(result.stdout).toContain(`RssAny: 运行中 (pid ${process.pid})`);
+    expect(result.stderr).toBe("");
+  });
+
+  it("rejects a user directory option without a path", async () => {
+    const userDir = await mkdtemp(join(tmpdir(), "rssany-status-test-"));
+    const result = await runRssAny(["status", "--user-dir"], userDir);
+
+    expect(result.code).toBe(1);
+    expect(result.stdout).toBe("");
+    expect(result.stderr).toContain("--user-dir 需要提供目录路径");
+  });
 });

@@ -13,29 +13,12 @@
   height: auto;
 }
 
-/* 纯灰渐变背景：oklch 第二项为 chroma，全程为 0，避免任何色相 */
 .landingBackdrop {
-  opacity: 0.62;
-  background:
-    radial-gradient(ellipse 118% 82% at 50% -20%, oklch(0.91 0 0) 0%, transparent 56%),
-    radial-gradient(ellipse 92% 58% at 96% 42%, oklch(0.87 0 0) 0%, transparent 53%),
-    radial-gradient(ellipse 88% 52% at 6% 88%, oklch(0.93 0 0) 0%, transparent 50%);
+  background: color-mix(in oklch, var(--background) 96%, var(--muted) 4%);
 }
 
 :global(.dark) .landingBackdrop {
-  opacity: 0.48;
-  background:
-    radial-gradient(ellipse 118% 82% at 50% -20%, oklch(0.27 0 0) 0%, transparent 56%),
-    radial-gradient(ellipse 92% 58% at 94% 40%, oklch(0.24 0 0) 0%, transparent 53%);
-}
-
-.landingBackdropVeil {
-  background: linear-gradient(
-    to bottom,
-    color-mix(in oklch, var(--background) 38%, transparent),
-    color-mix(in oklch, var(--background) 74%, transparent),
-    var(--background)
-  );
+  background: color-mix(in oklch, var(--background) 96%, var(--muted) 4%);
 }
 
 .home :global(.btn:hover:not(:disabled)) {

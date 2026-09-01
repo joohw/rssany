@@ -35,7 +35,7 @@ RssAny 是**自托管的 RSS / 订阅管线**：通过采集器定时处理**网
 ## 技术内核
 
 - **后端**：Hono（`app/router/`）
-- **存储**：**SQLite**（Node.js 内置 `node:sqlite`），默认 **`~/.rssany/data/rssany.db`**（或 **`RSSANY_USER_DIR`**）
+- **存储**：**SQLite**（Node.js 内置 `node:sqlite`），默认 **`~/.rssany/data/rssany.db`**（可用 CLI `--user-dir` / `--dir` 或 **`RSSANY_USER_DIR`** 指定用户目录，CLI 参数优先）
 - **管线**：**feeder**（生成 RSS / 入库）+ **scraper**（信源、auth、调度）+ **pipeline**（内置步骤与 `.rssany/pipelines/` 用户步骤）
 - **LLM**（可选）：`app/core/llm.ts` 等，用于解析、提取、pipeline 中的标签 / 翻译等
 
@@ -62,7 +62,7 @@ RssAny 是**自托管的 RSS / 订阅管线**：通过采集器定时处理**网
 ├── app/webui-react/     # React/Vite 前端，构建产物由后端托管
 └── statics/             # 其它静态资源（若有）
 
-~/.rssany/（用户主目录下，首次启动创建；可选 RSSANY_USER_DIR）
+~/.rssany/（用户主目录下，首次启动创建；可选 CLI `--user-dir` / `--dir` 或 RSSANY_USER_DIR）
 ├── config.json          # initialized、sources、sites、tags、pipeline、deliver、llm 等统一配置
 ├── data/rssany.db       # SQLite
 ├── cache/               # fetched、extracted、domains、browser_data 等

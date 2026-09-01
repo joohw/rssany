@@ -4,11 +4,48 @@ import { closeSync, openSync } from "node:fs";
 import { access, mkdir, readFile, rm, writeFile } from "node:fs/promises";
 import http from "node:http";
 import { networkInterfaces } from "node:os";
-import { dirname, join } from "node:path";
+import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { resolveDefaultUserDir } from "../scripts/user-dir.mjs";
 
-const command = process.argv[2];
+function parseCliArgs(argv) {
+  const remaining = [];
+  let userDirOverride = "";
+
+  for (let index = 0; index < argv.length; index += 1) {
+    const arg = argv[index];
+    if (arg === "--user-dir" || arg === "--dir") {
+      const value = argv[index + 1]?.trim();
+      if (!value) throw new Error(`${arg} 需要提供目录路径。`);
+      userDirOverride = value;
+      index += 1;
+      continue;
+    }
+    if (arg.startsWith("--user-dir=") || arg.startsWith("--dir=")) {
+      const value = arg.slice(arg.indexOf("=") + 1).trim();
+      if (!value) throw new Error(`${arg.slice(0, arg.indexOf("="))} 需要提供目录路径。`);
+      userDirOverride = value;
+      continue;
+    }
+    remaining.push(arg);
+  }
+
+  if (userDirOverride) {
+    process.env.RSSANY_USER_DIR = resolve(process.cwd(), userDirOverride);
+  }
+  return remaining;
+}
+
+let cliArgs;
+try {
+  cliArgs = parseCliArgs(process.argv.slice(2));
+} catch (err) {
+  console.error(err instanceof Error ? err.message : String(err));
+  process.exit(1);
+}
+
+const command = cliArgs[0];
+const commandArgs = cliArgs.slice(1);
 const binDir = dirname(fileURLToPath(import.meta.url));
 const packageRoot = join(binDir, "..");
 const userDir = resolveDefaultUserDir(packageRoot);
@@ -72,7 +109,8 @@ function printAddress(prefix = "RssAny 已启动") {
 }
 
 function printUsage() {
-  console.log("用法: rssany <status|start|stop|reset|crawl|update>");
+  console.log("用法: rssany [--user-dir <path>] <status|start|stop|reset|crawl|update>");
+  console.log("  --user-dir <path>, --dir <path>  指定用户数据目录（优先于 RSSANY_USER_DIR）");
   console.log("  rssany         自动启动服务并输出访问地址与投递 Gateway 状态");
   console.log("  rssany status  只读输出服务与投递 Gateway 状态");
   console.log("  rssany start  后台启动服务并输出访问地址");
@@ -257,7 +295,7 @@ async function pollTask(taskId, timeoutMs = 120000) {
 }
 
 async function crawl() {
-  const ref = readCrawlRef(process.argv.slice(3));
+  const ref = readCrawlRef(commandArgs);
   if (!ref) {
     console.error("ref 不能为空。用法: rssany crawl <ref>");
     process.exitCode = 1;
@@ -303,7 +341,7 @@ async function runCommand(commandName, args) {
 async function update() {
   await mkdir(userDir, { recursive: true });
   const pid = await readPid();
-  const restartDisabled = process.argv.slice(3).includes("--no-restart");
+  const restartDisabled = commandArgs.includes("--no-restart");
   const shouldRestart = !restartDisabled && pid != null && isProcessRunning(pid);
   const shouldStop = pid != null && isProcessRunning(pid);
 

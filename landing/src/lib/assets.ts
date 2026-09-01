@@ -12,13 +12,13 @@ export type UseCaseImage = {
 const USE_CASE_IMAGES: Record<AppLanguage, UseCaseImage> = {
   "zh-CN": {
     src: `/use-case-zh.png?v=${USE_CASE_VERSION}`,
-    width: 730,
-    height: 731,
+    width: 1040,
+    height: 851,
   },
   en: {
     src: `/use-case-en.png?v=${USE_CASE_VERSION}`,
-    width: 730,
-    height: 731,
+    width: 1040,
+    height: 851,
   },
 };
 

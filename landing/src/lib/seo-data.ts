@@ -15,7 +15,7 @@ type SeoCopy = {
 export const SEO_COPY: Record<AppLanguage, Record<SeoPageKey, SeoCopy>> = {
   "zh-CN": {
     home: {
-      title: "定制专属信息源 · 内容生产与资讯管线 · rssany",
+      title: "rssany - 定制专属信息源",
       description:
         "RssAny 面向内容生产与资讯工作流，帮你定制网页、RSS、邮件等信源，定时抓取与采集器解析后统一入库，再输出 RSS、JSON API 与 MCP，接入创作与分发管线。",
       ogImage: "/use-case-zh.png",
@@ -95,56 +95,66 @@ export type FaqItem = { question: string; answer: string };
 export const FAQ_ITEMS: Record<AppLanguage, FaqItem[]> = {
   "zh-CN": [
     {
-      question: "RssAny 是什么？",
+      question: "RssAny 和普通 RSS 阅读器有什么不同？",
       answer:
-        "RssAny 是一套自托管的信息源定制与订阅管线，面向内容生产与资讯工作流。它抓取网页列表、标准 RSS、IMAP 邮件等信源，解析与补全文后入库去重，再按需生成 RSS/Atom/JSON Feed、JSON API 与 MCP，供创作与分发流程消费。",
+        "RssAny 不只是阅读 RSS，而是帮你持续收集网页、订阅源和邮件中的内容，经过整理后再提供给阅读器、创作工具或自动化流程。",
     },
     {
-      question: "支持哪些信源类型？",
+      question: "没有 RSS 的网站也能订阅吗？",
       answer:
-        "内置大量站点采集器（.rssany.js），也支持标准 RSS/Atom 与邮件信源。用户可在 ~/.rssany/collectors 覆盖或扩展采集器，并在 config.json 的 sources 中配置刷新间隔与代理。",
+        "可以。RssAny 可以从网页中提取更新内容，也支持标准订阅源和邮件。常用站点可以直接接入，其他网站也能按需扩展。",
     },
     {
-      question: "需要数据库吗？数据存在哪里？",
+      question: "RssAny 可以自动整理内容吗？",
       answer:
-        "使用 Node.js 内置 SQLite，默认在 ~/.rssany/data/rssany.db。条目、日志与用户数据均落在该目录，升级 npm 包不会覆盖你的配置。",
+        "可以。它能自动提取正文、去除重复内容，并按需要完成分类、打标签、翻译和质量筛选。",
     },
     {
-      question: "可以接 LLM 或自动打标签吗？",
+      question: "使用这些功能必须配置 AI 吗？",
       answer:
-        "可以。解析、正文提取、pipeline 中的标签与翻译等步骤可按 config.json 启用，并配置 OpenAI 兼容接口。pipeline 是固定代码链，不是用户采集器目录。",
+        "不需要。内容采集、去重、存储和订阅输出都可以独立运行。AI 是可选能力，可用于辅助正文提取、标签生成和翻译。",
     },
     {
-      question: "如何安装与启动？",
+      question: "内容多久更新一次？",
       answer:
-        "推荐 npm install -g rssany 后执行 rssany，浏览器打开默认 http://127.0.0.1:18473/。也可从源码 pnpm install && pnpm run build:all && pnpm start 运行。",
+        "每个信源都可以设置自己的更新频率。RssAny 会持续检查新内容，实际更新时间也会受到目标网站响应速度和访问限制影响。",
+    },
+    {
+      question: "数据存在哪里？会上传到第三方吗？",
+      answer:
+        "RssAny 运行在你自己的设备或服务器上，内容和设置默认由你掌控。RssAny 本身不提供云端存储；只有主动启用外部 AI 或投递服务时，相关内容才会发送到你配置的服务。",
     },
   ],
   en: [
     {
-      question: "What is RssAny?",
+      question: "How is RssAny different from a regular RSS reader?",
       answer:
-        "RssAny is a self-hosted pipeline for curating information sources in content production and news workflows. It fetches web lists, RSS/Atom, and IMAP mail, parses and enriches items, deduplicates into SQLite, then publishes RSS/Atom/JSON feeds, JSON API, and MCP for editorial and distribution tools.",
+        "RssAny does more than read RSS. It continuously collects content from websites, feeds, and email, organizes it, then makes it available to readers, creative tools, and automated workflows.",
     },
     {
-      question: "Which source types are supported?",
+      question: "Can I follow websites that do not offer RSS?",
       answer:
-        "Dozens of built-in collectors (.rssany.js), standard RSS/Atom feeds, and email sources. Add custom collectors under ~/.rssany/collectors and tune refresh intervals and proxies in config.json sources.",
+        "Yes. RssAny can extract updates from web pages and also supports standard feeds and email. Popular websites work out of the box, and other sources can be added as needed.",
     },
     {
-      question: "Where is data stored?",
+      question: "Can RssAny organize content automatically?",
       answer:
-        "Items live in SQLite via Node's built-in driver, defaulting to ~/.rssany/data/rssany.db. User config under ~/.rssany/ survives package upgrades.",
+        "Yes. It can extract full text, remove duplicates, and apply optional categorization, tagging, translation, and quality filtering.",
     },
     {
-      question: "Does it support LLM tagging or translation?",
+      question: "Is AI required?",
       answer:
-        "Yes. Parsing, extraction, tagging, and translation run in the fixed pipeline under app/pipeline/, toggled in config.json with an OpenAI-compatible endpoint.",
+        "No. Collection, deduplication, storage, and feed publishing work without AI. AI is optional and can assist with text extraction, tagging, and translation.",
     },
     {
-      question: "How do I install and run it?",
+      question: "How often is content updated?",
       answer:
-        "Run npm install -g rssany, then rssany and open http://127.0.0.1:18473/. From source: pnpm install, pnpm run build:all, pnpm start.",
+        "Each source can have its own refresh schedule. RssAny checks continuously, while actual timing may also depend on the source website's speed and access restrictions.",
+    },
+    {
+      question: "Where is my data stored, and is it sent to third parties?",
+      answer:
+        "RssAny runs on your own device or server, so your content and settings stay under your control. RssAny does not provide cloud storage; content is sent elsewhere only when you enable an external AI or delivery service.",
     },
   ],
 };
