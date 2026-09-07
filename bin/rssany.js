@@ -1,7 +1,9 @@
 #!/usr/bin/env node
+import "dotenv/config";
 import { spawn } from "node:child_process";
+import { randomUUID } from "node:crypto";
 import { closeSync, openSync } from "node:fs";
-import { access, mkdir, readFile, rm, writeFile } from "node:fs/promises";
+import { access, link, mkdir, readFile, rm, writeFile } from "node:fs/promises";
 import http from "node:http";
 import { networkInterfaces } from "node:os";
 import { dirname, join, resolve } from "node:path";
@@ -16,7 +18,7 @@ function parseCliArgs(argv) {
     const arg = argv[index];
     if (arg === "--user-dir" || arg === "--dir") {
       const value = argv[index + 1]?.trim();
-      if (!value) throw new Error(`${arg} 需要提供目录路径。`);
+      if (!value || value.startsWith("-")) throw new Error(`${arg} 需要提供目录路径。`);
       userDirOverride = value;
       index += 1;
       continue;
@@ -48,13 +50,45 @@ const command = cliArgs[0];
 const commandArgs = cliArgs.slice(1);
 const binDir = dirname(fileURLToPath(import.meta.url));
 const packageRoot = join(binDir, "..");
-const userDir = resolveDefaultUserDir(packageRoot);
+
+if (command === "help" || cliArgs.includes("--help") || cliArgs.includes("-h")) {
+  printUsage();
+  process.exit(0);
+}
+if (cliArgs.includes("--version") || cliArgs.includes("-v")) {
+  const { version } = JSON.parse(await readFile(join(packageRoot, "package.json"), "utf-8"));
+  console.log(version);
+  process.exit(0);
+}
+
+function readPort() {
+  const raw = process.env.PORT?.trim();
+  if (!raw) return 18473;
+  const value = Number(raw);
+  if (!/^\d+$/.test(raw) || !Number.isInteger(value) || value < 1 || value > 65535) {
+    throw new Error("PORT 必须是 1 到 65535 的整数。");
+  }
+  return value;
+}
+
+let port;
+try {
+  port = readPort();
+} catch (error) {
+  console.error(error.message);
+  process.exit(1);
+}
+
+const userDir = resolve(process.cwd(), resolveDefaultUserDir(packageRoot));
+// Keep the launcher and backend on the same resolved settings, including .env.
+process.env.RSSANY_USER_DIR = userDir;
+process.env.PORT = String(port);
 const pidPath = join(userDir, "rssany.pid");
+const startLockPath = join(userDir, "rssany.start.lock");
 const logPath = join(userDir, "rssany.log");
 const configPath = join(userDir, "config.json");
-const port = Number(process.env.PORT) || 18473;
 const serverOrigin = `http://127.0.0.1:${port}`;
-const START_TIMEOUT_MS = 12_000;
+const START_CONFIRM_MS = 3_000;
 const STOP_TIMEOUT_MS = 15_000;
 const FORCE_STOP_TIMEOUT_MS = 5_000;
 
@@ -111,6 +145,8 @@ function printAddress(prefix = "RssAny 已启动") {
 function printUsage() {
   console.log("用法: rssany [--user-dir <path>] <status|start|stop|reset|crawl|update>");
   console.log("  --user-dir <path>, --dir <path>  指定用户数据目录（优先于 RSSANY_USER_DIR）");
+  console.log("  --help, -h     显示帮助");
+  console.log("  --version, -v  显示版本");
   console.log("  rssany         自动启动服务并输出访问地址与投递 Gateway 状态");
   console.log("  rssany status  只读输出服务与投递 Gateway 状态");
   console.log("  rssany start  后台启动服务并输出访问地址");
@@ -148,9 +184,12 @@ async function readGateway() {
 async function status() {
   const pid = await readPid();
   const running = pid != null && isProcessRunning(pid);
-  if (running) {
+  if (running && await canConnectToServer(pid)) {
     console.log(`RssAny: 运行中 (pid ${pid})`);
     console.log(`访问地址: http://127.0.0.1:${port}/`);
+  } else if (running) {
+    console.log(`RssAny: 启动中或未就绪 (pid ${pid})`);
+    console.log(`日志: ${logPath}`);
   } else {
     console.log("RssAny: 未运行");
     if (pid != null) console.log(`PID 文件已失效: ${pid}`);
@@ -164,65 +203,210 @@ async function printGatewayStatus() {
   console.log(gateway ? `Gateway: 已配置 (${gateway})` : "Gateway: 未配置");
 }
 
-async function canConnectToServer() {
+async function canConnectToServer(expectedPid = null) {
   return new Promise((resolve) => {
-    const req = http.get(`${serverOrigin}/api/server-info`, (res) => {
-      res.resume();
-      resolve(true);
-    });
-    req.setTimeout(500, () => {
-      req.destroy();
-      resolve(false);
-    });
-    req.on("error", () => resolve(false));
+    let req;
+    let settled = false;
+    const finish = (ready) => {
+      if (settled) return;
+      settled = true;
+      clearTimeout(timer);
+      req?.destroy();
+      resolve(ready);
+    };
+    // Bound the complete request, including connection and response body reads.
+    const timer = setTimeout(() => finish(false), 500);
+    try {
+      req = http.get(`${serverOrigin}/api/server-info`, (res) => {
+        if (res.statusCode !== 200) {
+          finish(false);
+          return;
+        }
+        let body = "";
+        res.setEncoding("utf-8");
+        res.on("data", (chunk) => {
+          body += chunk;
+          if (body.length > 16_384) finish(false);
+        });
+        res.on("error", () => finish(false));
+        res.on("aborted", () => finish(false));
+        res.on("end", () => {
+          try {
+            const info = JSON.parse(body);
+            // A running pre-upgrade server may not expose pid yet. When present,
+            // it must identify the managed process, not another RssAny instance.
+            finish(info?.port === port && (expectedPid == null || info.pid === undefined || info.pid === expectedPid));
+          } catch {
+            finish(false);
+          }
+        });
+      });
+      req.on("error", () => finish(false));
+    } catch {
+      finish(false);
+    }
   });
 }
 
-async function waitForServer(timeoutMs = START_TIMEOUT_MS) {
+async function waitForServer(child, getSpawnError) {
   const startTime = Date.now();
-  while (Date.now() - startTime < timeoutMs) {
-    if (await canConnectToServer()) return true;
-    await new Promise((resolve) => setTimeout(resolve, 250));
+  while (Date.now() - startTime < START_CONFIRM_MS) {
+    if (getSpawnError() || child.exitCode != null || child.signalCode != null || !isProcessRunning(child.pid)) return "exited";
+    const ready = await canConnectToServer(child.pid);
+    if (getSpawnError() || child.exitCode != null || child.signalCode != null || !isProcessRunning(child.pid)) return "exited";
+    if (ready) return "ready";
+    await new Promise((resolve) => setTimeout(resolve, 100));
   }
-  return false;
+  if (getSpawnError() || child.exitCode != null || child.signalCode != null || !isProcessRunning(child.pid)) return "exited";
+  return "starting";
+}
+
+function printStarting(pid) {
+  console.log(`RssAny 正在后台启动或尚未就绪 (pid ${pid})。`);
+  console.log(`日志: ${logPath}`);
+  console.log(`查看状态: rssany --user-dir "${userDir}" status`);
+}
+
+async function acquireStartLock() {
+  const owner = JSON.stringify({ pid: process.pid, token: randomUUID() });
+  const ownerPath = `${startLockPath}.${randomUUID()}.tmp`;
+  // Publish a complete owner record atomically; contenders never see an empty lock.
+  await writeFile(ownerPath, owner, { encoding: "utf-8", flag: "wx" });
+  const started = Date.now();
+  try {
+    while (Date.now() - started < 5_000) {
+      try {
+        await link(ownerPath, startLockPath);
+        return async () => {
+          if (await readFile(startLockPath, "utf-8").catch(() => null) === owner) {
+            await rm(startLockPath, { force: true });
+          }
+        };
+      } catch (error) {
+        if (error.code !== "EEXIST") throw new Error(`无法获取启动锁: ${error.message}`);
+      }
+      const previous = await readFile(startLockPath, "utf-8").catch(() => null);
+      try {
+        const previousOwner = JSON.parse(previous);
+        if (Number.isInteger(previousOwner?.pid) && previousOwner.pid > 0 && !isProcessRunning(previousOwner.pid)) {
+          if (await readFile(startLockPath, "utf-8").catch(() => null) === previous) {
+            await rm(startLockPath, { force: true });
+          }
+        }
+      } catch {
+        // An unreadable owner is not evidence that the lock can be removed.
+      }
+      await new Promise((resolve) => setTimeout(resolve, 50));
+    }
+    throw new Error(`另一个启动命令正在使用启动锁，请稍后重试。锁文件: ${startLockPath}`);
+  } finally {
+    await rm(ownerPath, { force: true });
+  }
+}
+
+async function startManagedServer() {
+  await mkdir(userDir, { recursive: true });
+  const releaseStartLock = await acquireStartLock();
+  let currentPid = null;
+  let child;
+  let spawnError = null;
+  let didSpawn = false;
+  try {
+    const recordedPid = await readPid();
+    if (recordedPid && isProcessRunning(recordedPid)) {
+      currentPid = recordedPid;
+    } else {
+      const entry = join(packageRoot, "dist", "index.js");
+      if (!(await pathExists(entry))) {
+        throw new Error("未找到 dist/index.js，请先构建项目或重新安装 rssany。");
+      }
+      const logFd = openSync(logPath, "a");
+      let spawned;
+      try {
+        child = spawn(process.execPath, [entry], {
+          cwd: process.cwd(),
+          detached: true,
+          windowsHide: true,
+          env: process.env,
+          stdio: ["ignore", logFd, logFd],
+        });
+        spawned = new Promise((resolve) => {
+          child.once("spawn", () => resolve(true));
+          child.on("error", (error) => {
+            spawnError = error;
+            resolve(false);
+          });
+        });
+      } finally {
+        closeSync(logFd);
+      }
+      didSpawn = await spawned;
+      // HTTP/file operations and polling timers keep the confirmation work alive.
+      // The background server must not keep the CLI open if later cleanup fails.
+      child.unref();
+      if (didSpawn) {
+        try {
+          await writeFile(pidPath, `${child.pid}\n`, "utf-8");
+        } catch (error) {
+          try {
+            child.kill("SIGKILL");
+            if (!(await waitForProcessExit(child.pid, FORCE_STOP_TIMEOUT_MS))) {
+              throw new Error(`无法登记 PID，且无法停止本次后台进程 (pid ${child.pid})。`);
+            }
+          } finally {
+            child.unref();
+          }
+          throw new Error(`无法登记后台进程 PID，已停止本次启动: ${error.message}`);
+        }
+      }
+    }
+  } finally {
+    // Readiness probing is outside the lock; concurrent commands can read the PID.
+    await releaseStartLock();
+  }
+
+  if (currentPid) {
+    if (await canConnectToServer(currentPid)) {
+      printAddress(`RssAny 已在运行 (pid ${currentPid})`);
+    } else {
+      printStarting(currentPid);
+    }
+    return;
+  }
+  const result = didSpawn ? await waitForServer(child, () => spawnError) : "exited";
+  child.unref();
+  if (result === "ready") {
+    printAddress(`RssAny 已启动 (pid ${child.pid})`);
+    console.log(`日志: ${logPath}`);
+    return;
+  }
+
+  if (result === "starting") {
+    printStarting(child.pid);
+    return;
+  }
+
+  if (child.pid != null) {
+    const releasePidLock = await acquireStartLock();
+    try {
+      if (await readPid() === child.pid) await rm(pidPath, { force: true });
+    } finally {
+      await releasePidLock();
+    }
+  }
+  const reason = spawnError?.message
+    ?? (child.signalCode ? `信号 ${child.signalCode}` : `退出码 ${child.exitCode ?? "未知"}`);
+  console.error(`RssAny 启动失败 (${reason})，请查看日志: ${logPath}`);
+  process.exitCode = 1;
 }
 
 async function start() {
-  await mkdir(userDir, { recursive: true });
-
-  const currentPid = await readPid();
-  if (currentPid && isProcessRunning(currentPid)) {
-    printAddress(`RssAny 已在运行 (pid ${currentPid})`);
-    return;
-  }
-
-  const entry = join(packageRoot, "dist", "index.js");
-  if (!(await pathExists(entry))) {
-    console.error("未找到 dist/index.js，请先构建项目或重新安装 rssany。");
+  try {
+    await startManagedServer();
+  } catch (error) {
+    console.error(`RssAny 启动失败: ${error.message}`);
     process.exitCode = 1;
-    return;
   }
-
-  const logFd = openSync(logPath, "a");
-  const child = spawn(process.execPath, [entry], {
-    cwd: process.cwd(),
-    detached: true,
-    env: process.env,
-    stdio: ["ignore", logFd, logFd],
-  });
-  closeSync(logFd);
-
-  await writeFile(pidPath, `${child.pid}\n`, "utf-8");
-  console.log(`日志: ${logPath}`);
-  if (await waitForServer()) {
-    child.unref();
-    printAddress(`RssAny 已启动 (pid ${child.pid})`);
-    return;
-  }
-
-  child.unref();
-  console.error(`RssAny 启动未完成，请查看日志: ${logPath}`);
-  process.exitCode = 1;
 }
 
 async function stop() {

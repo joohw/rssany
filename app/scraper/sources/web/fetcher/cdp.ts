@@ -4,7 +4,7 @@ import { spawn, type ChildProcess } from "node:child_process";
 import { existsSync } from "node:fs";
 import { platform } from "node:os";
 import { join } from "node:path";
-import puppeteerCore, { type Browser, type ConnectOptions, type LaunchOptions } from "puppeteer-core";
+import type { Browser, ConnectOptions, LaunchOptions } from "puppeteer-core";
 
 
 /** 按平台枚举所有可能的 Chrome 路径，优先返回第一个实际存在的；全部不存在则返回 null */
@@ -166,6 +166,7 @@ async function connectToExistingChrome(port: number = 9222): Promise<string> {
 
 /** 通过 CDP 连接到 Chrome 并返回 Browser 对象 */
 export async function connectBrowser(config: CDPConfig): Promise<{ browser: Browser; cleanup?: () => Promise<void> }> {
+  const { default: puppeteerCore } = await import("puppeteer-core");
   let wsEndpoint: string;
   let chromeProcess: ChildProcess | undefined;
   if (config.useExisting) {
@@ -228,6 +229,7 @@ export async function launchBrowser(config: CDPConfig & { executablePath: string
     userDataDir: config.userDataDir,
     ignoreDefaultArgs: ["--enable-automation"],
   };
+  const { default: puppeteerCore } = await import("puppeteer-core");
   const browser = await puppeteerCore.launch(launchOptions);
   const cleanup = async () => {
     await browser.close();

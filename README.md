@@ -70,14 +70,14 @@ rssany start
 
 只对可信 npm 包使用 `sudo npm install -g`；长期使用更推荐 nvm / fnm 或用户级 npm prefix。
 
-安装包内已包含构建好的后端与 Web 界面；用 **`rssany start`** 后台启动并直接返回访问地址（默认 **`http://127.0.0.1:18473/`**，端口可在**运行命令时当前目录**下的 `.env` 里设置 `PORT`）；用 **`rssany stop`** 关闭后台服务并输出执行状态。
+安装包内已包含构建好的后端与 Web 界面；用 **`rssany start`** 后台启动，服务就绪后输出访问地址（默认 **`http://127.0.0.1:18473/`**，端口可在**运行命令时当前目录**下的 `.env` 里设置 `PORT`）。CLI 短暂检查约 3 秒；若进程仍在初始化，会提示后台启动中并返回，可用 **`rssany status`** 查看是否就绪。启动期间退出会报告失败；用户目录中的 `rssany.log` 记录各初始化阶段及耗时。用 **`rssany stop`** 关闭后台服务并输出执行状态。
 
 - **数据目录**：全局安装时落在 **npm prefix 下的 `var/rssany/`**（例如 `~/.local/var/rssany/` 或 nvm 的 `.../node/v22.x/var/rssany/`），与 `lib/node_modules/rssany` 同级，升级 npm 包不会覆盖配置与数据库。源码开发时使用仓库内 **`.rssany/`**。可用 CLI 参数 **`--user-dir <path>`**（简写 **`--dir <path>`**）或环境变量 **`RSSANY_USER_DIR`** 覆盖，CLI 参数优先。
 - **从 `~/.rssany` 迁移**：若新目录尚不存在且旧目录有数据，首次启动会自动迁移。
 - **可选配置**：在启动 `rssany start` 时的**当前目录**放置 `.env`（可参考仓库里的 `.env.example`），用于 JWT、OAuth、SMTP、LLM（如 `OPENAI_API_KEY` / `OPENAI_BASE_URL` / `OPENAI_MODEL`）等。
 - **重置全部本地数据**（结束占用 `PORT` 的进程并删除用户目录，慎用）：执行 **`rssany reset`**；可用 `rssany reset --user-dir <path>` 指定目标，也可在含 `.env` 的目录下运行以读取 `PORT` / `RSSANY_USER_DIR`。
 
-CLI 名为 **`rssany`**；裸 `rssany` 与 `rssany start` 一样会启动服务。
+CLI 名为 **`rssany`**；裸 `rssany` 与 `rssany start` 一样会启动服务。使用 `rssany --help` 查看用法，`rssany --version` 查看版本；这两个命令不会启动服务。CLI 与后端读取同一份当前目录下的 `.env`，已设置的环境变量优先于 `.env`，`--user-dir` 参数优先级最高。
 
 指定用户数据目录启动时，首次启动会在该目录初始化 `config.json`、`data/`、`cache/`、`collectors/` 和 `pipelines/`：
 

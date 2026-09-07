@@ -13,7 +13,7 @@ export function registerServerRoutes(app: Hono): void {
       .flat()
       .find((iface) => iface?.family === "IPv4" && !iface.internal)?.address;
     const lanUrl = lanIp ? `http://${lanIp}:${PORT}` : null;
-    return c.json({ port: PORT, lanUrl });
+    return c.json({ port: PORT, lanUrl, pid: process.pid });
   });
 
   app.get("/api/update-settings", async (c) => {

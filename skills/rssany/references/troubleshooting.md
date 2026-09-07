@@ -2,7 +2,7 @@
 
 ## Startup reports incomplete
 
-Check the log, PID, and `GET /api/server-info`. Initialization loads the user directory, database, collectors, and scheduler before listening. A healthy process that becomes reachable shortly after the CLI timeout is a readiness-delay warning, not a crash.
+Check `rssany status`, the log, PID, and `GET /api/server-info`. Initialization loads dependencies, the user directory, database, collectors, and scheduler before listening. The CLI returns after a short readiness check and reports background startup if the process is still alive. Older versions report startup incomplete after 12 seconds even if the service subsequently becomes ready. Inspect the startup stage timings in `rssany.log` to locate delays; a live process alone does not establish HTTP readiness.
 
 ## Chrome profile is already in use
 

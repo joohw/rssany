@@ -1,6 +1,5 @@
 // LLM 统一调用：封装 OpenAI chat completion，供 parser/extractor / pipeline 复用
 
-import OpenAI from "openai";
 import type { ChatCompletion } from "openai/resources/chat/completions";
 import { getLLMConfig } from "./llmConfig.js";
 import type { LLMConfig } from "./llmConfig.js";
@@ -57,6 +56,7 @@ export async function chatJson(
   options?: { maxTokens?: number; debugLabel?: string },
 ): Promise<Record<string, unknown>> {
   const { apiKey, baseUrl, model } = mergeConfig(config);
+  const { default: OpenAI } = await import("openai");
   const openai = new OpenAI({ apiKey, baseURL: baseUrl });
   const completion = await openai.chat.completions.create({
     model,
@@ -75,6 +75,7 @@ export async function chatText(
   options?: { maxTokens?: number; debugLabel?: string },
 ): Promise<string> {
   const { apiKey, baseUrl, model } = mergeConfig(config);
+  const { default: OpenAI } = await import("openai");
   const openai = new OpenAI({ apiKey, baseURL: baseUrl });
   const completion = await openai.chat.completions.create({
     model,

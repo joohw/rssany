@@ -2,8 +2,6 @@
 
 import { readFile, writeFile, mkdir } from "node:fs/promises";
 import { join } from "node:path";
-import { JSDOM } from "jsdom";
-import { Readability } from "@mozilla/readability";
 import { cacheKey as cacherCacheKey } from "../../../../core/cacher/index.js";
 import { fetchHtml } from "../fetcher/index.js";
 import type { RequestConfig } from "../fetcher/types.js";
@@ -54,7 +52,12 @@ function extractedCacheKey(url: string, config: ExtractorConfig): string {
 
 
 /** 使用 Readability 从详情页 HTML 提取正文 */
-function extractWithReadability(html: string, url: string): ExtractedResult {
+async function extractWithReadability(html: string, url: string): Promise<ExtractedResult> {
+  // 缓存命中和自定义提取不需要 DOM；把依赖加载留到实际解析正文时。
+  const [{ JSDOM }, { Readability }] = await Promise.all([
+    import("jsdom"),
+    import("@mozilla/readability"),
+  ]);
   const dom = new JSDOM(html, { url });
   const reader = new Readability(dom.window.document);
   const article = reader.parse();
@@ -85,7 +88,7 @@ export async function extractHtml(html: string, config: ExtractorConfig = {}): P
     return result;
   }
   if (mode === "readability") {
-    const result = extractWithReadability(html, url);
+    const result = await extractWithReadability(html, url);
     if (cacheDir != null && cacheDir !== "" && key) {
       await writeCachedExtracted(cacheDir, key, result);
     }

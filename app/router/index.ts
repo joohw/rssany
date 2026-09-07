@@ -87,15 +87,28 @@ function watchPipelines(): void {
 }
 
 async function main(): Promise<void> {
-  await initUserDir();
-  await initSourcesCache();
-  await getDb();
-  await initCollectors();
-  await reloadUserPipelines();
-  await initScheduler(CACHE_DIR);
+  console.log(`[startup] 开始初始化（进程已运行 ${Math.round(process.uptime() * 1000)} ms）`);
+  const initialize = async (stage: string, run: () => Promise<unknown>) => {
+    const startedAt = performance.now();
+    console.log(`[startup] ${stage}...`);
+    await run();
+    console.log(`[startup] ${stage}完成 (${Math.round(performance.now() - startedAt)} ms)`);
+  };
+  await initialize("用户目录", initUserDir);
+  await initialize("信源配置", initSourcesCache);
+  await initialize("数据库", getDb);
+  await initialize("采集器", initCollectors);
+  await initialize("Pipeline", reloadUserPipelines);
+  await initialize("调度器", () => initScheduler(CACHE_DIR));
   initAutoUpdate();
   const app = createApp();
-  const server = serve({ fetch: app.fetch, port: PORT, hostname: "0.0.0.0" });
+  const server = serve({ fetch: app.fetch, port: PORT, hostname: "0.0.0.0" }, () => {
+    console.log(
+      `RssAny ${getAppVersion()} 服务已启动 http://127.0.0.1:${PORT}/（API + 静态前端单地址；总耗时 ${Math.round(process.uptime() * 1000)} ms）`,
+    );
+    const lanIp = Object.values(networkInterfaces()).flat().find((iface) => iface?.family === "IPv4" && !iface.internal)?.address;
+    if (lanIp) console.log(`局域网访问 http://${lanIp}:${PORT}/`);
+  });
   server.setMaxListeners(32);
   let shuttingDown = false;
   const shutdown = async (signal: string) => {
@@ -120,11 +133,6 @@ async function main(): Promise<void> {
         });
     });
   }
-  console.log(
-    `RssAny ${getAppVersion()} 服务已启动 http://127.0.0.1:${PORT}/（API + 静态前端单地址）`,
-  );
-  const lanIp = Object.values(networkInterfaces()).flat().find((iface) => iface?.family === "IPv4" && !iface.internal)?.address;
-  if (lanIp) console.log(`局域网访问 http://${lanIp}:${PORT}/`);
   if (IS_DEV) {
     watchCollectors();
     watchPipelines();

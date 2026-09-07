@@ -3,7 +3,7 @@
 import { createHash } from "node:crypto";
 import { readFile } from "node:fs/promises";
 import { join, resolve } from "node:path";
-import puppeteerCore, { type Browser, type Page } from "puppeteer-core";
+import type { Browser, Page } from "puppeteer-core";
 import { applyPurify } from "./purify.js";
 import { findChromeExecutable } from "./cdp.js";
 import type { AuthFlow } from "../../../auth/index.js";
@@ -208,6 +208,7 @@ async function connectToProfileBrowser(userDataDir: string | undefined): Promise
     if (!Number.isInteger(port) || port <= 0 || !endpoint?.startsWith("/devtools/browser/")) {
       return null;
     }
+    const { default: puppeteerCore } = await import("puppeteer-core");
     return await puppeteerCore.connect({
       browserWSEndpoint: `ws://127.0.0.1:${port}${endpoint}`,
     });
@@ -245,6 +246,7 @@ export async function launchBrowser(config: BrowserLaunchConfig): Promise<Browse
   if (!executablePath) {
     throw new Error("未找到 Chrome 可执行文件，请安装 Google Chrome 或设置 CHROME_PATH 环境变量");
   }
+  const { default: puppeteerCore } = await import("puppeteer-core");
   const proxy = resolveProxy(config);
   const userDataDir = getUserDataDir(config.cacheDir, proxy);
   const maxRetries = 2;

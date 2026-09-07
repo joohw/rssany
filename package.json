@@ -1,6 +1,6 @@
 {
   "name": "rssany",
-  "version": "0.5.3",
+  "version": "0.5.4",
   "description": "Universal RSS/Atom/JSON Feed pipeline — collectors turn web, feed, API, and email sources into consumable feeds",
   "author": "Joo",
   "homepage": "https://rssany.com",
@@ -30,7 +30,7 @@
     "skills/rssany",
     ".env.example",
     "README.md",
-    "init",
+    "app/init",
     "scripts/reset.mjs",
     "scripts/postinstall.mjs",
     "scripts/user-dir.mjs",

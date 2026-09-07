@@ -3,16 +3,21 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { spawn } from "node:child_process";
+import { createServer } from "node:net";
 import { describe, expect, it } from "vitest";
 
 const repoRoot = fileURLToPath(new URL("..", import.meta.url));
 const binPath = join(repoRoot, "bin", "rssany.js");
 
-function runRssAny(args, userDir) {
+async function runRssAny(args, userDir) {
+  const portProbe = createServer();
+  await new Promise((resolve) => portProbe.listen(0, "127.0.0.1", resolve));
+  const port = portProbe.address().port;
+  await new Promise((resolve) => portProbe.close(resolve));
   return new Promise((resolve) => {
     const child = spawn(process.execPath, [binPath, ...args], {
       cwd: repoRoot,
-      env: { ...process.env, RSSANY_USER_DIR: userDir },
+      env: { ...process.env, RSSANY_USER_DIR: userDir, PORT: String(port) },
       stdio: ["ignore", "pipe", "pipe"],
     });
     let stdout = "";
@@ -38,14 +43,14 @@ describe("rssany status", () => {
     expect(result.stderr).toBe("");
   });
 
-  it("starts by default and reports the gateway status", async () => {
+  it("does not claim a live process is ready without a healthy server", async () => {
     const userDir = await mkdtemp(join(tmpdir(), "rssany-status-test-"));
     await writeFile(join(userDir, "rssany.pid"), `${process.pid}\n`, "utf-8");
 
     const result = await runRssAny([], userDir);
 
     expect(result.code).toBe(0);
-    expect(result.stdout).toContain(`RssAny 已在运行 (pid ${process.pid})`);
+    expect(result.stdout).toContain(`RssAny 正在后台启动或尚未就绪 (pid ${process.pid})`);
     expect(result.stdout).toContain("Gateway: 未配置");
     expect(result.stderr).toBe("");
   });
@@ -76,7 +81,7 @@ describe("rssany status", () => {
     const result = await runRssAny(["--user-dir", cliUserDir, "status"], envUserDir);
 
     expect(result.code).toBe(0);
-    expect(result.stdout).toContain(`RssAny: 运行中 (pid ${process.pid})`);
+    expect(result.stdout).toContain(`RssAny: 启动中或未就绪 (pid ${process.pid})`);
     expect(result.stderr).toBe("");
   });
 
@@ -88,7 +93,7 @@ describe("rssany status", () => {
     const result = await runRssAny(["status", `--dir=${cliUserDir}`], envUserDir);
 
     expect(result.code).toBe(0);
-    expect(result.stdout).toContain(`RssAny: 运行中 (pid ${process.pid})`);
+    expect(result.stdout).toContain(`RssAny: 启动中或未就绪 (pid ${process.pid})`);
     expect(result.stderr).toBe("");
   });
 

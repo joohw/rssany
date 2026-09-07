@@ -12,7 +12,7 @@ rssany stop
 rssany update
 ```
 
-Running `rssany` without a command starts the managed background service and prints its local URL. Startup waits up to 12 seconds for the health endpoint.
+Running `rssany` without a command starts the managed background service. The CLI checks readiness for about 3 seconds, then prints the local URL if ready or reports that startup is continuing in the background. Use `rssany status` to distinguish a ready service from a live process that is still starting or unavailable. A process that exits during the check is reported immediately as a startup failure.
 
 For source development, use the repository npm scripts (`dev`, `dev:backend`, `typecheck`, `test:run`, `build:all`) rather than modifying the global installation in place.
 
@@ -23,7 +23,7 @@ For source development, use the repository npm scripts (`dev`, `dev:backend`, `t
 3. Inspect `rssany.log` under the user directory or `GET /api/logs`.
 4. Check `/api/scheduler/stats` and `/api/sources/pull-status` for crawl state.
 
-The CLI may report startup incomplete when the process is still initializing; confirm the process and health endpoint before treating it as a crash.
+The startup log records initialization stages and elapsed times. Background startup is not itself a failure; confirm readiness with `rssany status` or the health endpoint. Older CLI versions may instead report startup incomplete after a 12-second readiness timeout.
 
 ## Backup
 
