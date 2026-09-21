@@ -206,6 +206,21 @@ config.json sources / 信源采集器
 
 更细的模块说明见 **[AGENTS.md](./AGENTS.md)**（与代码迭代同步，若有出入以代码为准）。
 
+### 官网前端
+
+`landing/` 使用 Next.js 静态导出，并通过 Cloudflare Workers Static Assets 发布。`landing/wrangler.jsonc` 定义 Worker `rssany`、静态资源目录、404 行为，并通过 Workers Route 接管 `rssany.com/*`；已有的 Cloudflare 代理 DNS 记录保留为源站回退，切换时无需等待 DNS 传播。
+
+持续部署由 Cloudflare Workers Builds 直接连接 GitHub 仓库：
+
+- Git repository：`joohw/rssany`
+- Root directory：`/landing`
+- Build command：`npm run build`
+- Deploy command：`npx wrangler deploy`
+- Production branch：`main`
+- Non-production branch builds：启用
+
+官网部署不依赖 GitHub Actions、Docker/SSH 凭据或仓库中的 Cloudflare API Secret；本机也可在 `landing/` 中通过 `npm run deploy` 发布。
+
 ---
 
 ## 许可证

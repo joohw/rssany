@@ -66,8 +66,7 @@
     "landing:install": "cd landing && npm install",
     "landing:dev": "cd landing && npm run dev",
     "landing:build": "cd landing && npm run build",
-    "deploy": "node scripts/deploy-landing.mjs",
-    "deploy:landing": "node scripts/deploy-landing.mjs"
+    "deploy": "npm --prefix landing run deploy"
   },
   "keywords": [
     "rss",
@@ -88,7 +87,6 @@
     "cross-env": "^7.0.3",
     "eslint": "^9.15.0",
     "globals": "^15.12.0",
-    "ssh2": "^1.17.0",
     "tsx": "^4.19.0",
     "typescript": "~5.6.0",
     "typescript-eslint": "^8.15.0",
