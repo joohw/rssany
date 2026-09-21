@@ -26,10 +26,11 @@ The static export is written to `out/`.
 Production is defined by `wrangler.jsonc`: the Worker is named `rssany`, serves
 the static export from `out/`, returns the generated `404.html` for missing
 routes, and handles `rssany.com/*` through a Workers Route. The proxied apex DNS
-record remains in place as an origin fallback and avoids a DNS propagation gap
-during deployment.
+record remains in place, but traffic will not fall back to that origin unless
+the Workers Route is changed or removed manually.
 
-For a manual deployment, authenticate once with `wrangler login`, then run:
+For a manual **production** deployment, authenticate once with `wrangler login`,
+then run (this deploys to production even when your local branch is `dev`):
 
 ```bash
 npm run deploy
@@ -43,6 +44,11 @@ Continuous deployment uses Cloudflare Workers Builds with these settings:
 - Deploy command: `npx wrangler deploy`
 - Production branch: `main`
 - Non-production branch builds: enabled
+- Non-production deploy command: `npx wrangler versions upload`
+
+The remote branches are `main` for production and `dev` for non-production
+version uploads. See the [deployment and branch guide](../docs/landing-deployment.md)
+for the workflow, checks, preview URL limitations, and rollback.
 
 Landing deployment does not use GitHub Actions, Docker, SSH credentials, or
 repository-level Cloudflare API secrets.
