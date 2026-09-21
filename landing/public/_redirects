@@ -1,0 +1,13 @@
+/ /zh-CN 308
+/blog /zh-CN/blog 308
+/about /zh-CN 308
+/docs https://github.com/joohw/rssany#readme 307
+/agents /zh-CN 308
+/guides /zh-CN 308
+/dashboard /zh-CN 308
+/blog/:slug /zh-CN/blog/:slug 308
+/docs/* https://github.com/joohw/rssany/tree/main/docs/:splat 307
+/agents/* /zh-CN 308
+/guides/* /zh-CN 308
+/compare/* /zh-CN 308
+/dashboard/* /zh-CN 308
